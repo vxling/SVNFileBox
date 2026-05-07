@@ -25,8 +25,8 @@ jobs:
       - name: Build
         run: dotnet build src/SVNFileBox.csproj -c Release -r win-x64 --self-contained false
 
-      - name: Publish
-        run: dotnet publish src/SVNFileBox.csproj -c Release -r win-x64 -o ./publish
+      - name: Publish (self-contained)
+        run: dotnet publish src/SVNFileBox.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ./publish
 
       - name: Create zip
         shell: pwsh
@@ -35,14 +35,8 @@ jobs:
           if (Test-Path $src) {
             Compress-Archive -Path "$src/*" -DestinationPath SVNFileBox-win64.zip
           } else {
-            $exe = Get-ChildItem -Path "." -Recurse -Include "SVNFileBox.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch "obj" } | Select-Object -First 1
-            if ($exe) {
-              $dir = $exe.DirectoryName
-              Compress-Archive -Path "$dir/*" -DestinationPath SVNFileBox-win64.zip
-            } else {
-              Write-Host "No publish output found"
-              Get-ChildItem -Path "src/bin" -Recurse -Directory | Select-Object -First 10
-            }
+            Write-Host "Looking for publish output..."
+            Get-ChildItem -Path "." -Recurse -Include "SVNFileBox.exe" -Depth 5 | Select-Object FullName, Length
           }
 
       - name: Upload artifact
