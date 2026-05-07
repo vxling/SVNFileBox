@@ -31,7 +31,22 @@ jobs:
       - name: Create zip
         shell: pwsh
         run: |
-          Compress-Archive -Path "publish/bin/Release/net8.0-windows/win-x64/publish/*" -DestinationPath SVNFileBox-win64.zip
+          $src = "publish/bin/Release/net8.0-windows/win-x64/publish"
+          if (Test-Path $src) {
+            Compress-Archive -Path "$src/*" -DestinationPath SVNFileBox-win64.zip
+            Write-Host "Used nested path: $src"
+          } elseif (Test-Path "publish") {
+            # Self-contained publishes directly to the output dir
+            $files = Get-ChildItem -Path "publish" -Recurse -Include "*.exe"
+            if ($files) {
+              Write-Host "Found exe at: $($files[0].FullName)"
+            }
+            Compress-Archive -Path "publish/*" -DestinationPath SVNFileBox-win64.zip
+            Write-Host "Used publish root path"
+          } else {
+            Write-Host "ERROR: No publish output found"
+            Get-ChildItem -R -Depth 3 | Select-Object FullName | Select-Object -First 30
+          }
 
       - name: Check zip size
         shell: pwsh
