@@ -1,6 +1,6 @@
 # SVNFileBox
 
-Windows SVN 同步客户端，基于 .NET 8 + WPF 构建。
+Windows SVN 同步客户端，类似DropBox，自动同步文档，last-write-win的手工决策冲突机制，基于 .NET 8 + WPF 构建。
 
 本地文件变更自动 commit 到 SVN，服务器更新自动 pull 到本地，保持工作副本始终同步。
 
