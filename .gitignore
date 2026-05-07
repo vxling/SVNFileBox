@@ -1,0 +1,31 @@
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+[xX]64/
+[xX]86/
+
+# Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.suo.*
+*.suo
+
+# NuGet
+packages/
+*.nupkg
+project.assets.json
+*.nuget.cache
+*.nuget.dgspec.json
+*.nuget.g.props
+*.nuget.g.targets
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

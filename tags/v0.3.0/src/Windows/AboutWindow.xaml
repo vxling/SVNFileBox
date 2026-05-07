@@ -1,0 +1,37 @@
+<Window x:Class="SVNFileBox.Windows.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="关于" Height="280" Width="360"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Logo / Title -->
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,15">
+            <TextBlock Text="[S]" FontSize="36" FontWeight="Bold" Foreground="#1E88E5" HorizontalAlignment="Center"/>
+            <TextBlock Text="SVNFileBox" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <!-- Version info -->
+        <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,0,0,15">
+            <TextBlock Text="版本 1.0.0" FontSize="13" HorizontalAlignment="Center" Foreground="#666"/>
+            <TextBlock Text="SVN 版 Dropbox" FontSize="12" HorizontalAlignment="Center" Foreground="#888" Margin="0,3,0,0"/>
+        </StackPanel>
+
+        <!-- Description -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,15">
+            <TextBlock Text="本地文件夹自动同步到 SVN 仓库，多设备共享。" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Foreground="#555"/>
+            <TextBlock Text="冲突时以最后修改时间为准自动解决。" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Foreground="#555" Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <!-- Close button -->
+        <Button Grid.Row="3" Content="关闭" Width="80" Padding="8,6" HorizontalAlignment="Center" Click="Close_Click"/>
+    </Grid>
+</Window>
