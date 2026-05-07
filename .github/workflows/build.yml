@@ -1,4 +1,4 @@
-name: Build
+name: Build & Release
 
 on:
   push:
@@ -25,19 +25,20 @@ jobs:
       - name: Build
         run: dotnet build src/SVNFileBox.csproj -c Release -r win-x64 --self-contained false
 
-      - name: Publish (self-contained)
+      - name: Publish
         run: dotnet publish src/SVNFileBox.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ./publish
 
       - name: Create zip
         shell: pwsh
         run: |
-          $src = "publish/bin/Release/net8.0-windows/win-x64/publish"
-          if (Test-Path $src) {
-            Compress-Archive -Path "$src/*" -DestinationPath SVNFileBox-win64.zip
-          } else {
-            Write-Host "Looking for publish output..."
-            Get-ChildItem -Path "." -Recurse -Include "SVNFileBox.exe" -Depth 5 | Select-Object FullName, Length
-          }
+          Compress-Archive -Path "publish/bin/Release/net8.0-windows/win-x64/publish/*" -DestinationPath SVNFileBox-win64.zip
+
+      - name: Check zip size
+        shell: pwsh
+        run: |
+          $size = (Get-Item SVNFileBox-win64.zip).Length
+          Write-Host "Zip size: $size bytes ($([math]::Round($size/1MB, 2)) MB)"
+          if ($size -lt 10MB) { Write-Host "WARNING: zip is smaller than 10MB, likely missing runtime" }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -46,31 +47,19 @@ jobs:
           path: SVNFileBox-win64.zip
           retention-days: 5
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: SVNFileBox-win64
-          path: artifacts
-
       - name: Create Draft Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           prerelease: false
-          tag_name: v1.0.0
-          name: SVNFileBox v1.0.0
+          tag_name: v1.0.1
+          name: SVNFileBox v1.0.1
           body: |
             Windows SVN 同步客户端，基于 .NET 8 + WPF 构建。
 
             ## 下载
             - Windows: `SVNFileBox-win64.zip`（内置 .NET 8 运行时，无需单独安装）
-          files: artifacts/SVNFileBox-win64.zip
+          files: SVNFileBox-win64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
