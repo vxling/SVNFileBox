@@ -70,7 +70,7 @@ jobs:
             Windows SVN 同步客户端，基于 .NET 8 + WPF 构建。
 
             ## 下载
-            - Windows: `SVNFileBox-win64.zip`
+            - Windows: `SVNFileBox-win64.zip`（内置 .NET 8 运行时，无需单独安装）
           files: artifacts/SVNFileBox-win64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
