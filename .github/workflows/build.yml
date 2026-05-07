@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore src/SVNFileBox.csproj
+
+      - name: Build
+        run: dotnet build src/SVNFileBox.csproj -c Release -r win-x64 --self-contained false
+
+      - name: Publish
+        run: |
+          dotnet publish src/SVNFileBox.csproj -c Release -r win-x64 -o ./publish
+        shell: pwsh
+
+      - name: Create zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/bin/Release/net8.0-windows/win-x64/publish/* -DestinationPath SVNFileBox-win64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SVNFileBox-win64
+          path: SVNFileBox-win64.zip
+          retention-days: 5
