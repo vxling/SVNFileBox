@@ -35,10 +35,14 @@ jobs:
           if (Test-Path $src) {
             Compress-Archive -Path "$src/*" -DestinationPath SVNFileBox-win64.zip
           } else {
-            # Try alternative path
-            $alt = Get-ChildItem -Path "src/bin" -Recurse -Include "SVNFileBox.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($alt) { Compress-Archive -Path $alt.FullName -DestinationPath SVNFileBox-win64.zip }
-            else { Write-Host "No publish output found"; Get-ChildItem -Path "src/bin" -Recurse -Directory | Select-Object -First 20 }
+            $exe = Get-ChildItem -Path "." -Recurse -Include "SVNFileBox.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch "obj" } | Select-Object -First 1
+            if ($exe) {
+              $dir = $exe.DirectoryName
+              Compress-Archive -Path "$dir/*" -DestinationPath SVNFileBox-win64.zip
+            } else {
+              Write-Host "No publish output found"
+              Get-ChildItem -Path "src/bin" -Recurse -Directory | Select-Object -First 10
+            }
           }
 
       - name: Upload artifact
@@ -47,3 +51,32 @@ jobs:
           name: SVNFileBox-win64
           path: SVNFileBox-win64.zip
           retention-days: 5
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SVNFileBox-win64
+          path: artifacts
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: false
+          tag_name: v1.0.0
+          name: SVNFileBox v1.0.0
+          body: |
+            Windows SVN 同步客户端，基于 .NET 8 + WPF 构建。
+
+            ## 下载
+            - Windows: `SVNFileBox-win64.zip`
+          files: artifacts/SVNFileBox-win64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
