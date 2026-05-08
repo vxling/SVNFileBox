@@ -18,7 +18,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         // Apply WPF-UI theme
-        ApplicationThemeManager.Apply(ApplicationTheme.Light, Wpf.Ui.Controls.WindowTheme.Unknown);
+        ApplicationThemeManager.Apply(ApplicationTheme.Light);
 
         var logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
