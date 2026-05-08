@@ -9,6 +9,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -60,25 +63,16 @@ jobs:
           path: SVNFileBox-win64.zip
           retention-days: 5
 
-      - name: Install GitHub CLI
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        run: |
-          choco install gh -y --no-progress 2>&1 | Out-Null
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          gh --version
-
       - name: Create Draft Release
         if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: SVNFileBox-win64.zip
+          body: |
+            Windows SVN 同步客户端，基于 .NET 8 + WPF + WPF-UI (Fluent Design) 构建。
+
+            ## 下载
+            - Windows: `SVNFileBox-win64.zip`（内置 .NET 8 运行时，无需单独安装）
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: pwsh
-        run: |
-          $tag = $github.ref -replace 'refs/tags/', ''
-          $version = $tag -replace '^v', ''
-          gh release create $tag `
-            SVNFileBox-win64.zip `
-            --draft `
-            --repo vxling/SVNFileBox `
-            --title "SVNFileBox $version" `
-            --notes "Windows SVN 同步客户端，基于 .NET 8 + WPF + WPF-UI (Fluent Design) 构建。`n`n## 下载`n- Windows: \`SVNFileBox-win64.zip\`（内置 .NET 8 运行时，无需单独安装）"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
