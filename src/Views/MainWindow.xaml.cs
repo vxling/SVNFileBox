@@ -449,14 +449,28 @@ public partial class MainWindow : Window
 
     private static void CopyDirectory(string sourceDir, string destDir, bool recursive)
     {
+        CopyDirectoryRecursive(sourceDir, destDir, recursive, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static void CopyDirectoryRecursive(string sourceDir, string destDir, bool recursive, HashSet<string> visited)
+    {
         var dir = new DirectoryInfo(sourceDir);
         if (!dir.Exists) return;
+
+        // Skip if already visited (prevents infinite loop from junctions/hardlinks)
+        try
+        {
+            var realPath = Path.GetFullPath(sourceDir);
+            if (!visited.Add(realPath)) return;
+        }
+        catch { return; }
+
         Directory.CreateDirectory(destDir);
         foreach (var file in dir.GetFiles())
             file.CopyTo(Path.Combine(destDir, file.Name), overwrite: true);
         if (recursive)
             foreach (var subDir in dir.GetDirectories())
-                CopyDirectory(subDir.FullName, Path.Combine(destDir, subDir.Name), recursive);
+                CopyDirectoryRecursive(subDir.FullName, Path.Combine(destDir, subDir.Name), recursive, visited);
     }
 
     private void AddLocalRepo_Click(object sender, RoutedEventArgs e)
