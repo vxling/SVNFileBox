@@ -8,7 +8,7 @@ using System.Timers;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Xml.Linq;
+using SharpSvn;
 using SVNFileBox.Models;
 using Serilog;
 
@@ -128,18 +128,17 @@ public class SyncService : IDisposable
         if (!fileExists)
         {
             // Check if file was actually tracked by SVN before attempting delete
-            var infoResult = await _svnService.RunCommandAsync($"info --non-interactive \"{filePath}\"");
-            if (infoResult.exitCode != 0)
+            if (!_svnService.IsVersioned(filePath))
             {
                 // File was never tracked by SVN, nothing to sync
                 Log.Information("Deleted file was never tracked by SVN, skipping: {File}", filePath);
                 return;
             }
-            var delResult = await _svnService.RunCommandAsync($"delete --non-interactive \"{filePath}\"");
-            if (delResult.exitCode != 0)
+            var delSuccess = await _svnService.DeleteAsync(filePath);
+            if (!delSuccess)
             {
-                Log.Warning("svn delete failed for {File}: {Error}", filePath, delResult.error);
-                _recordService.AddRecord(_currentRepo.Name, fileName, "Delete", "Failed", delResult.error);
+                Log.Warning("svn delete failed for {File}", filePath);
+                _recordService.AddRecord(_currentRepo.Name, fileName, "Delete", "Failed", "Delete returned false");
                 Notify($"删除同步失败: {fileName}");
                 return;
             }
@@ -252,29 +251,29 @@ public class SyncService : IDisposable
             {
                 case SvnStatus.Unversioned:
                 {
-                    var addResult = await _svnService.RunCommandAsync($"add --force --non-interactive \"{path}\"");
-                    if (addResult.exitCode == 0)
+                    var addSuccess = await _svnService.AddFileAsync(path);
+                    if (addSuccess)
                     {
                         Log.Information("[FullSync] Added: {Path}", path);
                         anyChange = true;
                     }
                     else
                     {
-                        Log.Warning("[FullSync] Failed to add {Path}: {Error}", path, addResult.error);
+                        Log.Warning("[FullSync] Failed to add {Path}", path);
                     }
                     break;
                 }
                 case SvnStatus.Missing:
                 {
-                    var delResult = await _svnService.RunCommandAsync($"delete --non-interactive \"{path}\"");
-                    if (delResult.exitCode == 0)
+                    var delSuccess = await _svnService.DeleteAsync(path);
+                    if (delSuccess)
                     {
                         Log.Information("[FullSync] Marked deleted: {Path}", path);
                         anyChange = true;
                     }
                     else
                     {
-                        Log.Warning("[FullSync] Failed to delete {Path}: {Error}", path, delResult.error);
+                        Log.Warning("[FullSync] Failed to delete {Path}", path);
                     }
                     break;
                 }
@@ -331,14 +330,12 @@ public class SyncService : IDisposable
             }
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
-            var result = await _svnService.RunCommandAsync($"update --non-interactive --xml \"{_currentRepo.Path}\"");
-            if (result.exitCode == 0)
+            var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
+            if (updateSuccess)
             {
-                // Check for conflicts in XML output
-                var doc = XDocument.Parse(result.output);
-                var ns = SvnService.XmlNs;
-                var conflictEls = doc.Descendants(ns + "conflict");
-                if (conflictEls.Any())
+                // Check for conflicts
+                var conflictedFiles = await _svnService.GetConflictedFilesAsync(_currentRepo.Path);
+                if (conflictedFiles.Count > 0)
                 {
                     var handled = await HandleConflictsAsync();
                     if (handled > 0)
@@ -356,19 +353,9 @@ public class SyncService : IDisposable
             }
             else
             {
-                var error = result.error;
-                if (error.Contains("locked") || error.Contains("locked by"))
-                {
-                    var lockedFiles = ExtractLockedFiles(error);
-                    foreach (var file in lockedFiles)
-                        AddPendingUpdate(file);
-                    _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Skipped", "Some files are locked");
-                    Notify("部分文件被占用，已跳过，将在下次重试");
-                }
-                else
-                {
-                    _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Failed", error);
-                    Notify($"更新失败: {error}");
+                Log.Warning("Update failed for {Path}", _currentRepo.Path);
+                _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Failed", "Update returned false");
+                Notify($"更新失败");
                 }
             }
         }
@@ -405,9 +392,9 @@ public class SyncService : IDisposable
                 }
 
                 var parentDir = Path.GetDirectoryName(file) ?? _currentRepo?.Path ?? "";
-                var result = await _svnService.RunCommandAsync($"update --non-interactive \"{file}\"");
+                var updateSuccess = await _svnService.UpdateAsync(file);
 
-                if (result.exitCode == 0)
+                if (updateSuccess)
                 {
                     lock (_pendingLock) { _pendingUpdates.Remove(file); }
                     _failedFileAttempts.TryRemove(file, out _);
@@ -491,25 +478,7 @@ public class SyncService : IDisposable
 
         try
         {
-            // Get list of conflicted files via XML output
-            var statusResult = await _svnService.RunCommandAsync($"status --non-interactive --xml \"{_currentRepo.Path}\"");
-            if (statusResult.exitCode != 0) return 0;
-
-            var doc = XDocument.Parse(statusResult.output);
-            var ns = SvnService.XmlNs;
-
-            var conflictedFiles = new List<string>();
-            foreach (var entry in doc.Descendants(ns + "entry"))
-            {
-                var wcStatus = entry.Element(ns + "wc-status");
-                if (wcStatus?.Attribute("item")?.Value == "conflicted")
-                {
-                    var path = entry.Attribute("path")?.Value?.Trim();
-                    if (!string.IsNullOrEmpty(path))
-                        conflictedFiles.Add(Path.Combine(_currentRepo.Path, path));
-                }
-            }
-
+            var conflictedFiles = await _svnService.GetConflictedFilesAsync(_currentRepo.Path);
             Log.Information("Found {Count} conflicted files", conflictedFiles.Count);
 
             foreach (var filePath in conflictedFiles)
@@ -519,18 +488,7 @@ public class SyncService : IDisposable
                     if (!File.Exists(filePath)) continue;
 
                     var localTime = File.GetLastWriteTimeUtc(filePath);
-
-                    // Get server file's last changed date via svn info --xml
-                    var infoResult = await _svnService.RunCommandAsync($"info --non-interactive --xml \"{filePath}\"");
-                    DateTime serverTime = DateTime.MinValue;
-                    if (infoResult.exitCode == 0)
-                    {
-                        var infoDoc = XDocument.Parse(infoResult.output);
-                        var infoNs = infoDoc.Root?.GetDefaultNamespace() ?? XNamespace.None;
-                        var dateEl = infoDoc.Descendants(infoNs + "date").FirstOrDefault();
-                        if (dateEl != null && DateTime.TryParse(dateEl.Value.Trim(), out var parsed))
-                            serverTime = parsed.ToUniversalTime();
-                    }
+                    var serverTime = await _svnService.GetLastChangedTimeAsync(filePath);
 
                     bool localNewer = localTime > serverTime;
                     Log.Information("Conflict on {File}: local={Local}, server={Server} → {Winner} wins",
@@ -540,15 +498,15 @@ public class SyncService : IDisposable
 
                     if (localNewer)
                     {
-                        // Keep local: accept working to clear conflict markers, then commit
-                        await _svnService.RunCommandAsync($"resolve --non-interactive --accept working \"{filePath}\"");
+                        // Keep local: accept working, then commit
+                        await _svnService.ResolveAsync(filePath, SvnAccept.Working);
                         await _svnService.CommitAsync(parentDir, $"Auto-sync: [Conflict Resolved - Keep Local] {Path.GetFileName(filePath)}");
                     }
                     else
                     {
-                        // Keep server: accept theirs-full
-                        await _svnService.RunCommandAsync($"update --non-interactive --accept theirs-full \"{filePath}\"");
-                        await _svnService.RunCommandAsync($"resolve --non-interactive --accept theirs-full \"{filePath}\"");
+                        // Keep server: update + resolve theirs-full
+                        await _svnService.UpdateAsync(filePath);
+                        await _svnService.ResolveAsync(filePath, SvnAccept.TheirsFull);
                     }
 
                     handled++;
