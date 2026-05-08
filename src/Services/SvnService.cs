@@ -38,6 +38,8 @@ public class SvnService : IDisposable
                     var path = item.Path;
                     if (string.IsNullOrEmpty(path)) return;
 
+                    Log.Debug("SvnStatus: path={Path} localStatus={Status} remoteStatus={Remote}", path, item.LocalNodeStatus, item.RemoteNodeStatus);
+
                     if (item.LocalNodeStatus == SharpSvnStatus.NotVersioned &&
                         (path == workingCopyPath || path.EndsWith(".")))
                         return;

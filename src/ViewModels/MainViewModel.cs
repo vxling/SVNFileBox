@@ -266,6 +266,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         .WaitAsync(cts.Token);
                     var repoRoot = SelectedRepository.Path;
 
+                    Log.Debug("LoadDirectoryAsync: path={Path} statuses count={Count} entries={@statuses}", path, statuses.Count, statuses);
+
                     // Check if the current directory itself is unversioned —
                     // if so, all its children are unversioned too (svn status won't recurse into it).
                     bool currentDirUnversioned = statuses.TryGetValue(path, out var dirStatus)
