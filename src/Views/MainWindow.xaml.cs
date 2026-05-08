@@ -11,6 +11,7 @@ using System.Windows.Input;
 using SVNFileBox.Models;
 using SVNFileBox.Services;
 using SVNFileBox.ViewModels;
+using SVNFileBox.Windows;
 using Serilog;
 
 namespace SVNFileBox.Views;
@@ -76,7 +77,49 @@ public partial class MainWindow : Window
             new RelayCommand(_ => _ = DoPasteAsync()),
             Key.V, ModifierKeys.Control));
 
+        _viewModel!.ConflictDetected += OnConflictDetected;
         await _viewModel.InitializeAsync();
+    }
+
+    private void OnConflictDetected(object? sender, List<ConflictedFileInfo> conflicts)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var window = new ConflictWindow { Owner = this };
+            window.SetConflicts(conflicts);
+            var result = window.ShowDialog();
+            if (result == true)
+            {
+                // User confirmed — kick off resolution via SyncService.ApplyConflictResolutionsAsync
+                // The event was already raised in SyncService, so the loop is waiting.
+                // Actually: ConflictDetected is a synchronous event (not async),
+                // and ApplyConflictResolutionsAsync is called in the same flow after this handler returns.
+                // So we just need to tell SyncService to proceed — which it already does.
+                // But SyncService can't know when the window closes... Let's handle it via a continuation.
+                _ = ResolveConflictsAsync(conflicts);
+            }
+            // If DialogResult == false (cancel), conflicts are not resolved — user explicitly deferred
+        });
+    }
+
+    private async Task ResolveConflictsAsync(List<ConflictedFileInfo> conflicts)
+    {
+        if (_viewModel?.SyncService == null) return;
+        try
+        {
+            StatusText.Text = $"正在处理 {conflicts.Count} 个冲突文件...";
+            var handled = await _viewModel.SyncService.ApplyConflictResolutionsAsync(conflicts);
+            _viewModel.RecordService.AddRecord(
+                _viewModel.SelectedRepository?.Name ?? "",
+                "", "ConflictResolved", "Success", $"Resolved {handled} conflict(s)");
+            StatusText.Text = $"冲突处理完成：{handled} 个";
+            await _viewModel.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Conflict resolution failed");
+            StatusText.Text = "冲突处理失败";
+        }
     }
 
     private void RepoList_SelectionChanged(object sender, SelectionChangedEventArgs e)

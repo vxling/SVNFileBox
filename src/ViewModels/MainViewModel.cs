@@ -73,12 +73,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _canRename;
 
 
+    public event EventHandler<List<ConflictedFileInfo>>? ConflictDetected;
+
     public MainViewModel()
     {
         _configService = new ConfigService();
         _syncService = new SyncService(_configService, SyncRecordService.Instance);
         _syncService.SyncNotification += (_, msg) => StatusText = msg;
         _syncService.FilesChanged += async (_, _) => await RefreshAsync();
+        _syncService.ConflictDetected += (_, conflicts) => ConflictDetected?.Invoke(this, conflicts);
 
         // Marshal SyncRecordService.AddRecord calls to the UI thread
         SyncRecordService.Instance.UiDispatcher = Application.Current?.Dispatcher;

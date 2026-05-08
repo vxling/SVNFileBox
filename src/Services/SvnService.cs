@@ -341,6 +341,8 @@ public class SvnService : IDisposable
 
     /// <summary>
     /// Resolve a conflicted file by accepting a specific resolution.
+    /// SvnAccept.Working = keep working file as-is (defer/Postpone);
+    /// SvnAccept.MineFull = keep local version; SvnAccept.TheirsFull = accept server version.
     /// </summary>
     public async Task<bool> ResolveAsync(string path, SvnAccept accept)
     {

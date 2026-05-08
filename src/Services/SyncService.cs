@@ -32,6 +32,11 @@ public class SyncService : IDisposable
 
     public event EventHandler<string>? SyncNotification;
     public event EventHandler? FilesChanged;
+    /// <summary>
+    /// Raised when server update creates conflicts. The sync loop pauses until
+    /// all ConflictFileInfo objects are resolved by the caller.
+    /// </summary>
+    public event EventHandler<List<ConflictedFileInfo>>? ConflictDetected;
 
     public SyncService(ConfigService configService, SyncRecordService recordService)
     {
@@ -329,16 +334,14 @@ public class SyncService : IDisposable
             var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
             if (updateSuccess)
             {
-                // Check for conflicts
-                var conflictedFiles = await _svnService.GetConflictedFilesAsync(_currentRepo.Path);
-                if (conflictedFiles.Count > 0)
+                var conflictInfo = await BuildConflictInfoListAsync(_currentRepo.Path);
+                if (conflictInfo.Count > 0)
                 {
-                    var handled = await HandleConflictsAsync();
-                    if (handled > 0)
-                    {
-                        _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "ConflictResolved", "Success", $"Resolved {handled} conflict(s) by Last-Write-Wins");
-                        FilesChanged?.Invoke(this, EventArgs.Empty);
-                    }
+                    // Raise event — MainWindow shows ConflictWindow as a modal dialog,
+                    // waits for user to pick resolutions, then calls ApplyConflictResolutionsAsync.
+                    ConflictDetected?.Invoke(this, conflictInfo);
+                    // Do NOT await or call ApplyConflictResolutionsAsync here.
+                    // The MainWindow.OnConflictDetected handler shows the dialog and triggers resolution.
                 }
                 else
                 {
@@ -439,63 +442,102 @@ public class SyncService : IDisposable
     }
 
     /// <summary>
-    /// Detects and resolves conflicted files using Last-Write-Wins strategy.
-    /// Compares local file's last write time vs SVN revision timestamp.
-    /// If local is newer → keep local, mark resolved. If server is newer → accept theirs.
+    /// Scans for conflicted files and builds a list with local/server timestamps
+    /// and a Last-Write-Wins suggestion. Does NOT resolve anything.
     /// </summary>
-    private async Task<int> HandleConflictsAsync()
+    private async Task<List<ConflictedFileInfo>> BuildConflictInfoListAsync(string workingCopyPath)
     {
-        if (_currentRepo == null) return 0;
+        var conflictInfo = new List<ConflictedFileInfo>();
+        var conflictedPaths = await _svnService.GetConflictedFilesAsync(workingCopyPath);
+        Log.Information("Found {Count} conflicted files", conflictedPaths.Count);
 
-        int handled = 0;
-
-        try
+        foreach (var filePath in conflictedPaths)
         {
-            var conflictedFiles = await _svnService.GetConflictedFilesAsync(_currentRepo.Path);
-            Log.Information("Found {Count} conflicted files", conflictedFiles.Count);
-
-            foreach (var filePath in conflictedFiles)
+            try
             {
-                try
+                if (!File.Exists(filePath)) continue;
+
+                var localTime = File.GetLastWriteTimeUtc(filePath);
+                var serverTime = await _svnService.GetLastChangedTimeAsync(filePath);
+
+                conflictInfo.Add(new ConflictedFileInfo
                 {
-                    if (!File.Exists(filePath)) continue;
-
-                    var localTime = File.GetLastWriteTimeUtc(filePath);
-                    var serverTime = await _svnService.GetLastChangedTimeAsync(filePath);
-
-                    bool localNewer = localTime > serverTime;
-                    Log.Information("Conflict on {File}: local={Local}, server={Server} → {Winner} wins",
-                        Path.GetFileName(filePath), localTime, serverTime, localNewer ? "local" : "server");
-
-                    var parentDir = Path.GetDirectoryName(filePath) ?? _currentRepo.Path;
-
-                    if (localNewer)
-                    {
-                        // Keep local: accept working, then commit
-                        await _svnService.ResolveAsync(filePath, SvnAccept.Working);
-                        await _svnService.CommitAsync(parentDir, $"Auto-sync: [Conflict Resolved - Keep Local] {Path.GetFileName(filePath)}");
-                    }
-                    else
-                    {
-                        // Keep server: update + resolve theirs-full
-                        await _svnService.UpdateAsync(filePath);
-                        await _svnService.ResolveAsync(filePath, SvnAccept.TheirsFull);
-                    }
-
-                    handled++;
-                    _recordService.AddRecord(_currentRepo.Name, Path.GetFileName(filePath), "ConflictResolved", "Success",
-                        localNewer ? "Local kept (Last-Write-Wins)" : "Server kept (Last-Write-Wins)");
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Failed to resolve conflict: {File}", filePath);
-                    _recordService.AddRecord(_currentRepo.Name, Path.GetFileName(filePath), "ConflictResolved", "Failed", ex.Message);
-                }
+                    FilePath = filePath,
+                    LocalModifiedTime = localTime,
+                    ServerModifiedTime = serverTime,
+                    SuggestedResolution = localTime > serverTime
+                        ? ConflictResolution.KeepLocal
+                        : ConflictResolution.AcceptServer,
+                    SelectedResolution = localTime > serverTime
+                        ? ConflictResolution.KeepLocal
+                        : ConflictResolution.AcceptServer,
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to build conflict info for {File}", filePath);
             }
         }
-        catch (Exception ex)
+
+        return conflictInfo;
+    }
+
+    /// <summary>
+    /// Applies user-selected resolutions from the ConflictWindow.
+    /// Runs after the user closes the ConflictWindow — called from SyncService's caller (MainWindow).
+    /// </summary>
+    internal async Task<int> ApplyConflictResolutionsAsync(List<ConflictedFileInfo> conflictInfo)
+    {
+        if (_currentRepo == null) return 0;
+        int handled = 0;
+
+        foreach (var info in conflictInfo)
         {
-            Log.Error(ex, "Error handling conflicts");
+            try
+            {
+                var parentDir = Path.GetDirectoryName(info.FilePath) ?? _currentRepo.Path;
+                var fileName = Path.GetFileName(info.FilePath);
+
+                switch (info.SelectedResolution)
+                {
+                    case ConflictResolution.KeepLocal:
+                    {
+                        // Accept local version: resolve to MineFull then commit
+                        var resolved = await _svnService.ResolveAsync(info.FilePath, SvnAccept.MineFull);
+                        if (!resolved) Log.Warning("Resolve(MineFull) returned false for {File}", info.FilePath);
+                        var committed = await _svnService.CommitAsync(parentDir, $"Auto-sync: [Conflict Resolved — Kept Local] {fileName}");
+                        Log.Information("Conflict KeepLocal: {File}, resolve={Resolved}, commit={Committed}", info.FilePath, resolved, committed);
+                        break;
+                    }
+                    case ConflictResolution.AcceptServer:
+                    {
+                        // Accept server version: resolve to TheirsFull (svn stores server version in working file)
+                        var resolved = await _svnService.ResolveAsync(info.FilePath, SvnAccept.TheirsFull);
+                        if (!resolved) Log.Warning("Resolve(TheirsFull) returned false for {File}", info.FilePath);
+                        Log.Information("Conflict AcceptServer: {File}, resolved={Resolved}", info.FilePath, resolved);
+                        break;
+                    }
+                    case ConflictResolution.KeepBoth:
+                    {
+                        // Keep local as backup, then accept server version
+                        var backupPath = info.FilePath + $".local-backup-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                        File.Copy(info.FilePath, backupPath, overwrite: true);
+                        Log.Information("Conflict KeepBoth: copied {Original} → {Backup}", info.FilePath, backupPath);
+                        var resolved = await _svnService.ResolveAsync(info.FilePath, SvnAccept.TheirsFull);
+                        Log.Information("Conflict KeepBoth: {File} accepted server, resolved={Resolved}", info.FilePath, resolved);
+                        break;
+                    }
+                }
+
+                handled++;
+                _recordService.AddRecord(_currentRepo.Name, fileName, "ConflictResolved", "Success",
+                    $"User chose: {info.SelectedResolution}");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to apply conflict resolution for {File}", info.FilePath);
+                _recordService.AddRecord(_currentRepo.Name, Path.GetFileName(info.FilePath), "ConflictResolved", "Failed", ex.Message);
+            }
         }
 
         return handled;
