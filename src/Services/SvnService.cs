@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using SharpSvn;
 using SVNFileBox.Models;
 using Serilog;
+using SharpSvnStatus = SharpSvn.SvnStatus;
 
 namespace SVNFileBox.Services;
 
@@ -20,9 +21,9 @@ public class SvnService : IDisposable
             typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown");
     }
 
-    public async Task<Dictionary<string, SvnStatus>> GetStatusAsync(string workingCopyPath)
+    public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync(string workingCopyPath)
     {
-        var statuses = new Dictionary<string, SvnStatus>();
+        var statuses = new Dictionary<string, FileSvnStatus>();
 
         await Task.Run(() =>
         {
@@ -41,9 +42,9 @@ public class SvnService : IDisposable
                     if (Directory.Exists(workingCopyPath))
                     {
                         foreach (var file in Directory.GetFiles(workingCopyPath, "*", SearchOption.TopDirectoryOnly))
-                            statuses[file] = SvnStatus.Unversioned;
+                            statuses[file] = FileSvnStatus.Unversioned;
                         foreach (var dir in Directory.GetDirectories(workingCopyPath, "*", SearchOption.TopDirectoryOnly))
-                            statuses[dir] = SvnStatus.Unversioned;
+                            statuses[dir] = FileSvnStatus.Unversioned;
                     }
                     return;
                 }
@@ -54,26 +55,26 @@ public class SvnService : IDisposable
                     if (string.IsNullOrEmpty(path)) continue;
 
                     // Skip the root if unversioned ("? .")
-                    if (item.LocalNodeStatus == SvnStatus.NotVersioned &&
+                    if (item.LocalNodeStatus == SharpSvnStatus.NotVersioned &&
                         (path == workingCopyPath || path.EndsWith(".")))
                         continue;
 
                     var svnStatus = item.LocalNodeStatus switch
                     {
-                        SvnStatus.Modified => SvnStatus.Modified,
-                        SvnStatus.Added => SvnStatus.Added,
-                        SvnStatus.Deleted => SvnStatus.Deleted,
-                        SvnStatus.Conflicted => SvnStatus.Conflicted,
-                        SvnStatus.NotVersioned => SvnStatus.Unversioned,
-                        SvnStatus.Missing => SvnStatus.Missing,
-                        SvnStatus.Replaced => SvnStatus.Replaced,
-                        SvnStatus.Obstructed => SvnStatus.Obstructed,
-                        SvnStatus.External => SvnStatus.External,
-                        SvnStatus.Incomplete => SvnStatus.Unknown,
-                        _ => SvnStatus.Normal
+                        SharpSvnStatus.Modified => FileSvnStatus.Modified,
+                        SharpSvnStatus.Added => FileSvnStatus.Added,
+                        SharpSvnStatus.Deleted => FileSvnStatus.Deleted,
+                        SharpSvnStatus.Conflicted => FileSvnStatus.Conflicted,
+                        SharpSvnStatus.NotVersioned => FileSvnStatus.Unversioned,
+                        SharpSvnStatus.Missing => FileSvnStatus.Missing,
+                        SharpSvnStatus.Replaced => FileSvnStatus.Replaced,
+                        SharpSvnStatus.Obstructed => FileSvnStatus.Obstructed,
+                        SharpSvnStatus.External => FileSvnStatus.External,
+                        SharpSvnStatus.Incomplete => FileSvnStatus.Unknown,
+                        _ => FileSvnStatus.Normal
                     };
 
-                    if (svnStatus != SvnStatus.Normal || !statuses.ContainsKey(path))
+                    if (svnStatus != FileSvnStatus.Normal || !statuses.ContainsKey(path))
                         statuses[path] = svnStatus;
                 }
             }

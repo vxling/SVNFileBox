@@ -10,18 +10,18 @@ public class SvnStatusToColorConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value is not SvnStatus status) return Brushes.Gray;
+        if (value is not FileSvnStatus status) return Brushes.Gray;
 
         return status switch
         {
-            SvnStatus.Modified   => new SolidColorBrush(Color.FromRgb(0x1E, 0x88, 0xE5)), // Blue
-            SvnStatus.Added      => new SolidColorBrush(Color.FromRgb(0x00, 0xA6, 0x50)), // Green
-            SvnStatus.Deleted    => new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35)), // Red
-            SvnStatus.Conflicted => new SolidColorBrush(Color.FromRgb(0xFB, 0x8C, 0x00)), // Orange
-            SvnStatus.Unversioned => new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E)), // Gray
-            SvnStatus.Missing    => new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0xAA)), // Purple
-            SvnStatus.Normal      => new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x53)), // Green check
-            SvnStatus.Hidden        => Brushes.Transparent, // No badge for parent directory row
+            FileSvnStatus.Modified   => new SolidColorBrush(Color.FromRgb(0x1E, 0x88, 0xE5)), // Blue
+            FileSvnStatus.Added      => new SolidColorBrush(Color.FromRgb(0x00, 0xA6, 0x50)), // Green
+            FileSvnStatus.Deleted    => new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35)), // Red
+            FileSvnStatus.Conflicted => new SolidColorBrush(Color.FromRgb(0xFB, 0x8C, 0x00)), // Orange
+            FileSvnStatus.Unversioned => new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E)), // Gray
+            FileSvnStatus.Missing    => new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0xAA)), // Purple
+            FileSvnStatus.Normal      => new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x53)), // Green check
+            FileSvnStatus.Hidden        => Brushes.Transparent, // No badge for parent directory row
             _ => Brushes.Transparent
         };
     }
@@ -34,22 +34,22 @@ public class SvnStatusToTextConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value is not SvnStatus status) return "";
+        if (value is not FileSvnStatus status) return "";
 
         return status switch
         {
-            SvnStatus.Normal      => "✓",
-            SvnStatus.Hidden        => "",
-            SvnStatus.Modified    => "M",
-            SvnStatus.Added       => "A",
-            SvnStatus.Deleted     => "D",
-            SvnStatus.Conflicted  => "C",
-            SvnStatus.Unversioned => "?",
-            SvnStatus.Missing     => "!",
-            SvnStatus.Replaced    => "R",
-            SvnStatus.Obstructed => "~",
-            SvnStatus.External    => "X",
-            SvnStatus.Unknown     => "I",
+            FileSvnStatus.Normal      => "✓",
+            FileSvnStatus.Hidden        => "",
+            FileSvnStatus.Modified    => "M",
+            FileSvnStatus.Added       => "A",
+            FileSvnStatus.Deleted     => "D",
+            FileSvnStatus.Conflicted  => "C",
+            FileSvnStatus.Unversioned => "?",
+            FileSvnStatus.Missing     => "!",
+            FileSvnStatus.Replaced    => "R",
+            FileSvnStatus.Obstructed => "~",
+            FileSvnStatus.External    => "X",
+            FileSvnStatus.Unknown     => "I",
             _ => ""
         };
     }

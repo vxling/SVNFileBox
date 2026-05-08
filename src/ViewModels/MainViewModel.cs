@@ -199,7 +199,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     Name = "返回上级目录",
                     FullPath = parentPath,
                     IsDirectory = true,
-                    SvnStatus = SvnStatus.Hidden,
+                    SvnStatus = FileSvnStatus.Hidden,
                     LastModified = DateTime.MinValue
                 });
             }
@@ -214,7 +214,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     FullPath = dir.FullName,
                     IsDirectory = true,
                     LastModified = dir.LastWriteTime,
-                    SvnStatus = SvnStatus.Normal
+                    SvnStatus = FileSvnStatus.Normal
                 });
             }
 
@@ -229,7 +229,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     IsDirectory = false,
                     FileSize = file.Length,
                     LastModified = file.LastWriteTime,
-                    SvnStatus = SvnStatus.Normal
+                    SvnStatus = FileSvnStatus.Normal
                 });
             }
 
@@ -267,7 +267,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     {
                         if (item.Name == "..") continue;
                         // Default to Normal (won't display anything, but marks the item as processed)
-                        item.SvnStatus = SvnStatus.Normal;
+                        item.SvnStatus = FileSvnStatus.Normal;
                         // Override with actual status if found in svn status output
                         if (statuses.TryGetValue(item.FullPath, out var svnStatus))
                             item.SvnStatus = svnStatus;

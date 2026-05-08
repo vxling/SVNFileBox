@@ -1,6 +1,6 @@
 namespace SVNFileBox.Models;
 
-public enum SvnStatus
+public enum FileSvnStatus
 {
     Normal,
     Modified,

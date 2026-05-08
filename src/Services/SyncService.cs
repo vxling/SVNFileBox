@@ -249,7 +249,7 @@ public class SyncService : IDisposable
         {
             switch (status)
             {
-                case SvnStatus.Unversioned:
+                case FileSvnStatus.Unversioned:
                 {
                     var addSuccess = await _svnService.AddFileAsync(path);
                     if (addSuccess)
@@ -263,7 +263,7 @@ public class SyncService : IDisposable
                     }
                     break;
                 }
-                case SvnStatus.Missing:
+                case FileSvnStatus.Missing:
                 {
                     var delSuccess = await _svnService.DeleteAsync(path);
                     if (delSuccess)
