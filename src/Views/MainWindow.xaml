@@ -251,13 +251,13 @@
         </Grid>
 
         <!-- Status Bar -->
-        <ui:StatusBar VerticalAlignment="Bottom">
-            <ui:StatusBarItem>
+        <StatusBar VerticalAlignment="Bottom">
+            <StatusBarItem>
                 <TextBlock x:Name="CurrentPathText" Text="" FontSize="12"/>
-            </ui:StatusBarItem>
-            <ui:StatusBarItem HorizontalAlignment="Right">
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
                 <TextBlock x:Name="StatusText" Text="" FontSize="12" MaxWidth="500" TextTrimming="CharacterEllipsis"/>
-            </ui:StatusBarItem>
-        </ui:StatusBar>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </Window>
