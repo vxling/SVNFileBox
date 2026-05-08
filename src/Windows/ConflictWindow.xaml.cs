@@ -8,7 +8,7 @@ namespace SVNFileBox.Windows;
 
 public partial class ConflictWindow : Window
 {
-    public ObservableCollection<ConflictedFileInfo> ConflictFiles { get; }
+    public ObservableCollection<ConflictedFileInfo> ConflictFiles { get; set; }
 
     public ConflictWindow()
     {
