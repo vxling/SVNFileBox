@@ -1,7 +1,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading.Tasks;
 using SharpSvn;
@@ -11,13 +10,15 @@ using SharpSvnStatus = SharpSvn.SvnStatus;
 
 namespace SVNFileBox.Services;
 
+/// <summary>
+/// SVN operations wrapper. Each method creates its own SvnClient instance —
+/// SharpSvn is lightweight and this avoids all threading/reentrancy concerns
+/// that come from sharing a single instance across concurrent calls.
+/// </summary>
 public class SvnService : IDisposable
 {
-    private readonly SvnClient _client;
-
     public SvnService()
     {
-        _client = new SvnClient();
         Log.Information("SvnService initialized — using SharpSvn {Version}",
             typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown");
     }
@@ -30,8 +31,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                // Use event-based API: processes items one-by-one as they are discovered,
-                // avoiding large in-memory collections that cause stack overflow on deep trees.
+                using var client = new SvnClient();
                 var handler = new EventHandler<SvnStatusEventArgs>(delegate(object sender, SvnStatusEventArgs item)
                 {
                     var path = item.Path;
@@ -60,7 +60,7 @@ public class SvnService : IDisposable
                         statuses[path] = svnStatus;
                 });
 
-                _client.Status(workingCopyPath, new SvnStatusArgs
+                client.Status(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = SvnDepth.Children,
                     RetrieveAllEntries = true,
@@ -81,7 +81,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                var root = _client.GetRepositoryRoot(workingCopyPath);
+                using var client = new SvnClient();
+                var root = client.GetRepositoryRoot(workingCopyPath);
                 return root?.ToString() ?? "";
             }
             catch (Exception ex)
@@ -98,9 +99,10 @@ public class SvnService : IDisposable
         {
             try
             {
+                using var client = new SvnClient();
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
-                _client.Info(workingCopyPath, handler);
+                client.Info(workingCopyPath, handler);
                 return infoResult != null ? (int)infoResult.Revision : -1;
             }
             catch (Exception ex)
@@ -117,10 +119,11 @@ public class SvnService : IDisposable
         {
             try
             {
+                using var client = new SvnClient();
                 var uri = new Uri(repoUrl);
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
-                _client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
+                client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
                 return infoResult != null ? (int)infoResult.Revision : -1;
             }
             catch (Exception ex)
@@ -145,8 +148,9 @@ public class SvnService : IDisposable
         {
             try
             {
+                using var client = new SvnClient();
                 var args = new SvnCommitArgs { LogMessage = message };
-                return _client.Commit(workingCopyPath, args);
+                return client.Commit(workingCopyPath, args);
             }
             catch (Exception ex)
             {
@@ -162,7 +166,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Update(workingCopyPath);
+                using var client = new SvnClient();
+                return client.Update(workingCopyPath);
             }
             catch (Exception ex)
             {
@@ -178,7 +183,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Add(filePath);
+                using var client = new SvnClient();
+                return client.Add(filePath);
             }
             catch (Exception ex)
             {
@@ -194,7 +200,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Delete(path);
+                using var client = new SvnClient();
+                return client.Delete(path);
             }
             catch (Exception ex)
             {
@@ -210,8 +217,9 @@ public class SvnService : IDisposable
         {
             try
             {
+                using var client = new SvnClient();
                 var args = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
-                return _client.Revert(path, args);
+                return client.Revert(path, args);
             }
             catch (Exception ex)
             {
@@ -227,7 +235,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.CleanUp(workingCopyPath);
+                using var client = new SvnClient();
+                return client.CleanUp(workingCopyPath);
             }
             catch (Exception ex)
             {
@@ -243,13 +252,15 @@ public class SvnService : IDisposable
         {
             try
             {
-                _client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out var dirResults);
+                using var client = new SvnClient();
+                var results = new List<SvnStatusEventArgs>();
+                client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out results);
                 int count = 0;
-                foreach (var r in dirResults)
+                foreach (var r in results)
                 {
                     if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
                     {
-                        if (_client.Add(r.Path))
+                        if (client.Add(r.Path))
                             count++;
                     }
                 }
@@ -269,7 +280,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Unlock(new[] { path }, new SvnUnlockArgs());
+                using var client = new SvnClient();
+                return client.Unlock(new[] { path }, new SvnUnlockArgs());
             }
             catch (Exception ex)
             {
@@ -285,7 +297,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Lock(path, new SvnLockArgs { StealLock = true });
+                using var client = new SvnClient();
+                return client.Lock(path, new SvnLockArgs { StealLock = true });
             }
             catch (Exception ex)
             {
@@ -305,8 +318,9 @@ public class SvnService : IDisposable
         {
             try
             {
+                using var client = new SvnClient();
                 SvnUpdateResult? result = null;
-                _client.CheckOut(new SvnUriTarget(url), localPath, new SvnCheckOutArgs(), out result);
+                client.CheckOut(new SvnUriTarget(url), localPath, new SvnCheckOutArgs(), out result);
                 return (result?.Revision.ToString() ?? "", 0, "");
             }
             catch (Exception ex)
@@ -321,7 +335,8 @@ public class SvnService : IDisposable
     {
         try
         {
-            return _client.GetRepositoryRoot(path) != null;
+            using var client = new SvnClient();
+            return client.GetRepositoryRoot(path) != null;
         }
         catch
         {
@@ -333,7 +348,8 @@ public class SvnService : IDisposable
     {
         try
         {
-            return _client.GetRepositoryRoot(path) != null;
+            using var client = new SvnClient();
+            return client.GetRepositoryRoot(path) != null;
         }
         catch
         {
@@ -352,7 +368,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Resolve(path, accept);
+                using var client = new SvnClient();
+                return client.Resolve(path, accept);
             }
             catch (Exception ex)
             {
@@ -373,7 +390,8 @@ public class SvnService : IDisposable
             var files = new List<string>();
             try
             {
-                _client.GetStatus(workingCopyPath, new SvnStatusArgs
+                using var client = new SvnClient();
+                client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = SvnDepth.Empty,
                     RetrieveAllEntries = true,
@@ -399,9 +417,10 @@ public class SvnService : IDisposable
         {
             try
             {
+                using var client = new SvnClient();
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
-                _client.Info(filePath, handler);
+                client.Info(filePath, handler);
                 return infoResult?.LastChangeTime.ToUniversalTime() ?? DateTime.MinValue;
             }
             catch (Exception ex)
@@ -414,6 +433,6 @@ public class SvnService : IDisposable
 
     public void Dispose()
     {
-        _client.Dispose();
+        // No shared instance to dispose — each operation creates its own SvnClient.
     }
 }
