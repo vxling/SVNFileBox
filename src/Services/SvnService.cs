@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading.Tasks;
 using SharpSvn;
@@ -253,8 +254,7 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
-                var results = new List<SvnStatusEventArgs>();
-                client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out results);
+                client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
                 int count = 0;
                 foreach (var r in results)
                 {
