@@ -3,252 +3,359 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:SVNFileBox.ViewModels"
+        xmlns:conv="clr-namespace:SVNFileBox.Converters"
+        xmlns:tb="http://www.hardcodet.net/taskbar"
+        xmlns:local="clr-namespace:SVNFileBox.Views"
         mc:Ignorable="d"
-        Title="SVN FileBox" Height="768" Width="1200"
+        Title="SVNFileBox" Height="580" Width="1100"
+        MinHeight="550" MinWidth="900"
         WindowStartupLocation="CenterScreen"
-        Background="#F0F0F0">
+        Icon="/Assets/Icons/app.ico"
+        Background="#F0F4F8">
+
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:FileTypeIconConverter x:Key="FileTypeIconConverter"/>
+        <conv:SvnStatusToColorConverter x:Key="SvnStatusToColorConverter"/>
+        <conv:SvnStatusToTextConverter x:Key="SvnStatusToTextConverter"/>
 
-        <Style x:Key="HeaderButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#0078D4"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,8"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibleConverter"/>
+        <conv:BoolToCollapsedConverter x:Key="BoolToCollapsedConverter"/>
+
+        <!-- Path Bar Button Style -->
+        <Style x:Key="PathBarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F5F7FA"/>
+            <Setter Property="Foreground" Value="#1A1A2E"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.06" Color="#000000"/>
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1E88E5"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#1565C0"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1565C0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E5F1FB"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
-        <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#0078D4"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,8"/>
+        <!-- Modern Sidebar Button Style (default state has light background) -->
+        <Style x:Key="SidebarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F5F7FA"/>
+            <Setter Property="Foreground" Value="#1A1A2E"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="MinWidth" Value="80"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
-                                Padding="{TemplateBinding Padding}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="1" BlurRadius="6" Opacity="0.08" Color="#000000"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1E88E5"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#1565C0"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter TargetName="ButtonBorder" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect ShadowDepth="2" BlurRadius="10" Opacity="0.15" Color="#1E88E5"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1565C0"/>
+                                <Setter TargetName="ButtonBorder" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.1" Color="#000000"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#106EBE"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#CCCCCC"/>
-                    <Setter Property="Foreground" Value="#999999"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
-        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
-            <Setter Property="Background" Value="#DC3545"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#C82333"/>
-                </Trigger>
-            </Style.Triggers>
+        <!-- Accent Sidebar Button (for primary actions) -->
+        <Style x:Key="SidebarAccentButtonStyle" TargetType="Button" BasedOn="{StaticResource SidebarButtonStyle}">
+            <Setter Property="Background" Value="#E3F2FD"/>
+            <Setter Property="BorderBrush" Value="#BBDEFB"/>
         </Style>
 
-        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
-            <Setter Property="Background" Value="#6C757D"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#5A6268"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <!-- Repository Icons (Vector Path Drawings) -->
+        <DrawingImage x:Key="LocalRepoIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <!-- Folder back/body (darker) -->
+                    <GeometryDrawing Brush="#FFA000">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M 2,4 L 2,16 L 16,16 L 16,6 L 7,6 L 5,3 L 2,3 Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <!-- Folder front (lighter) -->
+                    <GeometryDrawing Brush="#FFC107">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M 1,8 L 1,17 L 17,17 L 17,8 Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <DrawingImage x:Key="NetworkRepoIcon">
+            <DrawingImage.Drawing>
+                <GeometryDrawing Brush="#42A5F5">
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M 4,16 L 14,16 L 14,13 L 11,13 A 3.5,3.5 0 1 1 8,9.5 A 4,4 0 1 1 4,13 L 4,16 Z"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <!-- Context Menu for file list -->
+        <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
+            <MenuItem Header="在资源管理器中打开" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Icon="📂"/>
+            <Separator/>
+            <MenuItem Header="复制路径" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
+            <Separator/>
+            <MenuItem Header="粘贴" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
+            <MenuItem Header="新建文件夹" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
+            <MenuItem Header="重命名" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
+            <Separator/>
+            <MenuItem Header="删除" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
+            <Separator/>
+            <MenuItem Header="刷新" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
+            <Separator/>
+            <MenuItem Header="手工同步" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Icon="🔃"/>
+        </ContextMenu>
     </Window.Resources>
 
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+    <DockPanel>
+        <!-- System Tray Icon (must be inside DockPanel, not direct child of Window) -->
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        IconSource="/Assets/Icons/app.ico"
+                        ToolTipText="SVNFileBox"
+                        TrayMouseDoubleClick="TrayIcon_TrayMouseDoubleClick">
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="打开 SVNFileBox" Click="TrayShow_Click"/>
+                    <Separator/>
+                    <MenuItem Header="退出" Click="TrayExit_Click"/>
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
 
-        <!-- Left Sidebar -->
-        <Border Grid.Column="0" Background="White" Margin="8"
-                CornerRadius="8" Padding="0">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.1"/>
-            </Border.Effect>
+        <!-- Bottom Status Bar -->
+        <Border DockPanel.Dock="Bottom" Background="#1E88E5" Padding="12,6">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <!-- App Header -->
-                <StackPanel Grid.Row="0" Margin="16,16,16,8">
-                    <TextBlock Text="SVN FileBox" FontSize="18" FontWeight="SemiBold" Foreground="#0078D4"/>
-                    <TextBlock x:Name="VersionText" Text="v1.0.1" FontSize="11" Foreground="#999999" Margin="0,2,0,0"/>
-                </StackPanel>
-
-                <!-- Repo List -->
-                <ListBox Grid.Row="1" x:Name="RepoListBox"
-                         BorderThickness="0"
-                         Margin="8,0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         SelectionChanged="RepoListBox_SelectionChanged">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Border Padding="8,6" Margin="0,1">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="Medium"
-                                               TextTrimming="CharacterEllipsis" Foreground="#333333"/>
-                                    <TextBlock Text="{Binding LocalPath}" FontSize="10" Foreground="#999999"
-                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                            <Setter Property="Padding" Value="0"/>
-                            <Setter Property="Margin" Value="0"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="Bd" Background="Transparent"
-                                                BorderThickness="0" CornerRadius="4">
-                                            <ContentPresenter/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#E5F1FB"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#CCE4F7"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                </ListBox>
-
-                <!-- Action Buttons -->
-                <StackPanel Grid.Row="2" Margin="8,8,8,12">
-                    <Button Content="添加本地仓库" Style="{StaticResource ActionButton}"
-                            Click="AddLocalRepo_Click" Margin="0,0,0,6"/>
-                    <Button Content="添加 SVN 仓库" Style="{StaticResource ActionButton}"
-                            Click="AddSvnRepo_Click" Margin="0,0,0,6"/>
-                    <Button Content="设置" Style="{StaticResource SecondaryButton}"
-                            Click="Settings_Click" Margin="0,0,0,6"/>
-                    <Button Content="关于" Style="{StaticResource SecondaryButton}"
-                            Click="About_Click"/>
-                </StackPanel>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="CurrentPathText" Grid.Column="0" Text="" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Grid.Column="1" Text="" Foreground="White" FontSize="12" VerticalAlignment="Center" MaxWidth="500" TextTrimming="CharacterEllipsis"/>
             </Grid>
         </Border>
 
         <!-- Main Content -->
-        <Border Grid.Column="1" Background="White" Margin="0,8,8,8"
-                CornerRadius="8">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.1"/>
-            </Border.Effect>
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                <!-- Toolbar -->
-                <Border Grid.Row="0" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="16,12">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+            <!-- Left Sidebar -->
+            <Border Grid.Column="0" Background="White" Margin="8" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="仓库列表" FontSize="14" FontWeight="SemiBold" Foreground="#1A1A2E" Margin="0,0,0,8"/>
 
-                        <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <TextBlock x:Name="RepoNameText" Text="未选择仓库" FontSize="16" FontWeight="SemiBold"
-                                       VerticalAlignment="Center" Foreground="#333333"/>
-                            <TextBlock x:Name="RepoStatusText" Text="" FontSize="12" Foreground="#666666"
-                                       VerticalAlignment="Center" Margin="12,0,0,0"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button x:Name="CommitBtn" Content="提交" Style="{StaticResource ActionButton}"
-                                    Click="Commit_Click" IsEnabled="False" Margin="0,0,8,0"/>
-                            <Button x:Name="UpdateBtn" Content="更新" Style="{StaticResource ActionButton}"
-                                    Click="Update_Click" IsEnabled="False" Margin="0,0,8,0"/>
-                            <Button x:Name="RefreshBtn" Content="刷新" Style="{StaticResource SecondaryButton}"
-                                    Click="Refresh_Click" IsEnabled="False" Margin="0,0,8,0"/>
-                            <Button x:Name="RevertBtn" Content="还原" Style="{StaticResource DangerButton}"
-                                    Click="Revert_Click" IsEnabled="False"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- File List -->
-                <TreeView Grid.Row="1" x:Name="FileTreeView"
-                          BorderThickness="0"
-                          Margin="8"
-                          VirtualizingStackPanel.IsVirtualizing="True"
-                          VirtualizingStackPanel.VirtualizationMode="Recycling">
-                    <TreeView.ItemContainerStyle>
-                        <Style TargetType="TreeViewItem">
-                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                            <Setter Property="Padding" Value="4,2"/>
-                        </Style>
-                    </TreeView.ItemContainerStyle>
-                </TreeView>
-
-                <!-- Status Bar -->
-                <StatusBar Grid.Row="2" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
-                    <StatusBarItem>
-                        <TextBlock x:Name="StatusText" Text="就绪" FontSize="12" Foreground="#666666"/>
-                    </StatusBarItem>
-                    <Separator/>
-                    <StatusBarItem>
-                        <TextBlock x:Name="ProgressText" Text="" FontSize="12" Foreground="#666666"/>
-                    </StatusBarItem>
-                </StatusBar>
-
-                <!-- Loading Overlay -->
-                <Border Grid.Row="0" Grid.RowSpan="3" x:Name="LoadingOverlay"
-                        Background="#80FFFFFF" CornerRadius="8"
-                        Visibility="Collapsed">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <ProgressBar x:Name="LoadingProgress" IsIndeterminate="True"
-                                     Width="200" Height="4" Margin="0,0,0,12"/>
-                        <TextBlock x:Name="LoadingText" Text="处理中..." FontSize="13"
-                                   HorizontalAlignment="Center" Foreground="#666666"/>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <Separator Margin="0,0,0,8"/>
+                        <Button x:Name="AddLocalRepoButton" Content="📂 添加本地仓库" Style="{StaticResource SidebarAccentButtonStyle}" Click="AddLocalRepo_Click"/>
+                        <Button x:Name="CheckoutButton" Content="🌐 从网络添加仓库" Style="{StaticResource SidebarAccentButtonStyle}" Click="Checkout_Click"/>
+                        <Button x:Name="ViewSyncRecordsButton" Content="📋 查看同步记录" Style="{StaticResource SidebarAccentButtonStyle}" Click="ViewSyncRecords_Click"/>
+                        <Separator Margin="0,4"/>
+                        <Button x:Name="SettingsButton" Content="⚙️ 设置" Style="{StaticResource SidebarButtonStyle}" Click="Settings_Click"/>
+                        <Button x:Name="AboutButton" Content="ℹ️ 关于" Style="{StaticResource SidebarButtonStyle}" Click="About_Click"/>
                     </StackPanel>
-                </Border>
-            </Grid>
-        </Border>
-    </Grid>
+
+                    <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0,2"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="ItemBorder" Background="#F5F7FA" Padding="8,8" Margin="0,2" CornerRadius="6"
+                                                    BorderThickness="3,0,0,0" BorderBrush="Transparent">
+                                                <ContentPresenter/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#E8EDF2"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#E3F2FD"/>
+                                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#1E88E5"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Tag="{Binding}" Content="X" Padding="4,2"
+                                            Background="Transparent" Foreground="#E53935" FontSize="11"
+                                            BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Margin="4,0,0,0"
+                                            Click="RemoveRepo_Click"/>
+                                    <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Stretch" Value="Uniform"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RepositoryType}" Value="Local">
+                                                        <Setter Property="Source" Value="{StaticResource LocalRepoIcon}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding RepositoryType}" Value="Network">
+                                                        <Setter Property="Source" Value="{StaticResource NetworkRepoIcon}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                    <StackPanel Margin="4,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13" Foreground="#1A1A2E"/>
+                                        <TextBlock Text="{Binding Path}" Foreground="#888888" FontSize="10" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Right Area: File Browser / Sync Records -->
+            <Border Grid.Column="1" Background="White" Margin="0,8,8,8">
+                <DockPanel>
+                    <!-- Path Bar -->
+                    <Border DockPanel.Dock="Top" Background="#FAFBFC" Padding="12,10" BorderBrush="#E8E8E8" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="329*"/>
+                                <ColumnDefinition Width="74*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Grid.ColumnSpan="2">
+                                <TextBlock Text="路径:" FontSize="12" Foreground="#666666" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="PathText" Text="" FontSize="13" Foreground="#333333"/>
+                            </StackPanel>
+                            <Button Grid.Column="2" x:Name="RefreshListButton" Content="刷新" Style="{StaticResource PathBarButtonStyle}" Click="Refresh_Click"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- File List with columns (visible when not showing sync records) -->
+                    <ListView x:Name="FileList"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              SelectedItem="{Binding SelectedFile}"
+                              ContextMenu="{StaticResource FileContextMenu}"
+                              MouseDoubleClick="FileList_MouseDoubleClick"
+                              AllowDrop="True"
+                              Drop="FileList_Drop"
+                              DragOver="FileList_DragOver"
+                              Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="类型" Width="40">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}" Width="24" Height="24"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="名称" Width="280" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="状态" Width="70">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{Binding SvnStatus, Converter={StaticResource SvnStatusToColorConverter}}"
+                                                    CornerRadius="9" Padding="2,0" HorizontalAlignment="Center"
+                                                    Width="18" Height="18">
+                                                <TextBlock Text="{Binding SvnStatus, Converter={StaticResource SvnStatusToTextConverter}}"
+                                                           Foreground="White" FontSize="10" FontWeight="Bold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="大小" Width="90" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
+                                <GridViewColumn Header="修改时间" Width="140" DisplayMemberBinding="{Binding LastModifiedDisplay}"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <!-- Sync Records List (visible when showing sync records) -->
+                    <ListView x:Name="SyncRecordList"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              ItemsSource="{Binding SyncRecords}"
+                              Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToVisibleConverter}}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="时间" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
+                                <GridViewColumn Header="仓库" Width="100" DisplayMemberBinding="{Binding RepoName}"/>
+                                <GridViewColumn Header="文件" Width="280" DisplayMemberBinding="{Binding FilePath}"/>
+                                <GridViewColumn Header="操作" Width="100" DisplayMemberBinding="{Binding OperationDisplay}"/>
+                                <GridViewColumn Header="结果" Width="80" DisplayMemberBinding="{Binding ResultDisplay}"/>
+                                <GridViewColumn Header="详情" Width="200" DisplayMemberBinding="{Binding Message}"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
 </Window>

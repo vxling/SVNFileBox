@@ -59,7 +59,7 @@
 
         <!-- Version info -->
         <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,0,0,12">
-            <TextBlock Text="版本 2.0.0" FontSize="13" HorizontalAlignment="Center" Foreground="#666"/>
+            <TextBlock Text="版本 1.0.0" FontSize="13" HorizontalAlignment="Center" Foreground="#666"/>
             <TextBlock Text="SVN 版 Dropbox" FontSize="12" HorizontalAlignment="Center" Foreground="#888" Margin="0,3,0,0"/>
         </StackPanel>
 
