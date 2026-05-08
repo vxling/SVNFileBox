@@ -266,9 +266,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         .WaitAsync(cts.Token);
                     var repoRoot = SelectedRepository.Path;
 
+                    // Check if the current directory itself is unversioned —
+                    // if so, all its children are unversioned too (svn status won't recurse into it).
+                    bool currentDirUnversioned = statuses.TryGetValue(path, out var dirStatus)
+                        && dirStatus == FileSvnStatus.Unversioned;
+
                     foreach (var item in items)
                     {
                         if (item.Name == "..") continue;
+                        // If parent directory is unversioned, all children inherit that status
+                        if (currentDirUnversioned)
+                        {
+                            item.SvnStatus = FileSvnStatus.Unversioned;
+                            continue;
+                        }
                         // Default to Normal (won't display anything, but marks the item as processed)
                         item.SvnStatus = FileSvnStatus.Normal;
                         // Override with actual status if found in svn status output
