@@ -106,6 +106,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             LoadSyncRecords();
     }
 
+    public void CloseSyncRecordsView()
+    {
+        ShowSyncRecords = false;
+    }
+
     public async Task InitializeAsync()
     {
         IsLoading = true;

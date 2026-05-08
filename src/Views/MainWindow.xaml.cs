@@ -500,6 +500,11 @@ public partial class MainWindow : Window
         _viewModel?.ToggleSyncRecordsView();
     }
 
+    private void BackToFiles_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel?.CloseSyncRecordsView();
+    }
+
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new SVNFileBox.Windows.SettingsWindow(_configService!) { Owner = this };

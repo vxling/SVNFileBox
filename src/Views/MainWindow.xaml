@@ -20,6 +20,7 @@
         <conv:SvnStatusToTextConverter x:Key="SvnStatusToTextConverter"/>
         <BooleanToVisibilityConverter x:Key="BoolToVisibleConverter"/>
         <conv:BoolToCollapsedConverter x:Key="BoolToCollapsedConverter"/>
+        <conv:BoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
 
         <!-- Repository Icons -->
         <DrawingImage x:Key="LocalRepoIcon">
@@ -161,12 +162,16 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="路径:" FontSize="12" Margin="0,0,8,0"/>
                                 <TextBlock x:Name="PathText" Text="" FontSize="13"/>
                             </StackPanel>
-                            <Button Grid.Column="1" x:Name="RefreshListButton" Content="刷新" Click="Refresh_Click" Padding="12,6"/>
+                            <Button Grid.Column="1" x:Name="RefreshListButton" Content="刷新" Click="Refresh_Click" Padding="12,6"
+                                    Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}"/>
+                            <Button Grid.Column="1" x:Name="BackToFilesButton" Content="← 返回" Click="BackToFiles_Click" Padding="12,6"
+                                    Visibility="{Binding ShowSyncRecords, Converter={StaticResource InverseBoolToVisibleConverter}}"/>
                         </Grid>
                     </Border>
 
