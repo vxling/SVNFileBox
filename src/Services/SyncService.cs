@@ -8,6 +8,7 @@ using System.Timers;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Xml.Linq;
 using SVNFileBox.Models;
 using Serilog;
 
@@ -15,10 +16,7 @@ namespace SVNFileBox.Services;
 
 public class SyncService : IDisposable
 {
-    private static readonly Regex _lastChangedDateRegex = new(@"Last Changed Date: (.+)", RegexOptions.Compiled);
-    private static readonly Regex _lockFileRegex = new(@"([A-Za-z]:[^ ""']+|\S+\.xlsx|\S+\.xls|\S+\.docx|\S+\.doc)", RegexOptions.Compiled);
-    private static readonly Regex _repoUrlRegex = new(@"^URL:\s*(.+)$", RegexOptions.Compiled | RegexOptions.Multiline);
-    private static readonly Regex _revisionRegex = new(@"^Revision:\s*(\d+)$", RegexOptions.Compiled | RegexOptions.Multiline);
+    private static readonly Regex _lockFileRegex = new(@"([A-Za-z]:[^""']+|\S+\.xlsx|\S+\.xls|\S+\.docx|\S+\.doc)", RegexOptions.Compiled);
     private readonly ConfigService _configService;
     private readonly SvnService _svnService = new();
     private readonly FileWatcherService _fileWatcher = new();
@@ -333,12 +331,28 @@ public class SyncService : IDisposable
             }
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
-            var result = await _svnService.RunCommandAsync($"update --non-interactive \"{_currentRepo.Path}\"");
+            var result = await _svnService.RunCommandAsync($"update --non-interactive --xml \"{_currentRepo.Path}\"");
             if (result.exitCode == 0)
             {
-                _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Success", $"Updated {serverRev - localRev} revision(s)");
-                Notify($"已从服务器更新 {serverRev - localRev} 个版本");
-                FilesChanged?.Invoke(this, EventArgs.Empty);
+                // Check for conflicts in XML output
+                var doc = XDocument.Parse(result.output);
+                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var conflictEls = doc.Descendants(ns + "conflict");
+                if (conflictEls.Any())
+                {
+                    var handled = await HandleConflictsAsync();
+                    if (handled > 0)
+                    {
+                        _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "ConflictResolved", "Success", $"Resolved {handled} conflict(s) by Last-Write-Wins");
+                        FilesChanged?.Invoke(this, EventArgs.Empty);
+                    }
+                }
+                else
+                {
+                    _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Success", $"Updated {serverRev - localRev} revision(s)");
+                    Notify($"已从服务器更新 {serverRev - localRev} 个版本");
+                    FilesChanged?.Invoke(this, EventArgs.Empty);
+                }
             }
             else
             {
@@ -350,15 +364,6 @@ public class SyncService : IDisposable
                         AddPendingUpdate(file);
                     _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Skipped", "Some files are locked");
                     Notify("部分文件被占用，已跳过，将在下次重试");
-                }
-                else if (error.Contains("conflict") || result.output.Contains("C ") || result.output.Contains("conflicted"))
-                {
-                    var handled = await HandleConflictsAsync();
-                    if (handled > 0)
-                    {
-                        _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "ConflictResolved", "Success", $"Resolved {handled} conflict(s) by Last-Write-Wins");
-                        FilesChanged?.Invoke(this, EventArgs.Empty);
-                    }
                 }
                 else
                 {
@@ -486,19 +491,22 @@ public class SyncService : IDisposable
 
         try
         {
-            // Get list of conflicted files (status starts with 'C')
-            var statusResult = await _svnService.RunCommandAsync($"status --non-interactive \"{_currentRepo.Path}\"");
+            // Get list of conflicted files via XML output
+            var statusResult = await _svnService.RunCommandAsync($"status --non-interactive --xml \"{_currentRepo.Path}\"");
             if (statusResult.exitCode != 0) return 0;
 
+            var doc = XDocument.Parse(statusResult.output);
+            var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+
             var conflictedFiles = new List<string>();
-            var lines = statusResult.output.Split('\n');
-            foreach (var line in lines)
+            foreach (var entry in doc.Descendants(ns + "entry"))
             {
-                if (line.Length > 8 && line[0] == 'C')
+                var wcStatus = entry.Element(ns + "wc-status");
+                if (wcStatus?.Attribute("item")?.Value == "conflicted")
                 {
-                    var relPath = line.Substring(8).Trim();
-                    if (!string.IsNullOrEmpty(relPath))
-                        conflictedFiles.Add(Path.Combine(_currentRepo.Path, relPath));
+                    var path = entry.Attribute("path")?.Value?.Trim();
+                    if (!string.IsNullOrEmpty(path))
+                        conflictedFiles.Add(Path.Combine(_currentRepo.Path, path));
                 }
             }
 
@@ -512,24 +520,16 @@ public class SyncService : IDisposable
 
                     var localTime = File.GetLastWriteTimeUtc(filePath);
 
-                    // Get server file's last changed date via svn info
-                    var infoResult = await _svnService.RunCommandAsync($"info --non-interactive \"{filePath}\"");
+                    // Get server file's last changed date via svn info --xml
+                    var infoResult = await _svnService.RunCommandAsync($"info --non-interactive --xml \"{filePath}\"");
                     DateTime serverTime = DateTime.MinValue;
                     if (infoResult.exitCode == 0)
                     {
-                        var dateMatch = _lastChangedDateRegex.Match(infoResult.output);
-                        if (dateMatch.Success)
-                        {
-                            var dateStr = dateMatch.Groups[1].Value.Trim();
-                            // SVN date format: "2026-04-28 14:30:00 +0800"
-                            if (DateTime.TryParseExact(dateStr, "yyyy-MM-dd HH:mm:ss zzz",
-                                System.Globalization.CultureInfo.InvariantCulture,
-                                System.Globalization.DateTimeStyles.AssumeUniversal,
-                                out var parsed))
-                                serverTime = parsed.ToUniversalTime();
-                            else if (DateTime.TryParse(dateStr, out parsed))
-                                serverTime = parsed.ToUniversalTime();
-                        }
+                        var infoDoc = XDocument.Parse(infoResult.output);
+                        var infoNs = infoDoc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                        var dateEl = infoDoc.Descendants(infoNs + "date").FirstOrDefault();
+                        if (dateEl != null && DateTime.TryParse(dateEl.Value.Trim(), out var parsed))
+                            serverTime = parsed.ToUniversalTime();
                     }
 
                     bool localNewer = localTime > serverTime;

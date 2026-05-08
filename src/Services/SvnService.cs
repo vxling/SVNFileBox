@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using SVNFileBox.Models;
 using Serilog;
 
@@ -17,8 +18,6 @@ public class SvnService
     private static readonly string _svnPath;
     private static readonly string? _svnError;
     private static bool _validated;
-    private static readonly System.Text.RegularExpressions.Regex _repoUrlRegex = new(@"^URL:\s*(.+)$", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.Multiline);
-    private static readonly System.Text.RegularExpressions.Regex _revisionRegex = new(@"^Revision:\s*(\d+)", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.Multiline);
 
     static SvnService()
     {
@@ -121,13 +120,13 @@ public class SvnService
 
         try
         {
-            Log.Debug("[GetStatusAsync] Running svn status on: {Path}", workingCopyPath);
-            var result = await RunCommandAsync($"status --non-interactive \"{workingCopyPath}\"");
-            Log.Debug("[GetStatusAsync] Raw output ({Len} chars): {Output}", result.output.Length, result.output.Length > 200 ? result.output.Substring(0, 200) : result.output);
+            Log.Debug("[GetStatusAsync] Running svn status --xml on: {Path}", workingCopyPath);
+            var result = await RunCommandAsync($"status --non-interactive --xml \"{workingCopyPath}\"");
+            Log.Debug("[GetStatusAsync] Raw output ({Len} chars)", result.output.Length);
 
-            if (result.exitCode != 0 || result.error.Contains("W155010"))
+            if (result.exitCode != 0)
             {
-                // W155010 means the directory itself is unversioned — enumerate files directly and mark all as Unversioned
+                // W155010 = unversioned directory — enumerate files directly and mark all as Unversioned
                 if (result.error.Contains("W155010") && Directory.Exists(workingCopyPath))
                 {
                     Log.Debug("[GetStatusAsync] Directory is unversioned, enumerating files directly");
@@ -150,50 +149,58 @@ public class SvnService
                 return statuses;
             }
 
-            var lines = result.output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            var statusLineRegex = new Regex(@"^([ADMCR?!~XI ]{1,7})\s+(.+)$", RegexOptions.Compiled);
+            var doc = XDocument.Parse(result.output);
+            var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
 
-            foreach (var line in lines)
+            // Find <target> elements (files/directories)
+            var targetElements = doc.Descendants(ns + "target");
+            foreach (var target in targetElements)
             {
-                var match = statusLineRegex.Match(line);
-                if (!match.Success) continue;
-
-                var statusPart = match.Groups[1].Value.TrimStart();
-                var path = match.Groups[2].Value.Trim();
-
-                if (string.IsNullOrEmpty(statusPart) || string.IsNullOrEmpty(path)) continue;
-
-                // If the current directory itself is unversioned ("? ." or "? <fullPath>"), treat whole directory as unversioned
-                if (statusPart[0] == '?' && (path == "." || path.Equals(workingCopyPath, StringComparison.OrdinalIgnoreCase)))
+                var entryElements = target.Elements(ns + "entry");
+                foreach (var entry in entryElements)
                 {
-                    hasDotUnversioned = true;
-                    Log.Debug("[GetStatusAsync] Detected unversioned current dir: path={Path} workingCopyPath={WCP}", path, workingCopyPath);
-                    continue;
-                }
+                    var path = entry.Attribute("path")?.Value?.Trim();
+                    if (string.IsNullOrEmpty(path)) continue;
 
-                // SVN returns absolute paths on Windows (e.g. "D:\repo2\test2") — keep them as-is for lookup
-                var statusChar = statusPart[0];
-                var svnStatus = statusChar switch
-                {
-                    'M' => SvnStatus.Modified,
-                    'A' => SvnStatus.Added,
-                    'D' => SvnStatus.Deleted,
-                    'C' => SvnStatus.Conflicted,
-                    '?' => SvnStatus.Unversioned,
-                    '!' => SvnStatus.Missing,
-                    'R' => SvnStatus.Replaced,
-                    '~' => SvnStatus.Obstructed,
-                    'X' => SvnStatus.External,
-                    'I' => SvnStatus.Unknown,
-                    _ => SvnStatus.Normal
-                };
+                    var wcStatusEl = entry.Element(ns + "wc-status");
+                    if (wcStatusEl == null) continue;
 
-                if (svnStatus != SvnStatus.Normal || !statuses.ContainsKey(path))
-                {
-                    statuses[path] = svnStatus;
-            Log.Debug("[GetStatusAsync] Parsed {Count} status entries", statuses.Count);
+                    var itemAttr = wcStatusEl.Attribute("item");
+                    var propAttr = wcStatusEl.Attribute("props");
+                    var item = itemAttr?.Value ?? "";
+                    var prop = propAttr?.Value ?? "";
+
+                    // '? .' or '? <fullPath>' means the directory itself is unversioned
+                    if (item == "unversioned" && (path == "." || path.Equals(workingCopyPath, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        hasDotUnversioned = true;
+                        Log.Debug("[GetStatusAsync] Detected unversioned current dir: path={Path}", path);
+                        continue;
+                    }
+
+                    // Determine status: item attr takes precedence, prop attr indicates modifications
+                    var svnStatus = item switch
+                    {
+                        "modified" => SvnStatus.Modified,
+                        "added" => SvnStatus.Added,
+                        "deleted" => SvnStatus.Deleted,
+                        "conflicted" => SvnStatus.Conflicted,
+                        "unversioned" => SvnStatus.Unversioned,
+                        "missing" => SvnStatus.Missing,
+                        "replaced" => SvnStatus.Replaced,
+                        "obstructed" => SvnStatus.Obstructed,
+                        "external" => SvnStatus.External,
+                        "incomplete" => SvnStatus.Unknown,
+                        _ => SvnStatus.Normal
+                    };
+
+                    if (svnStatus != SvnStatus.Normal || !statuses.ContainsKey(path))
+                    {
+                        statuses[path] = svnStatus;
+                    }
                 }
             }
+            Log.Debug("[GetStatusAsync] Parsed {Count} status entries", statuses.Count);
         }
         catch (Exception ex)
         {
@@ -224,11 +231,13 @@ public class SvnService
     {
         try
         {
-            var result = await RunCommandAsync($"info --non-interactive \"{workingCopyPath}\"");
+            var result = await RunCommandAsync($"info --non-interactive --xml \"{workingCopyPath}\"");
             if (result.exitCode == 0)
             {
-                var match = _repoUrlRegex.Match(result.output);
-                if (match.Success) return match.Groups[1].Value.Trim();
+                var doc = XDocument.Parse(result.output);
+                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var urlEl = doc.Descendants(ns + "url").FirstOrDefault();
+                return urlEl?.Value?.Trim() ?? "";
             }
         }
         catch (Exception ex)
@@ -242,12 +251,16 @@ public class SvnService
     {
         try
         {
-            var result = await RunCommandAsync($"info --non-interactive \"{workingCopyPath}\"");
-            Log.Debug("GetWorkingCopyRevision: path={Path}, exitCode={ExitCode}, output={Output}", workingCopyPath, result.exitCode, result.output.Trim());
+            var result = await RunCommandAsync($"info --non-interactive --xml \"{workingCopyPath}\"");
+            Log.Debug("GetWorkingCopyRevision: path={Path}, exitCode={ExitCode}", workingCopyPath, result.exitCode);
             if (result.exitCode == 0)
             {
-                var match = _revisionRegex.Match(result.output);
-                if (match.Success) return int.Parse(match.Groups[1].Value);
+                var doc = XDocument.Parse(result.output);
+                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var revEl = doc.Descendants(ns + "entry").FirstOrDefault();
+                var revAttr = revEl?.Attribute("revision");
+                if (revAttr != null && int.TryParse(revAttr.Value, out var revision))
+                    return revision;
             }
         }
         catch (Exception ex)
@@ -261,7 +274,7 @@ public class SvnService
     {
         try
         {
-            var args = $"info --non-interactive -r HEAD \"{repoUrl}\"";
+            var args = $"info --non-interactive -r HEAD --xml \"{repoUrl}\"";
             if (!string.IsNullOrEmpty(username))
             {
                 args = $"--username \"{username}\" " + args;
@@ -270,11 +283,15 @@ public class SvnService
             }
             Log.Debug("GetHeadRevision: args={Args}", args);
             var result = await RunCommandAsync(args);
-            Log.Debug("GetHeadRevision: url={Url}, exitCode={ExitCode}, output={Output}", repoUrl, result.exitCode, result.output.Trim());
+            Log.Debug("GetHeadRevision: url={Url}, exitCode={ExitCode}", repoUrl, result.exitCode);
             if (result.exitCode == 0)
             {
-                var match = _revisionRegex.Match(result.output);
-                if (match.Success) return int.Parse(match.Groups[1].Value);
+                var doc = XDocument.Parse(result.output);
+                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var revEl = doc.Descendants(ns + "entry").FirstOrDefault();
+                var revAttr = revEl?.Attribute("revision");
+                if (revAttr != null && int.TryParse(revAttr.Value, out var revision))
+                    return revision;
             }
         }
         catch (Exception ex)
