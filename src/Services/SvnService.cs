@@ -393,9 +393,11 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
+                // Use Infinity to scan all descendants — Depth.Empty only checks the root dir itself,
+                // which misses conflicted files in subdirectories.
                 client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
-                    Depth = SvnDepth.Empty,
+                    Depth = SvnDepth.Infinity,
                     RetrieveAllEntries = true,
                 }, out var conflictedResults);
 
