@@ -160,8 +160,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                var result = _client.Update(workingCopyPath);
-                return result is not null;
+                return _client.Update(workingCopyPath);
             }
             catch (Exception ex)
             {
