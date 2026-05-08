@@ -259,6 +259,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 try
                 {
+                    // If the current directory itself is not a versioned SVN working copy,
+                    // all its children are unversioned — skip the expensive status call.
+                    bool currentDirUnversioned = !_svnService.IsVersioned(path);
+                    Log.Debug("LoadDirectoryAsync: path={Path} isVersioned={IsVersioned}", path, !currentDirUnversioned);
+
+                    if (currentDirUnversioned)
+                    {
+                        foreach (var item in items)
+                        {
+                            if (item.Name == "..") continue;
+                            item.SvnStatus = FileSvnStatus.Unversioned;
+                        }
+                        StatusText = $"{path} - {items.Count} items (unversioned dir)";
+                        return;
+                    }
+
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                     // Run svn status on the CURRENT directory only, not the entire working copy —
                     // recursive scan of large repos is very slow, directory-level status is sufficient.
@@ -268,20 +284,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
                     Log.Debug("LoadDirectoryAsync: path={Path} statuses count={Count} entries={@statuses}", path, statuses.Count, statuses);
 
-                    // Check if the current directory itself is unversioned —
-                    // if so, all its children are unversioned too (svn status won't recurse into it).
-                    bool currentDirUnversioned = statuses.TryGetValue(path, out var dirStatus)
-                        && dirStatus == FileSvnStatus.Unversioned;
-
                     foreach (var item in items)
                     {
                         if (item.Name == "..") continue;
-                        // If parent directory is unversioned, all children inherit that status
-                        if (currentDirUnversioned)
-                        {
-                            item.SvnStatus = FileSvnStatus.Unversioned;
-                            continue;
-                        }
                         // Default to Normal (won't display anything, but marks the item as processed)
                         item.SvnStatus = FileSvnStatus.Normal;
                         // Override with actual status if found in svn status output
