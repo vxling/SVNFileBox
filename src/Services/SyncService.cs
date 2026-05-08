@@ -27,6 +27,7 @@ public class SyncService : IDisposable
     private Repository? _currentRepo;
     private int _isPolling;
     private int _isCommitting;
+    private int _isSyncing;
     private int _pollIntervalMs = 60000;
     private int _maxRetries = 3;
 
@@ -82,14 +83,28 @@ public class SyncService : IDisposable
     public async Task SyncNowAsync()
     {
         if (_currentRepo == null) return;
-        await RetryPendingUpdatesAsync(); // upload pending local commits
-        await PollCoreAsync(); // download server changes
+        if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) == 1)
+        {
+            Log.Information("Sync already in progress, skipping");
+            return;
+        }
+        try
+        {
+            await RetryPendingUpdatesAsync(); // upload pending local commits
+            await PollCoreAsync(); // download server changes
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isSyncing, 0);
+        }
     }
 
     private async void OnFilesChanged(object? sender, string[] files)
     {
         if (files.Length == 0) return;
         if (Interlocked.CompareExchange(ref _isCommitting, 1, 0) == 1) return;
+        // Also skip if a full sync is already in progress
+        if (_isSyncing != 0) return;
 
         try
         {
@@ -218,14 +233,23 @@ public class SyncService : IDisposable
     private async void OnFullSyncTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (_currentRepo == null) return;
-        Log.Information("[FullSync] Starting full sync scan for {Name}", _currentRepo.Name);
+        if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) == 1)
+        {
+            Log.Debug("[FullSync] Sync already in progress, skipping timer tick");
+            return;
+        }
         try
         {
+            Log.Information("[FullSync] Starting full sync scan for {Name}", _currentRepo.Name);
             await FullSyncAsync();
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[FullSync] Full sync failed");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isSyncing, 0);
         }
     }
 
