@@ -5,45 +5,6 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
-    <Window.Resources>
-        <Style x:Key="DialogButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#F5F7FA"/>
-            <Setter Property="Foreground" Value="#1A1A2E"/>
-            <Setter Property="BorderBrush" Value="#E0E0E0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="MinWidth" Value="80"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <Border.Effect>
-                                <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.08" Color="#000000"/>
-                            </Border.Effect>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1E88E5"/>
-                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#1565C0"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1565C0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
     <Grid Margin="15">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -59,19 +20,19 @@
 
         <TextBlock Grid.Row="0" Grid.Column="0" Text="本地路径:" VerticalAlignment="Center" FontSize="13"/>
         <TextBox x:Name="LocalPathBox" Grid.Row="0" Grid.Column="1" IsReadOnly="True" Padding="4,3" FontSize="13"/>
-        <Button Content="浏览..." Style="{StaticResource DialogButtonStyle}" Margin="5,0,0,0" Click="Browse_Click"/>
+        <Button Content="浏览..." Grid.Row="0" Grid.Column="2" Margin="5,0,0,0" Click="Browse_Click" MinWidth="80" Padding="12,6"/>
 
         <TextBlock x:Name="ErrorText" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
                    Foreground="Red" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
 
         <TextBlock x:Name="StatusText" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
-                   Foreground="#666666" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"
+                   FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"
                    Visibility="Collapsed"/>
 
         <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
                     Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-            <Button x:Name="OkButton" Content="确认" Style="{StaticResource DialogButtonStyle}" Margin="0,0,10,0" Click="OK_Click"/>
-            <Button x:Name="CancelButton" Content="取消" Style="{StaticResource DialogButtonStyle}" Click="Cancel_Click"/>
+            <Button x:Name="OkButton" Content="确认" Margin="0,0,10,0" Click="OK_Click" MinWidth="80" Padding="12,6"/>
+            <Button x:Name="CancelButton" Content="取消" Click="Cancel_Click" MinWidth="80" Padding="12,6"/>
         </StackPanel>
     </Grid>
 </Window>
