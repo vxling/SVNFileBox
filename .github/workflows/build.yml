@@ -19,7 +19,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Restore
         run: dotnet restore src/SVNFileBox.csproj
@@ -33,7 +33,7 @@ jobs:
       - name: Create zip
         shell: pwsh
         run: |
-          $src = "publish/bin/Release/net8.0-windows/win-x64/publish"
+          $src = "publish/bin/Release/net10.0-windows/win-x64/publish"
           if (Test-Path $src) {
             Compress-Archive -Path "$src/*" -DestinationPath SVNFileBox-win64.zip
             Write-Host "Used nested path: $src"
@@ -78,10 +78,10 @@ jobs:
         shell: pwsh
         run: |
           $notes = @"
-          Windows SVN 同步客户端，基于 .NET 8 + WPF 构建。
+          Windows SVN 同步客户端，基于 .NET 10 + WPF 构建。
 
           ## 下载
-          - Windows: `SVNFileBox-win64.zip`（内置 .NET 8 运行时，无需单独安装）
+          - Windows: `SVNFileBox-win64.zip`（内置 .NET 10 运行时，无需单独安装）
           "@
           gh release create v2.0.0 `
             SVNFileBox-win64.zip `
