@@ -35,11 +35,11 @@ public class SvnService : IDisposable
                 {
                     Depth = SvnDepth.Infinity,
                     RetrieveAllEntries = true,
-                }, results);
+                }, out var results);
 
                 foreach (var item in results)
                 {
-                    var path = item.LocalPath;
+                    var path = item.Path;
                     if (string.IsNullOrEmpty(path)) continue;
 
                     if (item.LocalNodeStatus == SharpSvnStatus.NotVersioned &&
@@ -243,14 +243,13 @@ public class SvnService : IDisposable
         {
             try
             {
-                var results = new Collection<SvnStatusEventArgs>();
-                _client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, results);
+                _client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out var dirResults);
                 int count = 0;
-                foreach (var r in results)
+                foreach (var r in dirResults)
                 {
                     if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
                     {
-                        if (_client.Add(r.LocalPath))
+                        if (_client.Add(r.Path))
                             count++;
                     }
                 }
@@ -286,7 +285,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Lock(path, new SvnLockArgs { BreakLock = true });
+                return _client.Lock(path, new SvnLockArgs { BreakLocks = true });
             }
             catch (Exception ex)
             {
@@ -372,17 +371,16 @@ public class SvnService : IDisposable
             var files = new List<string>();
             try
             {
-                var results = new Collection<SvnStatusEventArgs>();
                 _client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = SvnDepth.Infinity,
                     RetrieveAllEntries = true,
-                }, results);
+                }, out var conflictedResults);
 
-                foreach (var item in results)
+                foreach (var item in conflictedResults)
                 {
-                    if (item.LocalNodeStatus == SharpSvnStatus.Conflicted && !string.IsNullOrEmpty(item.LocalPath))
-                        files.Add(item.LocalPath);
+                    if (item.LocalNodeStatus == SharpSvnStatus.Conflicted && !string.IsNullOrEmpty(item.Path))
+                        files.Add(item.Path);
                 }
             }
             catch (Exception ex)
