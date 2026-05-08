@@ -30,7 +30,6 @@ public class SvnService : IDisposable
         {
             try
             {
-                var results = new Collection<SvnStatusEventArgs>();
                 _client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = SvnDepth.Infinity,
@@ -285,7 +284,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Lock(path, new SvnLockArgs { BreakLocks = true });
+                return _client.Lock(path, new SvnLockArgs { StealLock = true });
             }
             catch (Exception ex)
             {
