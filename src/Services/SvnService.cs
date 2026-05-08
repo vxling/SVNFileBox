@@ -161,7 +161,7 @@ public class SvnService : IDisposable
             try
             {
                 var result = _client.Update(workingCopyPath);
-                return result != null;
+                return result is not null;
             }
             catch (Exception ex)
             {

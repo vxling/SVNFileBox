@@ -480,7 +480,7 @@ public partial class MainWindow : Window
             if (result == MessageBoxResult.Yes)
             {
                 _viewModel!.Repositories.Remove(repo);
-                _configService.Config.Repositories.Remove(repo);
+                _configService!.Config.Repositories.Remove(repo);
                 _ = _configService.SaveAsync();
                 if (_viewModel.SelectedRepository == repo)
                     _viewModel.SelectedRepository = null;
