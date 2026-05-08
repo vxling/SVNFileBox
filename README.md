@@ -1,6 +1,6 @@
 # SVNFileBox
 
-Windows SVN 同步客户端，类似DropBox，自动同步文档，last-write-win的手工决策冲突机制，基于 .NET 8 + WPF 构建。
+Windows SVN 同步客户端，类似 Dropbox，自动同步文档，last-write-win 的手工决策冲突机制，基于 .NET 10 + WPF 构建。
 
 本地文件变更自动 commit 到 SVN，服务器更新自动 pull 到本地，保持工作副本始终同步。
 
@@ -14,9 +14,9 @@ Windows SVN 同步客户端，类似DropBox，自动同步文档，last-write-wi
 
 ## 依赖
 
-- .NET 8.0 SDK
+- .NET 10.0 SDK
 - WPF
-- SVN CLI (`svn`)
+- SharpSvn 1.14005.390（原生 .NET SVN 绑定，无需 svn CLI）
 
 ## 构建
 
@@ -25,13 +25,13 @@ cd src
 dotnet build -c Release
 ```
 
-运行：`bin/Release/net8.0-windows/win-x64/SVNFileBox.exe`
+运行：`bin/Release/net10.0-windows/win-x64/SVNFileBox.exe`
 
 ## 技术栈
 
-- .NET 8.0 + WPF
+- .NET 10.0 + WPF + Fluent UI（内置 `PresentationFramework.Fluent`）
 - CommunityToolkit.Mvvm（MVVM 框架）
 - Serilog（日志）
 - Hardcodet.NotifyIcon.Wpf（托盘图标）
-- SVN CLI 封装（System.Diagnostics.Process）
+- SharpSvn 1.14005.390（SVN 操作）
 - QFileSystemWatcher 文件监控 + 定时轮询
