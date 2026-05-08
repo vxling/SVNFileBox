@@ -6,13 +6,13 @@
         xmlns:vm="clr-namespace:SVNFileBox.ViewModels"
         xmlns:conv="clr-namespace:SVNFileBox.Converters"
         xmlns:tb="http://www.hardcodet.net/taskbar"
-        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:local="clr-namespace:SVNFileBox.Views"
         mc:Ignorable="d"
         Title="SVNFileBox" Height="580" Width="1100"
         MinHeight="550" MinWidth="900"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized"
-        Icon="/Assets/Icons/app.ico">
+        Icon="/Assets/Icons/app.ico"
+        Background="#F0F4F8">
 
     <Window.Resources>
         <conv:FileTypeIconConverter x:Key="FileTypeIconConverter"/>
@@ -22,58 +22,155 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibleConverter"/>
         <conv:BoolToCollapsedConverter x:Key="BoolToCollapsedConverter"/>
 
-        <!-- Context Menu -->
+        <!-- Path Bar Button Style -->
+        <Style x:Key="PathBarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F5F7FA"/>
+            <Setter Property="Foreground" Value="#1A1A2E"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.06" Color="#000000"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1E88E5"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#1565C0"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1565C0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern Sidebar Button Style (default state has light background) -->
+        <Style x:Key="SidebarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F5F7FA"/>
+            <Setter Property="Foreground" Value="#1A1A2E"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="1" BlurRadius="6" Opacity="0.08" Color="#000000"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1E88E5"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#1565C0"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter TargetName="ButtonBorder" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect ShadowDepth="2" BlurRadius="10" Opacity="0.15" Color="#1E88E5"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1565C0"/>
+                                <Setter TargetName="ButtonBorder" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.1" Color="#000000"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Accent Sidebar Button (for primary actions) -->
+        <Style x:Key="SidebarAccentButtonStyle" TargetType="Button" BasedOn="{StaticResource SidebarButtonStyle}">
+            <Setter Property="Background" Value="#E3F2FD"/>
+            <Setter Property="BorderBrush" Value="#BBDEFB"/>
+        </Style>
+
+        <!-- Repository Icons (Vector Path Drawings) -->
+        <DrawingImage x:Key="LocalRepoIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <!-- Folder back/body (darker) -->
+                    <GeometryDrawing Brush="#FFA000">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M 2,4 L 2,16 L 16,16 L 16,6 L 7,6 L 5,3 L 2,3 Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <!-- Folder front (lighter) -->
+                    <GeometryDrawing Brush="#FFC107">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M 1,8 L 1,17 L 17,17 L 17,8 Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <DrawingImage x:Key="NetworkRepoIcon">
+            <DrawingImage.Drawing>
+                <GeometryDrawing Brush="#42A5F5">
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M 4,16 L 14,16 L 14,13 L 11,13 A 3.5,3.5 0 1 1 8,9.5 A 4,4 0 1 1 4,13 L 4,16 Z"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <!-- Context Menu for file list -->
         <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
-            <ui:MenuItem Header="在资源管理器中打开" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="FolderOpen24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
+            <MenuItem Header="在资源管理器中打开" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Icon="📂"/>
             <Separator/>
-            <ui:MenuItem Header="复制路径" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="Copy24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
+            <MenuItem Header="复制路径" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
             <Separator/>
-            <ui:MenuItem Header="粘贴" Click="Paste_Click" x:Name="PasteMenuItem">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="ClipboardPaste24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
-            <ui:MenuItem Header="新建文件夹" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="FolderAdd24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
-            <ui:MenuItem Header="重命名" Click="Rename_Click" IsEnabled="{Binding CanRename}">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="Rename24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
+            <MenuItem Header="粘贴" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
+            <MenuItem Header="新建文件夹" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
+            <MenuItem Header="重命名" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
             <Separator/>
-            <ui:MenuItem Header="删除" Click="Delete_Click" IsEnabled="{Binding CanDelete}">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="Delete24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
+            <MenuItem Header="删除" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
             <Separator/>
-            <ui:MenuItem Header="刷新" Click="Refresh_Click" IsEnabled="{Binding CanOperate}">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="ArrowSync24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
+            <MenuItem Header="刷新" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
             <Separator/>
-            <ui:MenuItem Header="手工同步" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}">
-                <ui:MenuItem.Icon>
-                    <ui:SymbolIcon Symbol="ArrowSync24"/>
-                </ui:MenuItem.Icon>
-            </ui:MenuItem>
+            <MenuItem Header="手工同步" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Icon="🔃"/>
         </ContextMenu>
     </Window.Resources>
 
-    <Grid>
-        <!-- System Tray Icon -->
+    <DockPanel>
+        <!-- System Tray Icon (must be inside DockPanel, not direct child of Window) -->
         <tb:TaskbarIcon x:Name="TrayIcon"
                         IconSource="/Assets/Icons/app.ico"
                         ToolTipText="SVNFileBox"
@@ -87,6 +184,18 @@
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
 
+        <!-- Bottom Status Bar -->
+        <Border DockPanel.Dock="Bottom" Background="#1E88E5" Padding="12,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="CurrentPathText" Grid.Column="0" Text="" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Grid.Column="1" Text="" Foreground="White" FontSize="12" VerticalAlignment="Center" MaxWidth="500" TextTrimming="CharacterEllipsis"/>
+            </Grid>
+        </Border>
+
         <!-- Main Content -->
         <Grid>
             <Grid.ColumnDefinitions>
@@ -95,82 +204,72 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left Sidebar -->
-            <Border Grid.Column="0" Margin="8" Padding="12"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8">
-                <DockPanel LastChildFill="True">
-                    <TextBlock DockPanel.Dock="Top" Text="仓库列表" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+            <Border Grid.Column="0" Background="White" Margin="8" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="仓库列表" FontSize="14" FontWeight="SemiBold" Foreground="#1A1A2E" Margin="0,0,0,8"/>
 
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                        <ui:Button Content="添加本地仓库"
-                                   Icon="{ui:SymbolIcon Folder24}"
-                                   Appearance="Primary"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="AddLocalRepo_Click"/>
-                        <ui:Button Content="从网络添加仓库"
-                                   Icon="{ui:SymbolIcon Globe24}"
-                                   Appearance="Primary"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="Checkout_Click"/>
-                        <ui:Button Content="查看同步记录"
-                                   Icon="{ui:SymbolIcon History24}"
-                                   Appearance="Primary"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="ViewSyncRecords_Click"/>
+                        <Separator Margin="0,0,0,8"/>
+                        <Button x:Name="AddLocalRepoButton" Content="📂 添加本地仓库" Style="{StaticResource SidebarAccentButtonStyle}" Click="AddLocalRepo_Click"/>
+                        <Button x:Name="CheckoutButton" Content="🌐 从网络添加仓库" Style="{StaticResource SidebarAccentButtonStyle}" Click="Checkout_Click"/>
+                        <Button x:Name="ViewSyncRecordsButton" Content="📋 查看同步记录" Style="{StaticResource SidebarAccentButtonStyle}" Click="ViewSyncRecords_Click"/>
                         <Separator Margin="0,4"/>
-                        <ui:Button Content="设置"
-                                   Icon="{ui:SymbolIcon Settings24}"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="Settings_Click"/>
-                        <ui:Button Content="关于"
-                                   Icon="{ui:SymbolIcon Info24}"
-                                   HorizontalAlignment="Stretch"
-                                   Click="About_Click"/>
+                        <Button x:Name="SettingsButton" Content="⚙️ 设置" Style="{StaticResource SidebarButtonStyle}" Click="Settings_Click"/>
+                        <Button x:Name="AboutButton" Content="ℹ️ 关于" Style="{StaticResource SidebarButtonStyle}" Click="About_Click"/>
                     </StackPanel>
 
-                    <ListBox x:Name="RepoList"
-                             ItemsSource="{Binding Repositories}"
-                             SelectedItem="{Binding SelectedRepository, Mode=TwoWay}"
-                             SelectionChanged="RepoList_SelectionChanged">
+                    <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding" Value="0"/>
                                 <Setter Property="Margin" Value="0,2"/>
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="ItemBorder" Background="#F5F7FA" Padding="8,8" Margin="0,2" CornerRadius="6"
+                                                    BorderThickness="3,0,0,0" BorderBrush="Transparent">
+                                                <ContentPresenter/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#E8EDF2"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#E3F2FD"/>
+                                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#1E88E5"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <DockPanel Margin="4">
-                                    <ui:Button DockPanel.Dock="Right"
-                                               Tag="{Binding}"
-                                               Icon="{ui:SymbolIcon Dismiss24}"
-                                               Appearance="Secondary"
-                                               Padding="4"
-                                               VerticalAlignment="Center"
-                                               Margin="4,0,0,0"
-                                               Click="RemoveRepo_Click"/>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <ui:SymbolIcon Margin="0,0,8,0" VerticalAlignment="Center">
-                                            <ui:SymbolIcon.Style>
-                                                <Style TargetType="ui:SymbolIcon">
-                                                    <Setter Property="Symbol" Value="Folder24"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding RepositoryType}" Value="Network">
-                                                            <Setter Property="Symbol" Value="Globe24"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </ui:SymbolIcon.Style>
-                                        </ui:SymbolIcon>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13"/>
-                                            <TextBlock Text="{Binding Path}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="10" TextTrimming="CharacterEllipsis" MaxWidth="140"/>
-                                        </StackPanel>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Tag="{Binding}" Content="X" Padding="4,2"
+                                            Background="Transparent" Foreground="#E53935" FontSize="11"
+                                            BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Margin="4,0,0,0"
+                                            Click="RemoveRepo_Click"/>
+                                    <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Stretch" Value="Uniform"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RepositoryType}" Value="Local">
+                                                        <Setter Property="Source" Value="{StaticResource LocalRepoIcon}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding RepositoryType}" Value="Network">
+                                                        <Setter Property="Source" Value="{StaticResource NetworkRepoIcon}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                    <StackPanel Margin="4,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13" Foreground="#1A1A2E"/>
+                                        <TextBlock Text="{Binding Path}" Foreground="#888888" FontSize="10" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
                                     </StackPanel>
                                 </DockPanel>
                             </DataTemplate>
@@ -180,39 +279,35 @@
             </Border>
 
             <!-- Right Area: File Browser / Sync Records -->
-            <ui:Card Grid.Column="1" Margin="0,8,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="12">
-                <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Border Grid.Column="1" Background="White" Margin="0,8,8,8">
+                <DockPanel>
                     <!-- Path Bar -->
-                    <Border DockPanel.Dock="Top" Padding="12,10" BorderBrush="{DynamicResource ControlElevationBorderBrush}" BorderThickness="0,0,0,1">
+                    <Border DockPanel.Dock="Top" Background="#FAFBFC" Padding="12,10" BorderBrush="#E8E8E8" BorderThickness="0,0,0,1">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="329*"/>
+                                <ColumnDefinition Width="74*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="路径:" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,8,0"/>
-                                <TextBlock x:Name="PathText" Text="" FontSize="13"/>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Grid.ColumnSpan="2">
+                                <TextBlock Text="路径:" FontSize="12" Foreground="#666666" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="PathText" Text="" FontSize="13" Foreground="#333333"/>
                             </StackPanel>
-                            <ui:Button Grid.Column="1"
-                                       x:Name="RefreshListButton"
-                                       Content="刷新"
-                                       Icon="{ui:SymbolIcon ArrowSync24}"
-                                       Click="Refresh_Click"/>
+                            <Button Grid.Column="2" x:Name="RefreshListButton" Content="刷新" Style="{StaticResource PathBarButtonStyle}" Click="Refresh_Click"/>
                         </Grid>
                     </Border>
 
                     <!-- File List with columns (visible when not showing sync records) -->
-                    <ui:ListView x:Name="FileList"
-                                 Background="Transparent"
-                                 SelectedItem="{Binding SelectedFile}"
-                                 ContextMenu="{StaticResource FileContextMenu}"
-                                 MouseDoubleClick="FileList_MouseDoubleClick"
-                                 AllowDrop="True"
-                                 Drop="FileList_Drop"
-                                 DragOver="FileList_DragOver"
-                                 Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}"
-                                 HorizontalAlignment="Stretch"
-                                 VerticalAlignment="Stretch">
+                    <ListView x:Name="FileList"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              SelectedItem="{Binding SelectedFile}"
+                              ContextMenu="{StaticResource FileContextMenu}"
+                              MouseDoubleClick="FileList_MouseDoubleClick"
+                              AllowDrop="True"
+                              Drop="FileList_Drop"
+                              DragOver="FileList_DragOver"
+                              Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="类型" Width="40">
@@ -240,15 +335,14 @@
                                 <GridViewColumn Header="修改时间" Width="140" DisplayMemberBinding="{Binding LastModifiedDisplay}"/>
                             </GridView>
                         </ListView.View>
-                    </ui:ListView>
+                    </ListView>
 
                     <!-- Sync Records List (visible when showing sync records) -->
-                    <ui:ListView x:Name="SyncRecordList"
-                                 Background="Transparent"
-                                 ItemsSource="{Binding SyncRecords}"
-                                 Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToVisibleConverter}}"
-                                 HorizontalAlignment="Stretch"
-                                 VerticalAlignment="Stretch">
+                    <ListView x:Name="SyncRecordList"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              ItemsSource="{Binding SyncRecords}"
+                              Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToVisibleConverter}}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="时间" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
@@ -259,19 +353,9 @@
                                 <GridViewColumn Header="详情" Width="200" DisplayMemberBinding="{Binding Message}"/>
                             </GridView>
                         </ListView.View>
-                    </ui:ListView>
+                    </ListView>
                 </DockPanel>
-            </ui:Card>
+            </Border>
         </Grid>
-
-        <!-- Status Bar -->
-        <StatusBar VerticalAlignment="Bottom">
-            <StatusBarItem>
-                <TextBlock x:Name="CurrentPathText" Text="" FontSize="12"/>
-            </StatusBarItem>
-            <StatusBarItem HorizontalAlignment="Right">
-                <TextBlock x:Name="StatusText" Text="" FontSize="12" MaxWidth="500" TextTrimming="CharacterEllipsis"/>
-            </StatusBarItem>
-        </StatusBar>
-    </Grid>
+    </DockPanel>
 </Window>
