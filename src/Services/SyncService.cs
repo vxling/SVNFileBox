@@ -3,7 +3,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
 using System.Timers;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,7 +15,6 @@ namespace SVNFileBox.Services;
 
 public class SyncService : IDisposable
 {
-    private static readonly Regex _lockFileRegex = new(@"([A-Za-z]:[^""']+|\S+\.xlsx|\S+\.xls|\S+\.docx|\S+\.doc)", RegexOptions.Compiled);
     private readonly ConfigService _configService;
     private readonly SvnService _svnService = new();
     private readonly FileWatcherService _fileWatcher = new();
@@ -156,8 +154,6 @@ public class SyncService : IDisposable
             }
             return;
         }
-
-        if (!fileExists) return;
 
         var operation = Directory.Exists(filePath) ? "Add" : "Update";
 
@@ -420,8 +416,6 @@ public class SyncService : IDisposable
         }
     }
 
-    // Note: check-then-act inside lock is safe — prevents duplicate entries
-    // even if multiple threads call AddPendingUpdate simultaneously.
     // Marshal SyncNotification to the UI thread since timer callbacks run on ThreadPool.
     private void Notify(string message)
     {
@@ -442,26 +436,6 @@ public class SyncService : IDisposable
                 Log.Information("Added to pending updates: {File}", filePath);
             }
         }
-    }
-
-    private List<string> ExtractLockedFiles(string errorOutput)
-    {
-        var files = new List<string>();
-        var lines = errorOutput.Split('\n');
-        foreach (var line in lines)
-        {
-            if (line.Contains("locked") || line.Contains("lock"))
-            {
-                var match = _lockFileRegex.Match(line);
-                if (match.Success)
-                {
-                    var file = match.Value.Trim('\'', '"', ' ');
-                    if (File.Exists(file))
-                        files.Add(file);
-                }
-            }
-        }
-        return files;
     }
 
     /// <summary>
