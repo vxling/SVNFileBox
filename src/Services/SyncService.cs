@@ -336,7 +336,7 @@ public class SyncService : IDisposable
             {
                 // Check for conflicts in XML output
                 var doc = XDocument.Parse(result.output);
-                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var ns = SvnService.XmlNs;
                 var conflictEls = doc.Descendants(ns + "conflict");
                 if (conflictEls.Any())
                 {
@@ -496,7 +496,7 @@ public class SyncService : IDisposable
             if (statusResult.exitCode != 0) return 0;
 
             var doc = XDocument.Parse(statusResult.output);
-            var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+            var ns = SvnService.XmlNs;
 
             var conflictedFiles = new List<string>();
             foreach (var entry in doc.Descendants(ns + "entry"))

@@ -14,6 +14,8 @@ namespace SVNFileBox.Services;
 
 public class SvnService
 {
+    // SVN 1.14.x XML output uses this fixed namespace URI
+    internal static readonly XNamespace XmlNs = XNamespace.Get("urn:uuid:30a413d5-107e-4490-a7b9-2c1257e82a3e");
     // C# static initialization is thread-safe — equivalent to a static variable initialized once at program start
     private static readonly string _svnPath;
     private static readonly string? _svnError;
@@ -152,7 +154,7 @@ public class SvnService
             }
 
             var doc = XDocument.Parse(result.output);
-            var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+            var ns = XmlNs;
 
             // Find <target> elements (files/directories)
             var targetElements = doc.Descendants(ns + "target");
@@ -237,7 +239,7 @@ public class SvnService
             if (result.exitCode == 0)
             {
                 var doc = XDocument.Parse(result.output);
-                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var ns = XmlNs;
                 var urlEl = doc.Descendants(ns + "url").FirstOrDefault();
                 return urlEl?.Value?.Trim() ?? "";
             }
@@ -258,7 +260,7 @@ public class SvnService
             if (result.exitCode == 0)
             {
                 var doc = XDocument.Parse(result.output);
-                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var ns = XmlNs;
                 var revEl = doc.Descendants(ns + "entry").FirstOrDefault();
                 var revAttr = revEl?.Attribute("revision");
                 if (revAttr != null && int.TryParse(revAttr.Value, out var revision))
@@ -289,7 +291,7 @@ public class SvnService
             if (result.exitCode == 0)
             {
                 var doc = XDocument.Parse(result.output);
-                var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+                var ns = XmlNs;
                 var revEl = doc.Descendants(ns + "entry").FirstOrDefault();
                 var revAttr = revEl?.Attribute("revision");
                 if (revAttr != null && int.TryParse(revAttr.Value, out var revision))
