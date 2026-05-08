@@ -12,7 +12,7 @@ public enum ConflictResolution
 public class ConflictedFileInfo
 {
     public required string FilePath { get; init; }
-    public required string FileName => System.IO.Path.GetFileName(FilePath);
+    public string FileName => System.IO.Path.GetFileName(FilePath);
     public DateTime LocalModifiedTime { get; set; }
     public DateTime ServerModifiedTime { get; set; }
     public ConflictResolution SuggestedResolution { get; set; }
