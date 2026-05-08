@@ -106,15 +106,17 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="仓库列表" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" HorizontalAlignment="Stretch">
-                        <Separator Margin="0,0,0,8"/>
-                        <Button x:Name="AddLocalRepoButton" Content="📂 添加本地仓库" Click="AddLocalRepo_Click" Margin="0,0,0,8" Padding="8,6" HorizontalContentAlignment="Stretch"/>
-                        <Button x:Name="CheckoutButton" Content="🌐 从网络添加仓库" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6" HorizontalContentAlignment="Stretch"/>
-                        <Button x:Name="ViewSyncRecordsButton" Content="📋 查看同步记录" Click="ViewSyncRecords_Click" Margin="0,0,0,8" Padding="8,6" HorizontalContentAlignment="Stretch"/>
-                        <Separator Margin="0,4"/>
-                        <Button x:Name="SettingsButton" Content="⚙️ 设置" Click="Settings_Click" Margin="0,0,0,8" Padding="8,6" HorizontalContentAlignment="Stretch"/>
-                        <Button x:Name="AboutButton" Content="ℹ️ 关于" Click="About_Click" Padding="8,6" HorizontalContentAlignment="Stretch"/>
-                    </StackPanel>
+                    <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <StackPanel>
+                            <Separator Margin="0,0,0,8"/>
+                            <Button x:Name="AddLocalRepoButton" Content="📂 添加本地仓库" Click="AddLocalRepo_Click" Margin="0,0,0,8" Padding="8,6"/>
+                            <Button x:Name="CheckoutButton" Content="🌐 从网络添加仓库" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6"/>
+                            <Button x:Name="ViewSyncRecordsButton" Content="📋 查看同步记录" Click="ViewSyncRecords_Click" Margin="0,0,0,8" Padding="8,6"/>
+                            <Separator Margin="0,4"/>
+                            <Button x:Name="SettingsButton" Content="⚙️ 设置" Click="Settings_Click" Margin="0,0,0,8" Padding="8,6"/>
+                            <Button x:Name="AboutButton" Content="ℹ️ 关于" Click="About_Click" Padding="8,6"/>
+                        </StackPanel>
+                    </Grid>
 
                     <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged">
                         <ListBox.ItemTemplate>
