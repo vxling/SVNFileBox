@@ -32,7 +32,7 @@ public class SvnService : IDisposable
             {
                 _client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
-                    Depth = SvnDepth.Infinity,
+                    Depth = SvnDepth.Children,
                     RetrieveAllEntries = true,
                 }, out var results);
 
@@ -373,7 +373,7 @@ public class SvnService : IDisposable
             {
                 _client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
-                    Depth = SvnDepth.Infinity,
+                    Depth = SvnDepth.Empty,
                     RetrieveAllEntries = true,
                 }, out var conflictedResults);
 
