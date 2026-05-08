@@ -95,47 +95,22 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left Sidebar -->
-            <ui:Card Grid.Column="0" Margin="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="12">
-                <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                    <TextBlock DockPanel.Dock="Top" Text="仓库列表" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+            <ui:Card Grid.Column="0" Margin="8" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" VerticalAlignment="Bottom">
-                        <ui:Button Content="添加本地仓库"
-                                   Icon="{ui:SymbolIcon Folder24}"
-                                   Appearance="Primary"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="AddLocalRepo_Click"/>
-                        <ui:Button Content="从网络添加仓库"
-                                   Icon="{ui:SymbolIcon Globe24}"
-                                   Appearance="Primary"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="Checkout_Click"/>
-                        <ui:Button Content="查看同步记录"
-                                   Icon="{ui:SymbolIcon History24}"
-                                   Appearance="Primary"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="ViewSyncRecords_Click"/>
-                        <Separator Margin="0,4"/>
-                        <ui:Button Content="设置"
-                                   Icon="{ui:SymbolIcon Settings24}"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="Settings_Click"/>
-                        <ui:Button Content="关于"
-                                   Icon="{ui:SymbolIcon Info24}"
-                                   HorizontalAlignment="Stretch"
-                                   Click="About_Click"/>
-                    </StackPanel>
+                    <TextBlock Grid.Row="0" Text="仓库列表" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
                     <ListBox x:Name="RepoList"
+                                Grid.Row="1"
                                 ItemsSource="{Binding Repositories}"
                                 SelectedItem="{Binding SelectedRepository, Mode=TwoWay}"
                                 SelectionChanged="RepoList_SelectionChanged"
-                                VerticalAlignment="Stretch"
-                                HorizontalAlignment="Stretch">
+                                VerticalAlignment="Stretch">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding" Value="0"/>
@@ -176,7 +151,38 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                </DockPanel>
+
+                    <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                        <ui:Button Content="添加本地仓库"
+                                   Icon="{ui:SymbolIcon Folder24}"
+                                   Appearance="Primary"
+                                   Margin="0,0,0,8"
+                                   HorizontalAlignment="Stretch"
+                                   Click="AddLocalRepo_Click"/>
+                        <ui:Button Content="从网络添加仓库"
+                                   Icon="{ui:SymbolIcon Globe24}"
+                                   Appearance="Primary"
+                                   Margin="0,0,0,8"
+                                   HorizontalAlignment="Stretch"
+                                   Click="Checkout_Click"/>
+                        <ui:Button Content="查看同步记录"
+                                   Icon="{ui:SymbolIcon History24}"
+                                   Appearance="Primary"
+                                   Margin="0,0,0,8"
+                                   HorizontalAlignment="Stretch"
+                                   Click="ViewSyncRecords_Click"/>
+                        <Separator Margin="0,4"/>
+                        <ui:Button Content="设置"
+                                   Icon="{ui:SymbolIcon Settings24}"
+                                   Margin="0,0,0,8"
+                                   HorizontalAlignment="Stretch"
+                                   Click="Settings_Click"/>
+                        <ui:Button Content="关于"
+                                   Icon="{ui:SymbolIcon Info24}"
+                                   HorizontalAlignment="Stretch"
+                                   Click="About_Click"/>
+                    </StackPanel>
+                </Grid>
             </ui:Card>
 
             <!-- Right Area: File Browser / Sync Records -->
