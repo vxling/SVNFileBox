@@ -11,8 +11,7 @@
         Title="SVNFileBox" Height="580" Width="1100"
         MinHeight="550" MinWidth="900"
         WindowStartupLocation="CenterScreen"
-        Icon="/Assets/Icons/app.ico"
-        ExtendsContentIntoTitleBar="True">
+        Icon="/Assets/Icons/app.ico">
 
     <Window.Resources>
         <conv:FileTypeIconConverter x:Key="FileTypeIconConverter"/>
@@ -73,15 +72,6 @@
     </Window.Resources>
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Title Bar -->
-        <ui:TitleBar Grid.Row="0" Title="SVNFileBox" ShowMaximize="True" ShowMinimize="True"/>
-
         <!-- System Tray Icon -->
         <tb:TaskbarIcon x:Name="TrayIcon"
                         IconSource="/Assets/Icons/app.ico"
@@ -97,7 +87,7 @@
         </tb:TaskbarIcon>
 
         <!-- Main Content -->
-        <Grid Grid.Row="1">
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220"/>
                 <ColumnDefinition Width="*"/>
@@ -261,7 +251,7 @@
         </Grid>
 
         <!-- Status Bar -->
-        <ui:StatusBar Grid.Row="2">
+        <ui:StatusBar VerticalAlignment="Bottom">
             <ui:StatusBarItem>
                 <TextBlock x:Name="CurrentPathText" Text="" FontSize="12"/>
             </ui:StatusBarItem>
