@@ -422,7 +422,17 @@ public partial class MainWindow : Window
             var targetPath = Path.Combine(targetDir, fileName);
             if (Directory.Exists(f))
             {
-                if (Directory.Exists(targetPath)) { skipped++; continue; }
+                if (Directory.Exists(targetPath))
+                {
+                    var result = MessageBox.Show(
+                        $"文件夹「{fileName}」已存在，是否覆盖？",
+                        "确认覆盖",
+                        MessageBoxButton.YesNoCancel,
+                        MessageBoxImage.Question);
+                    if (result == MessageBoxResult.Cancel) break;
+                    if (result == MessageBoxResult.No) { skipped++; continue; }
+                    overwritten++;
+                }
                 try { CopyDirectory(f, targetPath, true); svnAddedPaths.Add(targetPath); copied++; }
                 catch { skipped++; }
             }
