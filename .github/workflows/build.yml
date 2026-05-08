@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -36,11 +39,6 @@ jobs:
             Compress-Archive -Path "$src/*" -DestinationPath SVNFileBox-win64.zip
             Write-Host "Used nested path: $src"
           } elseif (Test-Path "publish") {
-            # Self-contained publishes directly to the output dir
-            $files = Get-ChildItem -Path "publish" -Recurse -Include "*.exe"
-            if ($files) {
-              Write-Host "Found exe at: $($files[0].FullName)"
-            }
             Compress-Archive -Path "publish/*" -DestinationPath SVNFileBox-win64.zip
             Write-Host "Used publish root path"
           } else {
@@ -63,7 +61,7 @@ jobs:
           retention-days: 5
 
       - name: Install GitHub CLI
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           choco install gh -y --no-progress 2>&1 | Out-Null
@@ -71,14 +69,16 @@ jobs:
           gh --version
 
       - name: Create Draft Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          gh release create v1.0.1 `
+          $tag = $github.ref -replace 'refs/tags/', ''
+          $version = $tag -replace '^v', ''
+          gh release create $tag `
             SVNFileBox-win64.zip `
             --draft `
             --repo vxling/SVNFileBox `
-            --title "SVNFileBox v1.0.1" `
-            --notes "Windows SVN 同步客户端，基于 .NET 8 + WPF 构建。`n`n## 下载`n- Windows: \`SVNFileBox-win64.zip\`（内置 .NET 8 运行时，无需单独安装）"
+            --title "SVNFileBox $version" `
+            --notes "Windows SVN 同步客户端，基于 .NET 8 + WPF + WPF-UI (Fluent Design) 构建。`n`n## 下载`n- Windows: \`SVNFileBox-win64.zip\`（内置 .NET 8 运行时，无需单独安装）"
