@@ -356,7 +356,6 @@ public class SyncService : IDisposable
                 Log.Warning("Update failed for {Path}", _currentRepo.Path);
                 _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Failed", "Update returned false");
                 Notify($"更新失败");
-                }
             }
         }
         catch (Exception ex)
