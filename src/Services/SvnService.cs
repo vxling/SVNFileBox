@@ -30,20 +30,16 @@ public class SvnService : IDisposable
         {
             try
             {
-                _client.GetStatus(workingCopyPath, new SvnStatusArgs
-                {
-                    Depth = SvnDepth.Children,
-                    RetrieveAllEntries = true,
-                }, out var results);
-
-                foreach (var item in results)
+                // Use event-based API: processes items one-by-one as they are discovered,
+                // avoiding large in-memory collections that cause stack overflow on deep trees.
+                var handler = new EventHandler<SvnStatusEventArgs>(delegate(object sender, SvnStatusEventArgs item)
                 {
                     var path = item.Path;
-                    if (string.IsNullOrEmpty(path)) continue;
+                    if (string.IsNullOrEmpty(path)) return;
 
                     if (item.LocalNodeStatus == SharpSvnStatus.NotVersioned &&
                         (path == workingCopyPath || path.EndsWith(".")))
-                        continue;
+                        return;
 
                     var svnStatus = item.LocalNodeStatus switch
                     {
@@ -62,7 +58,13 @@ public class SvnService : IDisposable
 
                     if (svnStatus != FileSvnStatus.Normal || !statuses.ContainsKey(path))
                         statuses[path] = svnStatus;
-                }
+                });
+
+                _client.Status(workingCopyPath, new SvnStatusArgs
+                {
+                    Depth = SvnDepth.Children,
+                    RetrieveAllEntries = true,
+                }, handler);
             }
             catch (Exception ex)
             {
