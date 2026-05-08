@@ -15,8 +15,6 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        // 启用微软官方 Fluent 主题：跟随系统深色/浅色
-        this.ThemeMode = ThemeMode.System;
         var logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SVNFileBox", "logs");

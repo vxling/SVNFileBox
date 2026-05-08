@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading.Tasks;
 using SharpSvn;
@@ -29,32 +30,18 @@ public class SvnService : IDisposable
         {
             try
             {
-                var collection = new SvnStatusEventArgs();
-                bool success = _client.GetStatus(workingCopyPath, new SvnStatusArgs
+                var results = new Collection<SvnStatusEventArgs>();
+                _client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = SvnDepth.Infinity,
                     RetrieveAllEntries = true,
-                }, out collection);
+                }, results);
 
-                if (!success || collection == null)
+                foreach (var item in results)
                 {
-                    // W155010 = unversioned directory
-                    if (Directory.Exists(workingCopyPath))
-                    {
-                        foreach (var file in Directory.GetFiles(workingCopyPath, "*", SearchOption.TopDirectoryOnly))
-                            statuses[file] = FileSvnStatus.Unversioned;
-                        foreach (var dir in Directory.GetDirectories(workingCopyPath, "*", SearchOption.TopDirectoryOnly))
-                            statuses[dir] = FileSvnStatus.Unversioned;
-                    }
-                    return;
-                }
-
-                foreach (SvnStatusEventArgs item in collection)
-                {
-                    var path = item.FullPath;
+                    var path = item.LocalPath;
                     if (string.IsNullOrEmpty(path)) continue;
 
-                    // Skip the root if unversioned ("? .")
                     if (item.LocalNodeStatus == SharpSvnStatus.NotVersioned &&
                         (path == workingCopyPath || path.EndsWith(".")))
                         continue;
@@ -93,8 +80,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                if (_client.GetRepositoryRoot(workingCopyPath, out var root))
-                    return root.ToString();
+                var root = _client.GetRepositoryRoot(workingCopyPath);
+                return root?.ToString() ?? "";
             }
             catch (Exception ex)
             {
@@ -110,8 +97,10 @@ public class SvnService : IDisposable
         {
             try
             {
-                if (_client.Info(workingCopyPath, out var info))
-                    return (int)info.Revision;
+                SvnInfoEventArgs? infoResult = null;
+                var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
+                _client.Info(workingCopyPath, handler);
+                return infoResult != null ? (int)infoResult.Revision : -1;
             }
             catch (Exception ex)
             {
@@ -128,9 +117,10 @@ public class SvnService : IDisposable
             try
             {
                 var uri = new Uri(repoUrl);
-                var args = new SvnInfoEventArgs();
-                if (_client.GetInfo(uri, new SvnUriTarget(uri, SvnRevision.Head), out args))
-                    return (int)args.Revision;
+                SvnInfoEventArgs? infoResult = null;
+                var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
+                _client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
+                return infoResult != null ? (int)infoResult.Revision : -1;
             }
             catch (Exception ex)
             {
@@ -154,9 +144,8 @@ public class SvnService : IDisposable
         {
             try
             {
-                var targets = new SvnPathTargetCollection { new SvnPathTarget(workingCopyPath) };
                 var args = new SvnCommitArgs { LogMessage = message };
-                return _client.Commit(targets, args);
+                return _client.Commit(workingCopyPath, args);
             }
             catch (Exception ex)
             {
@@ -232,17 +221,17 @@ public class SvnService : IDisposable
         });
     }
 
-    public async Task<bool> CleanupAsync(string workingCopyPath)
+    public async Task<bool> CleanUpAsync(string workingCopyPath)
     {
         return await Task.Run(() =>
         {
             try
             {
-                return _client.Cleanup(workingCopyPath);
+                return _client.CleanUp(workingCopyPath);
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Cleanup failed for {Path}", workingCopyPath);
+                Log.Error(ex, "CleanUp failed for {Path}", workingCopyPath);
                 return false;
             }
         });
@@ -254,8 +243,18 @@ public class SvnService : IDisposable
         {
             try
             {
-                var added = _client.Add(directoryPath, new SvnAddArgs { Depth = SvnDepth.Infinity });
-                return (added.Count.ToString(), 0);
+                var results = new Collection<SvnStatusEventArgs>();
+                _client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, results);
+                int count = 0;
+                foreach (var r in results)
+                {
+                    if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
+                    {
+                        if (_client.Add(r.LocalPath))
+                            count++;
+                    }
+                }
+                return (count.ToString(), 0);
             }
             catch (Exception ex)
             {
@@ -271,7 +270,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Unlock(path);
+                return _client.Unlock(new[] { path }, new SvnUnlockArgs());
             }
             catch (Exception ex)
             {
@@ -287,7 +286,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Lock(path, "", false);
+                return _client.Lock(path, new SvnLockArgs { BreakLock = true });
             }
             catch (Exception ex)
             {
@@ -297,9 +296,6 @@ public class SvnService : IDisposable
         });
     }
 
-    /// <summary>
-    /// Checkout a remote SVN repository to a local path.
-    /// </summary>
     public async Task<(string output, int exitCode, string error)> CheckoutAsync(
         string url,
         string localPath,
@@ -310,8 +306,9 @@ public class SvnService : IDisposable
         {
             try
             {
-                var result = _client.CheckOut(new Uri(url), localPath);
-                return (result.Revision.ToString(), 0, "");
+                SvnUpdateResult? result = null;
+                _client.CheckOut(new SvnUriTarget(url), localPath, new SvnCheckOutArgs(), out result);
+                return (result?.Revision.ToString() ?? "", 0, "");
             }
             catch (Exception ex)
             {
@@ -321,14 +318,23 @@ public class SvnService : IDisposable
         });
     }
 
-    /// <summary>
-    /// Check if a directory is a valid SVN working copy.
-    /// </summary>
     public bool IsValidWorkingCopy(string path)
     {
         try
         {
-            return _client.GetRepositoryRoot(path, out _);
+            return _client.GetRepositoryRoot(path) != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public bool IsVersioned(string path)
+    {
+        try
+        {
+            return _client.GetRepositoryRoot(path) != null;
         }
         catch
         {
@@ -345,7 +351,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                return _client.Resolve(path, new SvnResolveArgs { Accept = accept });
+                return _client.Resolve(path, accept);
             }
             catch (Exception ex)
             {
@@ -356,7 +362,8 @@ public class SvnService : IDisposable
     }
 
     /// <summary>
-    /// Get conflicted files in a working copy.
+    /// Detects conflicted files by scanning for SVN conflict status
+    /// (.mine, .r*, .orig) — used because SharpSvn 1.14005.390 has no GetConflicts API.
     /// </summary>
     public async Task<List<string>> GetConflictedFilesAsync(string workingCopyPath)
     {
@@ -365,35 +372,37 @@ public class SvnService : IDisposable
             var files = new List<string>();
             try
             {
-                var args = new SvnConflictEventArgs();
-                if (_client.GetConflicts(workingCopyPath, out var conflicts))
+                var results = new Collection<SvnStatusEventArgs>();
+                _client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
-                    foreach (SvnConflictEventArgs conflict in conflicts)
-                    {
-                        if (!string.IsNullOrEmpty(conflict.Path))
-                            files.Add(Path.Combine(workingCopyPath, conflict.Path));
-                    }
+                    Depth = SvnDepth.Infinity,
+                    RetrieveAllEntries = true,
+                }, results);
+
+                foreach (var item in results)
+                {
+                    if (item.LocalNodeStatus == SharpSvnStatus.Conflicted && !string.IsNullOrEmpty(item.LocalPath))
+                        files.Add(item.LocalPath);
                 }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error getting conflicts for {Path}", workingCopyPath);
+                Log.Error(ex, "Error getting conflicted files for {Path}", workingCopyPath);
             }
             return files;
         });
     }
 
-    /// <summary>
-    /// Get the last changed time of a file from SVN (UTC).
-    /// </summary>
     public async Task<DateTime> GetLastChangedTimeAsync(string filePath)
     {
         return await Task.Run(() =>
         {
             try
             {
-                if (_client.Info(filePath, out var info))
-                    return info.LastChangeTime.ToUniversalTime();
+                SvnInfoEventArgs? infoResult = null;
+                var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
+                _client.Info(filePath, handler);
+                return infoResult?.LastChangeTime.ToUniversalTime() ?? DateTime.MinValue;
             }
             catch (Exception ex)
             {
@@ -401,21 +410,6 @@ public class SvnService : IDisposable
             }
             return DateTime.MinValue;
         });
-    }
-
-    /// <summary>
-    /// Check if a path is under SVN version control.
-    /// </summary>
-    public bool IsVersioned(string path)
-    {
-        try
-        {
-            return _client.GetRepositoryRoot(path, out _);
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     public void Dispose()
