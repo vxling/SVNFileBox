@@ -75,9 +75,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
+          $notes = @"
+Windows SVN 同步客户端，基于 .NET 8 + WPF + WPF-UI (Fluent Design) 构建。
+
+## 下载
+- Windows: `SVNFileBox-win64.zip`（内置 .NET 8 运行时，无需单独安装）
+"@
           gh release create v2.0.0 `
             SVNFileBox-win64.zip `
             --draft `
             --repo vxling/SVNFileBox `
             --title "SVNFileBox v2.0.0" `
-            --notes "Windows SVN 同步客户端，基于 .NET 8 + WPF + WPF-UI (Fluent Design) 构建。`n`n## 下载`n- Windows: \`SVNFileBox-win64.zip\`（内置 .NET 8 运行时，无需单独安装）" `
+            --notes $notes
