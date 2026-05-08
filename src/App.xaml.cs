@@ -5,7 +5,6 @@ using System.Windows.Threading;
 using Serilog;
 using SVNFileBox.Services;
 using SVNFileBox.Windows;
-using Wpf.Ui.Appearance;
 
 namespace SVNFileBox;
 
@@ -16,10 +15,6 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-
-        // Apply WPF-UI theme
-        ApplicationThemeManager.Apply(ApplicationTheme.Light);
-
         var logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SVNFileBox", "logs");
