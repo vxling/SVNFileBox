@@ -8,7 +8,7 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStyle="None">
-    <Grid Background="#1E88E5">
+    <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -19,10 +19,11 @@
         <!-- App name and logo area -->
         <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,20">
             <TextBlock Text="SVNFileBox"
-                       FontSize="32" FontWeight="Bold" Foreground="White"
+                       FontSize="32" FontWeight="Bold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        HorizontalAlignment="Center"/>
             <TextBlock Text="SVN 文件管理器"
-                       FontSize="14" Foreground="#BBDEFB"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        HorizontalAlignment="Center" Margin="0,6,0,0"/>
         </StackPanel>
 
@@ -30,7 +31,8 @@
         <TextBlock x:Name="StatusText"
                    Grid.Row="1"
                    Text="正在初始化..."
-                   FontSize="13" Foreground="White"
+                   FontSize="13"
+                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                    HorizontalAlignment="Center" Margin="0,0,0,12"
                    TextWrapping="Wrap" MaxWidth="360" TextAlignment="Center"/>
 
@@ -39,13 +41,13 @@
                      Grid.Row="2"
                      Height="4" Margin="40,0,40,0"
                      Minimum="0" Maximum="100" Value="0"
-                     Background="#1565C0" Foreground="#BBDEFB"/>
+                     Background="{DynamicResource AccentFillColorDefaultBrush}"/>
 
         <!-- Bottom step indicator -->
         <StackPanel Grid.Row="3" Margin="0,12,0,20">
             <TextBlock x:Name="StepText"
                        Text="步骤 1 / 4"
-                       FontSize="11" Foreground="#90CAF9"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                        HorizontalAlignment="Center" Margin="0,0,0,0"/>
         </StackPanel>
     </Grid>

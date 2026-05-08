@@ -24,7 +24,7 @@
         <ui:Button Content="浏览..." Grid.Row="0" Grid.Column="2" Margin="5,0,0,0" Click="Browse_Click"/>
 
         <TextBlock x:Name="ErrorText" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
-                   Foreground="#DC3545" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                   Foreground="{DynamicResource SystemFillColorCriticalBrush}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
 
         <TextBlock x:Name="StatusText" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"
