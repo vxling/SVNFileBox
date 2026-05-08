@@ -53,11 +53,11 @@
                             <TextBlock Text="语言" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="界面显示语言" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <ui:ComboBox x:Name="LanguageComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center">
+                        <ComboBox x:Name="LanguageComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center">
                             <ComboBoxItem Content="跟随系统" IsSelected="True"/>
                             <ComboBoxItem Content="中文"/>
                             <ComboBoxItem Content="English"/>
-                        </ui:ComboBox>
+                        </ComboBox>
                     </Grid>
                 </ui:Card>
 

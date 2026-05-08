@@ -129,11 +129,11 @@
                                    Click="About_Click"/>
                     </StackPanel>
 
-                    <ui:ListBox x:Name="RepoList"
+                    <ListBox x:Name="RepoList"
                                 ItemsSource="{Binding Repositories}"
                                 SelectedItem="{Binding SelectedRepository, Mode=TwoWay}"
                                 SelectionChanged="RepoList_SelectionChanged">
-                        <ui:ListBox.ItemTemplate>
+                        <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="4">
                                     <ui:Button DockPanel.Dock="Right"
@@ -164,8 +164,8 @@
                                     </StackPanel>
                                 </DockPanel>
                             </DataTemplate>
-                        </ui:ListBox.ItemTemplate>
-                    </ui:ListBox>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </DockPanel>
             </ui:Card>
 
