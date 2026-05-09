@@ -52,8 +52,6 @@
 
         <!-- Context Menu for file list -->
         <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
-            <MenuItem Header="在资源管理器中打开" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Icon="📂"/>
-            <Separator/>
             <MenuItem Header="复制路径" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
             <Separator/>
             <MenuItem Header="粘贴" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
@@ -65,6 +63,8 @@
             <MenuItem Header="刷新" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
             <Separator/>
             <MenuItem Header="手工同步" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Icon="🔃"/>
+            <Separator/>
+            <MenuItem Header="在资源管理器中打开" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Icon="📂"/>
         </ContextMenu>
     </Window.Resources>
 
