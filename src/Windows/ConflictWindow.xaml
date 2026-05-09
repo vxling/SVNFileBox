@@ -37,7 +37,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="160"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <!-- File name and times -->
@@ -54,7 +54,7 @@
                                     </StackPanel>
 
                                     <!-- Suggestion badge -->
-                                    <Border Grid.Column="1" CornerRadius="3" Padding="6,2" VerticalAlignment="Center" Margin="8,0">
+                                    <Border Grid.Column="1" CornerRadius="3" Padding="8,2" VerticalAlignment="Center" Margin="8,0">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="#E3F2FD"/>
@@ -84,7 +84,8 @@
                                     <!-- Resolution selector -->
                                     <ComboBox Grid.Column="2" VerticalAlignment="Center"
                                               SelectedValue="{Binding SelectedResolution}"
-                                              SelectedValuePath="Tag">
+                                              SelectedValuePath="Tag"
+                                              Width="200">
                                         <ComboBoxItem Content="保留本地版本" Tag="{x:Static local:ConflictResolution.KeepLocal}"/>
                                         <ComboBoxItem Content="接受服务器版本" Tag="{x:Static local:ConflictResolution.AcceptServer}"/>
                                         <ComboBoxItem Content="保留两者（备份后接受服务器）" Tag="{x:Static local:ConflictResolution.KeepBoth}"/>
