@@ -22,6 +22,7 @@
         <conv:BoolToCollapsedConverter x:Key="BoolToCollapsedConverter"/>
         <conv:BoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
 
+
         <!-- Repository Icons -->
         <DrawingImage x:Key="LocalRepoIcon">
             <DrawingImage.Drawing>
@@ -188,15 +189,15 @@
                               Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="类型" Width="40">
+                                <GridViewColumn Header="类型" Width="50">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}" Width="24" Height="24"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="名称" Width="280" DisplayMemberBinding="{Binding Name}"/>
-                                <GridViewColumn Header="状态" Width="70">
+                                <GridViewColumn Header="名称" Width="450" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="状态" Width="90">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <Border Background="{Binding SvnStatus, Converter={StaticResource SvnStatusToColorConverter}}"
@@ -209,8 +210,8 @@
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="大小" Width="90" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
-                                <GridViewColumn Header="修改时间" Width="140" DisplayMemberBinding="{Binding LastModifiedDisplay}"/>
+                                <GridViewColumn Header="大小" Width="110" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
+                                <GridViewColumn Header="修改时间" Width="180" DisplayMemberBinding="{Binding LastModifiedDisplay}"/>
                             </GridView>
                         </ListView.View>
                     </ListView>
