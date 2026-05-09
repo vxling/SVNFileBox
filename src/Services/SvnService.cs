@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using SharpSvn;
 using SVNFileBox.Models;
@@ -15,21 +17,78 @@ namespace SVNFileBox.Services;
 /// SVN operations wrapper. Each method creates its own SvnClient instance —
 /// SharpSvn is lightweight and this avoids all threading/reentrancy concerns
 /// that come from sharing a single instance across concurrent calls.
+///
+/// All operations are serialized via a SemaphoreSlim(1,1) to prevent concurrent
+/// SVN operations on the same working copy, regardless of trigger source
+/// (manual, timer, or FileWatcher).
 /// </summary>
 public class SvnService : IDisposable
 {
+    /// <summary>
+    /// Serializes all SVN operations — manual, timer-triggered, and FileWatcher-triggered.
+    /// Only one operation runs at a time; others queue behind it.
+    /// </summary>
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+
+    /// <summary>
+    /// Default network timeout in milliseconds for each SvnClient operation.
+    /// </summary>
+    private const int DefaultTimeoutMs = 30_000;
+
     public SvnService()
     {
-        Log.Information("SvnService initialized — using SharpSvn {Version}",
-            typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown");
+        // Set default ServicePointManager timeout for all HTTP/Web requests (SVN uses HTTP)
+        ServicePointManager.DefaultConnectionLimit = 4;
+        ServicePointManager.Expect100Continue = false;
+
+        Log.Information("SvnService initialized — SharpSvn {Version}, operation timeout {Timeout}s",
+            typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown",
+            DefaultTimeoutMs / 1000);
+    }
+
+    /// <summary>
+    /// Runs an SVN operation with exclusive access (serialized) and timeout.
+    /// All SVN operations must go through this to prevent concurrent access issues.
+    /// SharpSvn calls are synchronous; they run on a background thread with timeout enforced.
+    /// </summary>
+    private async Task<T> ExecuteAsync<T>(Func<CancellationToken, T> operation, CancellationToken cancellationToken = default)
+    {
+        // Wait for exclusive access (queue behind any in-flight operation)
+        if (!await _semaphore.WaitAsync(TimeSpan.FromMilliseconds(DefaultTimeoutMs), cancellationToken))
+        {
+            throw new TimeoutException(
+                $"SVN operation timed out waiting for lock after {DefaultTimeoutMs / 1000}s. " +
+                "Another SVN operation may be stuck. Try again or restart the application.");
+        }
+
+        try
+        {
+            // Wrap the operation in Task.Run so it runs on a background thread.
+            // The linked CTS enforces an overall operation timeout (not just the semaphore wait).
+            using var timeoutCts = new CancellationTokenSource();
+            timeoutCts.CancelAfter(DefaultTimeoutMs);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            var result = await Task.Run(() => operation(linkedCts.Token), linkedCts.Token);
+            return result;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Our internal timeout was the cause — 转化成 TimeoutException
+            throw new TimeoutException($"SVN operation timed out after {DefaultTimeoutMs / 1000}s. Server may be unreachable.");
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync(string workingCopyPath)
     {
-        var statuses = new Dictionary<string, FileSvnStatus>();
-
-        await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
+            var statuses = new Dictionary<string, FileSvnStatus>();
+
             try
             {
                 using var client = new SvnClient();
@@ -73,14 +132,14 @@ public class SvnService : IDisposable
             {
                 Log.Error(ex, "Error getting SVN status for {Path}", workingCopyPath);
             }
-        });
 
-        return statuses;
+            return statuses;
+        });
     }
 
     public async Task<string> GetRepoUrlAsync(string workingCopyPath)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -98,7 +157,7 @@ public class SvnService : IDisposable
 
     public async Task<int> GetWorkingCopyRevisionAsync(string workingCopyPath)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -118,7 +177,7 @@ public class SvnService : IDisposable
 
     public async Task<int> GetHeadRevisionAsync(string repoUrl, string? username = null, string? password = null)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -147,7 +206,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> CommitAsync(string workingCopyPath, string message, string? username = null, string? password = null)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -165,7 +224,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> UpdateAsync(string workingCopyPath, string? username = null, string? password = null)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -182,7 +241,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> AddFileAsync(string filePath)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -199,7 +258,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> AddPathAsync(string path)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -216,7 +275,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> DeleteAsync(string path)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -233,7 +292,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> RevertAsync(string path, bool recursive = true)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -251,7 +310,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> CleanUpAsync(string workingCopyPath)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -268,7 +327,7 @@ public class SvnService : IDisposable
 
     public async Task<(string output, int exitCode)> SvnAddRecursiveAsync(string directoryPath)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -295,7 +354,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> UnlockAsync(string path)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -312,7 +371,7 @@ public class SvnService : IDisposable
 
     public async Task<bool> BreakWriteLockAsync(string path)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -333,7 +392,7 @@ public class SvnService : IDisposable
         string? username = null,
         string? password = null)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -352,6 +411,7 @@ public class SvnService : IDisposable
 
     public bool IsValidWorkingCopy(string path)
     {
+        // These are fast local-only checks — no need to serialize or timeout
         try
         {
             using var client = new SvnClient();
@@ -365,6 +425,7 @@ public class SvnService : IDisposable
 
     public bool IsVersioned(string path)
     {
+        // Fast local-only check — no need to serialize or timeout
         try
         {
             using var client = new SvnClient();
@@ -383,7 +444,7 @@ public class SvnService : IDisposable
     /// </summary>
     public async Task<bool> ResolveAsync(string path, SvnAccept accept)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -404,14 +465,12 @@ public class SvnService : IDisposable
     /// </summary>
     public async Task<List<string>> GetConflictedFilesAsync(string workingCopyPath)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             var files = new List<string>();
             try
             {
                 using var client = new SvnClient();
-                // Use Infinity to scan all descendants — Depth.Empty only checks the root dir itself,
-                // which misses conflicted files in subdirectories.
                 client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = SvnDepth.Infinity,
@@ -434,7 +493,7 @@ public class SvnService : IDisposable
 
     public async Task<DateTime> GetLastChangedTimeAsync(string filePath)
     {
-        return await Task.Run(() =>
+        return await ExecuteAsync(token =>
         {
             try
             {
@@ -454,6 +513,6 @@ public class SvnService : IDisposable
 
     public void Dispose()
     {
-        // No shared instance to dispose — each operation creates its own SvnClient.
+        _semaphore.Dispose();
     }
 }
