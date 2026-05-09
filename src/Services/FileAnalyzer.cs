@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using SVNFileBox.Models;
 using Serilog;
 
@@ -78,6 +79,8 @@ public class FileAnalyzer
     private static void CollectFile(string filePath, string destRoot, string sourceRoot, List<FileCopyItem> items)
     {
         items.Add(MakeFileItem(filePath, destRoot, sourceRoot));
+        // DEBUG: 2s delay per file to observe progress window during analysis
+        Thread.Sleep(2000);
     }
 
     private static FileCopyItem MakeFileItem(string filePath, string destRoot, string sourceRoot)

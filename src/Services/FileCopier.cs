@@ -111,6 +111,9 @@ public class FileCopier
                         await _svnService.AddPathAsync(item.DestPath);
                     }
 
+                    // DEBUG: 2s delay per file to observe progress window during copy
+                    Thread.Sleep(2000);
+
                     progress?.Report(new CopyProgress
                     {
                         CurrentFile = item.Name,
