@@ -28,6 +28,7 @@ public class SyncService : IDisposable
     private int _isPolling;
     private int _isCommitting;
     private int _isSyncing;
+    private int _disableCount; // >0 means FileWatcher is paused
     private int _pollIntervalMs = 60000;
     private int _maxRetries = 3;
 
@@ -78,6 +79,24 @@ public class SyncService : IDisposable
     }
 
     /// <summary>
+    /// Pauses FileWatcher notifications (nested-safe: call DisableFileWatcher once per ReEnableFileWatcher).
+    /// </summary>
+    public void DisableFileWatcher()
+    {
+        Interlocked.Increment(ref _disableCount);
+        Log.Debug("[SyncService] FileWatcher paused (count={Count})", _disableCount);
+    }
+
+    /// <summary>
+    /// Resumes FileWatcher notifications (must be called once per DisableFileWatcher).
+    /// </summary>
+    public void ReEnableFileWatcher()
+    {
+        var c = Interlocked.Decrement(ref _disableCount);
+        Log.Debug("[SyncService] FileWatcher resumed (count={Count})", c);
+    }
+
+    /// <summary>
     /// 手工同步：先提交本地变更（上行），再从服务器更新（下行）。
     /// </summary>
     public async Task SyncNowAsync()
@@ -103,8 +122,9 @@ public class SyncService : IDisposable
     {
         if (files.Length == 0) return;
         if (Interlocked.CompareExchange(ref _isCommitting, 1, 0) == 1) return;
-        // Also skip if a full sync is already in progress
+        // Also skip if a full sync is in progress or FileWatcher is paused (e.g., during file copy)
         if (Interlocked.CompareExchange(ref _isSyncing, 0, 0) != 0) return;
+        if (Interlocked.CompareExchange(ref _disableCount, 0, 0) != 0) return;
 
         try
         {

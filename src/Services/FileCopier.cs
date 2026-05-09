@@ -105,7 +105,11 @@ public class FileCopier
                     copied++;
                     bytesCopied += item.SizeBytes;
 
-                    svnAddedPaths.Add(item.DestPath);
+                    // svn add immediately after each file — ensures tracked even if cancelled
+                    if (!_svnService.IsVersioned(item.DestPath))
+                    {
+                        await _svnService.AddPathAsync(item.DestPath);
+                    }
 
                     progress?.Report(new CopyProgress
                     {
@@ -160,8 +164,9 @@ public class FileCopier
             Cts = null;
         }
 
-        // Add new files to SVN and commit
-        if (svnAddedPaths.Count > 0 && !token.IsCancellationRequested)
+        // Commit once after all files are copied
+        // (directories were added during the dirs loop, files were added per-file above)
+        if (copied > 0 && !token.IsCancellationRequested)
         {
             try
             {
@@ -169,7 +174,7 @@ public class FileCopier
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "SVN commit after copy failed — files were copied but not committed");
+                Log.Warning(ex, "SVN commit after copy failed — files were added but not committed");
             }
         }
 

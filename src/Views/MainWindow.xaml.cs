@@ -385,6 +385,10 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Pause FileWatcher during copy to avoid triggering commit监控 for each new file
+        var syncService = _viewModel?.SyncService;
+        syncService?.DisableFileWatcher();
+
         // Show progress window
         var progressWindow = new FileCopyProgressWindow(_fileCopier)
         {
@@ -399,26 +403,33 @@ public partial class MainWindow : Window
             return await _fileCopier.CopyAsync(plan, progress);
         });
 
-        progressWindow.ShowDialog();
-        var result = await copyTask;
+        try
+        {
+            progressWindow.ShowDialog(); // blocks until copy finishes or is cancelled
+            var result = await copyTask;
 
-        if (result.WasCancelled)
-        {
-            _viewModel.StatusText = "已取消复制";
-        }
-        else if (result.HasError)
-        {
-            _viewModel.StatusText = $"复制失败: {result.ErrorMessage}";
-        }
-        else
-        {
-            var summary = result.SkippedCount == 0
-                ? $"已复制 {result.CopiedCount} 个项目"
-                : $"已复制 {result.CopiedCount} 个，跳过 {result.SkippedCount} 个";
-            _viewModel.StatusText = summary;
-        }
+            if (result.WasCancelled)
+            {
+                _viewModel.StatusText = "已取消复制";
+            }
+            else if (result.HasError)
+            {
+                _viewModel.StatusText = $"复制失败: {result.ErrorMessage}";
+            }
+            else
+            {
+                var summary = result.SkippedCount == 0
+                    ? $"已复制 {result.CopiedCount} 个项目"
+                    : $"已复制 {result.CopiedCount} 个，跳过 {result.SkippedCount} 个";
+                _viewModel.StatusText = summary;
+            }
 
-        _ = _viewModel.RefreshAsync();
+            _ = _viewModel.RefreshAsync();
+        }
+        finally
+        {
+            syncService?.ReEnableFileWatcher();
+        }
     }
 
     private void FileList_DragOver(object sender, DragEventArgs e)
