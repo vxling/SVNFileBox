@@ -124,7 +124,7 @@ public class SvnService : IDisposable
 
                 client.Status(workingCopyPath, new SvnStatusArgs
                 {
-                    Depth = SvnDepth.Children,
+                    Depth = SvnDepth.Infinity,
                     RetrieveAllEntries = true,
                 }, handler);
             }
