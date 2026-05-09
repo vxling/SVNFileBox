@@ -83,7 +83,7 @@ public class SvnService : IDisposable
         }
     }
 
-    public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync(string workingCopyPath)
+    public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync(string workingCopyPath, SvnDepth depth = SvnDepth.Children)
     {
         return await ExecuteAsync(token =>
         {
@@ -124,7 +124,7 @@ public class SvnService : IDisposable
 
                 client.Status(workingCopyPath, new SvnStatusArgs
                 {
-                    Depth = SvnDepth.Infinity,
+                    Depth = depth,
                     RetrieveAllEntries = true,
                 }, handler);
             }

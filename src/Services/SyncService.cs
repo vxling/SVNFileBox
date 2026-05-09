@@ -298,7 +298,7 @@ public class SyncService : IDisposable
     {
         if (_currentRepo == null) return;
 
-        var statuses = await _svnService.GetStatusAsync(_currentRepo.Path);
+        var statuses = await _svnService.GetStatusAsync(_currentRepo.Path, SvnDepth.Infinity);
         if (statuses.Count == 0)
         {
             Log.Debug("[FullSync] No changes detected");
