@@ -29,6 +29,7 @@ public class SyncService : IDisposable
     private int _isCommitting;
     private int _isSyncing;
     private int _disableCount; // >0 means FileWatcher is paused
+    private bool _watcherEnabledBeforeDisable;
     private int _pollIntervalMs = 60000;
     private int _maxRetries = 3;
 
@@ -84,7 +85,14 @@ public class SyncService : IDisposable
     public void DisableFileWatcher()
     {
         Interlocked.Increment(ref _disableCount);
-        Log.Debug("[SyncService] FileWatcher paused (count={Count})", _disableCount);
+        // Only disable once (not per nesting level)
+        if (_disableCount == 1)
+        {
+            _watcherEnabledBeforeDisable = _fileWatcher.IsWatching;
+            if (_watcherEnabledBeforeDisable)
+                _fileWatcher.StopWatching();
+            Log.Debug("[SyncService] FileWatcher paused");
+        }
     }
 
     /// <summary>
@@ -93,7 +101,15 @@ public class SyncService : IDisposable
     public void ReEnableFileWatcher()
     {
         var c = Interlocked.Decrement(ref _disableCount);
-        Log.Debug("[SyncService] FileWatcher resumed (count={Count})", c);
+        // Only re-enable when fully unwound
+        if (c == 0 && _watcherEnabledBeforeDisable)
+        {
+            if (_currentRepo != null)
+            {
+                _fileWatcher.StartWatching(_currentRepo.Path);
+                Log.Debug("[SyncService] FileWatcher resumed");
+            }
+        }
     }
 
     /// <summary>
