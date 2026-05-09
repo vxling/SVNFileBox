@@ -49,10 +49,15 @@ public partial class App : Application
             var syncRecordService = SyncRecordService.Instance;
             Log.Information("[Startup] Step 3 complete: SyncRecordService ready");
 
-            // Step 4: Show main window
+            // Step 4: Apply saved theme
+            _splash.SetStatus("正在应用主题...");
+            ThemeService.Instance.ApplyTheme(configService.Config.Theme);
+            Log.Information("[Startup] Step 4 complete: Theme applied ({Theme})", configService.Config.Theme);
+
+            // Step 5: Show main window
             _splash.SetStatus("正在显示主窗口...");
             _splash.Complete();
-            Log.Information("[Startup] Step 4 complete: Main window shown");
+            Log.Information("[Startup] Step 5 complete: Main window shown");
         }
         catch (InvalidOperationException ex)
         {

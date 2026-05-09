@@ -33,6 +33,20 @@ public partial class SettingsWindow : Window
         AutoStartCheckBox.IsChecked = _configService.Config.AutoStart;
         MinimizeToTrayCheckBox.IsChecked = _configService.Config.MinimizeToTray;
 
+        // Theme combo
+        var theme = _configService.Config.Theme;
+        foreach (ComboBoxItem item in ThemeComboBox.Items)
+        {
+            var content = item.Content?.ToString() ?? "";
+            if ((theme == "system" && content == "跟随系统") ||
+                (theme == "light" && content == "浅色") ||
+                (theme == "dark" && content == "深色"))
+            {
+                ThemeComboBox.SelectedItem = item;
+                break;
+            }
+        }
+
         // Language combo
         var lang = _configService.Config.Language;
         foreach (ComboBoxItem item in LanguageComboBox.Items)
@@ -64,6 +78,18 @@ public partial class SettingsWindow : Window
             "English" => "en",
             _ => "auto"
         };
+
+        // Theme
+        var selectedTheme = (ThemeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "跟随系统";
+        _configService.Config.Theme = selectedTheme switch
+        {
+            "浅色" => "light",
+            "深色" => "dark",
+            _ => "system"
+        };
+
+        // Apply theme
+        ThemeService.Instance.ApplyTheme(_configService.Config.Theme);
 
         // Apply language
         LocalizationService.Instance.SetLanguage(_configService.Config.Language);

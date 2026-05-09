@@ -41,6 +41,25 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Theme -->
+                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="主题" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="界面外观颜色模式" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center">
+                            <ComboBoxItem Content="跟随系统" IsSelected="True"/>
+                            <ComboBoxItem Content="浅色"/>
+                            <ComboBoxItem Content="深色"/>
+                        </ComboBox>
+                    </Grid>
+                </Border>
+
                 <!-- Language -->
                 <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <Grid>
