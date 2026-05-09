@@ -104,7 +104,7 @@ public class SyncService : IDisposable
         if (files.Length == 0) return;
         if (Interlocked.CompareExchange(ref _isCommitting, 1, 0) == 1) return;
         // Also skip if a full sync is already in progress
-        if (_isSyncing != 0) return;
+        if (Interlocked.CompareExchange(ref _isSyncing, 0, 0) != 0) return;
 
         try
         {
