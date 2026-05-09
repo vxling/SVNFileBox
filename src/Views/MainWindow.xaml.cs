@@ -25,6 +25,8 @@ public partial class MainWindow : Window
     private readonly FileAnalyzer _fileAnalyzer = new();
     private readonly FileCopier _fileCopier = new();
     private bool _isExiting;
+    /// <summary>Prevents concurrent ExecuteCopyAsync calls (drag/drop + paste simultaneously).</summary>
+    private int _isCopying;
 
     private bool CanPaste => _viewModel != null
         && _viewModel.CanOperate
@@ -372,6 +374,13 @@ public partial class MainWindow : Window
 
     private async Task ExecuteCopyAsync(IList<string> sourcePaths, string targetDir)
     {
+        // Guard against concurrent calls (e.g. drag/drop + paste at the same time)
+        if (Interlocked.CompareExchange(ref _isCopying, 1, 0) == 1)
+        {
+            Log.Warning("[ExecuteCopyAsync] Copy already in progress, rejecting duplicate call");
+            MessageBox.Show(this, "当前正在执行复制操作，请等待完成后再试。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         // Pause FileWatcher during copy to avoid triggering commit监控 for each new file
         var syncService = _viewModel?.SyncService;
         syncService?.DisableFileWatcher();
@@ -470,6 +479,7 @@ public partial class MainWindow : Window
             progressWindow.Close();
             progressWindow.Closing -= OnWindowClosing;
             syncService?.ReEnableFileWatcher();
+            Interlocked.Exchange(ref _isCopying, 0);
         }
     }
 
