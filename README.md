@@ -34,4 +34,4 @@ dotnet build -c Release
 - Serilog（日志）
 - Hardcodet.NotifyIcon.Wpf（托盘图标）
 - SharpSvn 1.14005.390（SVN 操作）
-- QFileSystemWatcher 文件监控 + 定时轮询
+- 定时轮询（本地变化检测 + 服务器更新拉取）+ 全量安全兜底扫描
