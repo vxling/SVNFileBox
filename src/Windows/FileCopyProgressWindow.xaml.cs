@@ -14,6 +14,11 @@ public partial class FileCopyProgressWindow : Window
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _stopwatch = new();
 
+    /// <summary>
+    /// Raised when the user clicks Cancel. Subscribers should cancel their operations.
+    /// </summary>
+    public event Action? CancelRequested;
+
     public FileCopyProgressWindow(FileCopier copier)
     {
         _copier = copier;
@@ -61,7 +66,7 @@ public partial class FileCopyProgressWindow : Window
 
     public void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        _copier.Cancel();
+        CancelRequested?.Invoke();
         CancelButton.IsEnabled = false;
         CancelButton.Content = "正在取消...";
     }

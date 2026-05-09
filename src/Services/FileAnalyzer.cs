@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using SVNFileBox.Models;
 using Serilog;
 
@@ -21,13 +22,21 @@ public class FileAnalyzer
     /// </summary>
     /// <param name="sourcePaths">Files and/or directories to copy.</param>
     /// <param name="destRoot">Destination root directory.</param>
-    public FileCopyPlan? Analyze(IEnumerable<string> sourcePaths, string destRoot)
+    /// <param name="progress">Progress callback per scanned item.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public FileCopyPlan? Analyze(
+        IEnumerable<string> sourcePaths,
+        string destRoot,
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var items = new List<FileCopyItem>();
         var sourceRoot = string.Empty;
 
         foreach (var sourcePath in sourcePaths)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var fullSource = Path.GetFullPath(sourcePath);
             var isDir = Directory.Exists(fullSource);
             var isFile = File.Exists(fullSource);
@@ -38,9 +47,9 @@ public class FileAnalyzer
                 sourceRoot = Path.GetDirectoryName(fullSource) ?? fullSource;
 
             if (isDir)
-                CollectDirectory(fullSource, destRoot, sourceRoot, items);
+                CollectDirectory(fullSource, destRoot, sourceRoot, items, progress, cancellationToken);
             else
-                CollectFile(fullSource, destRoot, sourceRoot, items);
+                CollectFile(fullSource, destRoot, sourceRoot, items, progress, cancellationToken);
         }
 
         if (items.Count == 0) return null;
@@ -58,27 +67,33 @@ public class FileAnalyzer
         return plan;
     }
 
-    private static void CollectDirectory(string dirPath, string destRoot, string sourceRoot, List<FileCopyItem> items)
+    private void CollectDirectory(string dirPath, string destRoot, string sourceRoot, List<FileCopyItem> items, IProgress<string>? progress, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var dir = new DirectoryInfo(dirPath);
         // Files first
         foreach (var file in dir.GetFiles())
         {
-            items.Add(MakeFileItem(file.FullName, destRoot, sourceRoot));
+            cancellationToken.ThrowIfCancellationRequested();
+            CollectFile(file.FullName, destRoot, sourceRoot, items, progress, cancellationToken);
         }
         // Then sub-directories recursively
         foreach (var subDir in dir.GetDirectories())
         {
-            CollectDirectory(subDir.FullName, destRoot, sourceRoot, items);
+            cancellationToken.ThrowIfCancellationRequested();
+            CollectDirectory(subDir.FullName, destRoot, sourceRoot, items, progress, cancellationToken);
             items.Add(MakeDirItem(subDir.FullName, destRoot, sourceRoot));
         }
         // Finally add the directory itself
         items.Add(MakeDirItem(dirPath, destRoot, sourceRoot));
     }
 
-    private static void CollectFile(string filePath, string destRoot, string sourceRoot, List<FileCopyItem> items)
+    private void CollectFile(string filePath, string destRoot, string sourceRoot, List<FileCopyItem> items, IProgress<string>? progress, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         items.Add(MakeFileItem(filePath, destRoot, sourceRoot));
+        progress?.Report(filePath);
         // DEBUG: 2s delay per file to observe progress window during analysis
         Thread.Sleep(2000);
     }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -371,42 +372,79 @@ public partial class MainWindow : Window
 
     private async Task ExecuteCopyAsync(IList<string> sourcePaths, string targetDir)
     {
-        // Phase 1: Analyze
-        var plan = _fileAnalyzer.Analyze(sourcePaths, targetDir);
-        if (plan == null)
-        {
-            _viewModel.StatusText = "No files to copy";
-            return;
-        }
-
-        if (plan.IsSameLocation)
-        {
-            MessageBox.Show(this, "源和目标位置相同，无法复制。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
         // Pause FileWatcher during copy to avoid triggering commit监控 for each new file
         var syncService = _viewModel?.SyncService;
         syncService?.DisableFileWatcher();
 
-        // Show progress window
+        // Show progress window immediately (non-blocking), then run analysis + copy in background
         var progressWindow = new FileCopyProgressWindow(_fileCopier)
         {
             Owner = this
         };
 
-        var progress = new Progress<CopyProgress>(p => progressWindow.UpdateProgress(p));
+        var cts = new CancellationTokenSource();
 
-        var copyTask = Task.Run(async () =>
+        // Cancel button — cancels both analysis and copy phases
+        progressWindow.CancelRequested += () =>
         {
-            progressWindow.StartCopy();
-            return await _fileCopier.CopyAsync(plan, progress);
-        });
+            cts.Cancel();
+            _fileCopier.Cancel();
+        };
+
+        // Handle window close → cancel
+        void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (_fileCopier.IsRunning)
+            {
+                e.Cancel = true;
+                cts.Cancel();
+                _fileCopier.Cancel();
+            }
+        }
+        progressWindow.Closing += OnWindowClosing;
+
+        // Show window first (non-blocking), then analyze + copy
+        progressWindow.Show();
 
         try
         {
-            progressWindow.ShowDialog(); // blocks until copy finishes or is cancelled
-            var result = await copyTask;
+            // Phase 1: Analyze in background, report progress per item
+            var analysisProgress = new Progress<string>(item => progressWindow.StartAnalysis(item));
+
+            FileCopyPlan? plan;
+            CancellationToken analysisToken = cts.Token;
+
+            try
+            {
+                plan = await Task.Run(() => _fileAnalyzer.Analyze(sourcePaths, targetDir, analysisProgress, analysisToken), analysisToken);
+            }
+            catch (OperationCanceledException)
+            {
+                progressWindow.Close();
+                _viewModel.StatusText = "已取消分析";
+                return;
+            }
+
+            if (plan == null)
+            {
+                progressWindow.Close();
+                _viewModel.StatusText = "没有文件可复制";
+                return;
+            }
+
+            if (plan.IsSameLocation)
+            {
+                progressWindow.Close();
+                MessageBox.Show(this, "源和目标位置相同，无法复制。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Phase 2: Copy in background, report progress per file
+            var copyProgress = new Progress<CopyProgress>(p => progressWindow.UpdateProgress(p));
+
+            var result = await Task.Run(() => _fileCopier.CopyAsync(plan, copyProgress));
+
+            progressWindow.Stop();
 
             if (result.WasCancelled)
             {
@@ -428,6 +466,8 @@ public partial class MainWindow : Window
         }
         finally
         {
+            progressWindow.Close();
+            progressWindow.Closing -= OnWindowClosing;
             syncService?.ReEnableFileWatcher();
         }
     }
