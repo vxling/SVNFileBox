@@ -35,11 +35,8 @@ public partial class App : Application
 
         try
         {
-            // Step 1: Check system environment (SVN)
-            _splash.SetStatus("正在检查系统环境 (SVN)...");
-            // This will throw InvalidOperationException if SVN not found
-            _ = new SvnService();
-            Log.Information("[Startup] Step 1 complete: SVN check passed");
+            // Step 1: SVN 环境检查（已跳过，SharpSvn 为纯托管库，无需外部依赖）
+            _splash.SetStatus("正在检查系统环境...");
 
             // Step 2: Load config
             _splash.SetStatus("正在加载配置...");

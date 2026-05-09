@@ -7,7 +7,7 @@
     <RootNamespace>SVNFileBox</RootNamespace>
     <AssemblyName>SVNFileBox</AssemblyName>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon />
+    <ApplicationIcon>Assets/Icons/app.ico</ApplicationIcon>
     <StartupObject />
   </PropertyGroup>
 
