@@ -45,6 +45,7 @@ public partial class FileCopyProgressWindow : Window
     {
         Title = "正在复制文件";
         ProgressBar.IsIndeterminate = false;
+        _timer.Stop();
         _stopwatch.Restart();
         _timer.Start();
     }
