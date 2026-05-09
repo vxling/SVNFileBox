@@ -27,10 +27,10 @@ public partial class FileCopyProgressWindow : Window
         _timer.Tick += Timer_Tick;
     }
 
-    public void StartAnalysis(string currentItem)
+    public void StartAnalysis()
     {
         Title = "正在分析文件...";
-        CurrentFileText.Text = currentItem;
+        CurrentFileText.Text = "";
         ItemIndexText.Text = "正在扫描...";
         ProgressBar.IsIndeterminate = true;
         BytesText.Text = "";
@@ -39,6 +39,24 @@ public partial class FileCopyProgressWindow : Window
         CancelButton.Content = "取消";
         _stopwatch.Restart();
         _timer.Start();
+    }
+
+    /// <summary>
+    /// Called for the first file during analysis — initializes UI and shows the first item.
+    /// </summary>
+    public void StartAnalysis(string currentItem)
+    {
+        StartAnalysis();
+        CurrentFileText.Text = currentItem;
+    }
+
+    /// <summary>
+    /// Update the currently scanned item during analysis phase.
+    /// Does NOT reset the timer — safe to call repeatedly per file.
+    /// </summary>
+    public void UpdateAnalysisItem(string currentItem)
+    {
+        CurrentFileText.Text = currentItem;
     }
 
     public void StartCopy()
