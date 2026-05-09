@@ -197,6 +197,23 @@ public class SvnService : IDisposable
         });
     }
 
+    public async Task<bool> AddPathAsync(string path)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                using var client = new SvnClient();
+                return client.Add(path);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "AddPath failed for {Path}", path);
+                return false;
+            }
+        });
+    }
+
     public async Task<bool> DeleteAsync(string path)
     {
         return await Task.Run(() =>

@@ -21,6 +21,8 @@ public partial class MainWindow : Window
     private MainViewModel? _viewModel;
     private ConfigService? _configService;
     private readonly SvnService _svnService = new();
+    private readonly FileAnalyzer _fileAnalyzer = new();
+    private readonly FileCopier _fileCopier = new();
     private bool _isExiting;
 
     private bool CanPaste => _viewModel != null
@@ -357,27 +359,66 @@ public partial class MainWindow : Window
         try
         {
             if (!Clipboard.ContainsFileDropList()) return;
-            var files = Clipboard.GetFileDropList();
-            var (copied, skipped, overwritten, svnAddedPaths) = await PasteFilesIntoAsync(targetDir, files.Cast<string>());
-
-            if (svnAddedPaths.Count > 0)
-            {
-                foreach (var p in svnAddedPaths)
-                    await _svnService.AddFileAsync(p);
-                var op = overwritten > 0 ? $"[Add/Overwrite] {copied} item(s)" : $"[Add] {copied} item(s)";
-                await _svnService.CommitAsync(targetDir, $"Auto-sync: {op}");
-            }
-
-            _viewModel.StatusText = skipped == 0
-                ? LocalizationService.Instance.GetString("PasteSuccess", copied)
-                : $"Pasted {copied}, skipped {skipped}";
-            _ = _viewModel.RefreshAsync();
+            var files = Clipboard.GetFileDropList().Cast<string>().ToList();
+            await ExecuteCopyAsync(files, targetDir);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Paste failed");
             _viewModel.StatusText = LocalizationService.Instance.GetString("PasteFailed", ex.Message);
         }
+    }
+
+    private async Task ExecuteCopyAsync(IList<string> sourcePaths, string targetDir)
+    {
+        // Phase 1: Analyze
+        var plan = _fileAnalyzer.Analyze(sourcePaths, targetDir);
+        if (plan == null)
+        {
+            _viewModel.StatusText = "No files to copy";
+            return;
+        }
+
+        if (plan.IsSameLocation)
+        {
+            MessageBox.Show(this, "源和目标位置相同，无法复制。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Show progress window
+        var progressWindow = new FileCopyProgressWindow(_fileCopier)
+        {
+            Owner = this
+        };
+
+        var progress = new Progress<CopyProgress>(p => progressWindow.UpdateProgress(p));
+
+        var copyTask = Task.Run(async () =>
+        {
+            progressWindow.StartCopy();
+            return await _fileCopier.CopyAsync(plan, progress);
+        });
+
+        progressWindow.ShowDialog();
+        var result = await copyTask;
+
+        if (result.WasCancelled)
+        {
+            _viewModel.StatusText = "已取消复制";
+        }
+        else if (result.HasError)
+        {
+            _viewModel.StatusText = $"复制失败: {result.ErrorMessage}";
+        }
+        else
+        {
+            var summary = result.SkippedCount == 0
+                ? $"已复制 {result.CopiedCount} 个项目"
+                : $"已复制 {result.CopiedCount} 个，跳过 {result.SkippedCount} 个";
+            _viewModel.StatusText = summary;
+        }
+
+        _ = _viewModel.RefreshAsync();
     }
 
     private void FileList_DragOver(object sender, DragEventArgs e)
@@ -396,91 +437,7 @@ public partial class MainWindow : Window
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
         if (files == null) return;
 
-        var (copied, skipped, overwritten, svnAddedPaths) = await PasteFilesIntoAsync(targetDir, files);
-
-        if (svnAddedPaths.Count > 0)
-        {
-            foreach (var p in svnAddedPaths)
-                await _svnService.AddFileAsync(p);
-            var op = overwritten > 0 ? $"[Add/Overwrite] {copied} item(s)" : $"[Add] {copied} item(s)";
-            await _svnService.CommitAsync(targetDir, $"Auto-sync: {op}");
-        }
-
-        _viewModel.StatusText = skipped == 0 ? $"Copied {copied} item(s)" : $"Copied {copied}, skipped {skipped}";
-        _ = _viewModel.RefreshAsync();
-    }
-
-    /// <summary>Shared paste/drop logic: copies files into targetDir and returns results.</summary>
-    private Task<(int copied, int skipped, int overwritten, List<string> svnAddedPaths)> PasteFilesIntoAsync(
-        string targetDir, IEnumerable<string> files)
-    {
-        int copied = 0, skipped = 0, overwritten = 0;
-        var svnAddedPaths = new List<string>();
-        foreach (var f in files)
-        {
-            var fileName = Path.GetFileName(f);
-            var targetPath = Path.Combine(targetDir, fileName);
-            if (Directory.Exists(f))
-            {
-                if (Directory.Exists(targetPath))
-                {
-                    var result = MessageBox.Show(
-                        $"文件夹「{fileName}」已存在，是否覆盖？",
-                        "确认覆盖",
-                        MessageBoxButton.YesNoCancel,
-                        MessageBoxImage.Question);
-                    if (result == MessageBoxResult.Cancel) break;
-                    if (result == MessageBoxResult.No) { skipped++; continue; }
-                    overwritten++;
-                }
-                try { CopyDirectory(f, targetPath, true); svnAddedPaths.Add(targetPath); copied++; }
-                catch { skipped++; }
-            }
-            else if (File.Exists(f))
-            {
-                if (File.Exists(targetPath))
-                {
-                    var result = MessageBox.Show(
-                        $"文件「{fileName}」已存在，是否覆盖？",
-                        "确认覆盖",
-                        MessageBoxButton.YesNoCancel,
-                        MessageBoxImage.Question);
-                    if (result == MessageBoxResult.Cancel) break;
-                    if (result == MessageBoxResult.No) { skipped++; continue; }
-                    overwritten++;
-                }
-                try { File.Copy(f, targetPath, overwrite: true); svnAddedPaths.Add(targetPath); copied++; }
-                catch { skipped++; }
-            }
-            else skipped++;
-        }
-        return Task.FromResult((copied, skipped, overwritten, svnAddedPaths));
-    }
-
-    private static void CopyDirectory(string sourceDir, string destDir, bool recursive)
-    {
-        CopyDirectoryRecursive(sourceDir, destDir, recursive, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-    }
-
-    private static void CopyDirectoryRecursive(string sourceDir, string destDir, bool recursive, HashSet<string> visited)
-    {
-        var dir = new DirectoryInfo(sourceDir);
-        if (!dir.Exists) return;
-
-        // Skip if already visited (prevents infinite loop from junctions/hardlinks)
-        try
-        {
-            var realPath = Path.GetFullPath(sourceDir);
-            if (!visited.Add(realPath)) return;
-        }
-        catch { return; }
-
-        Directory.CreateDirectory(destDir);
-        foreach (var file in dir.GetFiles())
-            file.CopyTo(Path.Combine(destDir, file.Name), overwrite: true);
-        if (recursive)
-            foreach (var subDir in dir.GetDirectories())
-                CopyDirectoryRecursive(subDir.FullName, Path.Combine(destDir, subDir.Name), recursive, visited);
+        await ExecuteCopyAsync(files.ToList(), targetDir);
     }
 
     private void AddLocalRepo_Click(object sender, RoutedEventArgs e)
