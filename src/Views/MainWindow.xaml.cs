@@ -56,6 +56,21 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
     }
 
+    private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (FileList?.View is not GridView gv || NameColumn == null)
+            return;
+
+        // Fixed column widths (类型, 状态, 大小, 修改时间)
+        double fixedWidth = 50 + 60 + 110 + 180;
+        double available = FileList.ActualWidth;
+        if (available <= 0)
+            return;
+
+        // Name column takes all remaining space, min 450
+        NameColumn.Width = Math.Max(available - fixedWidth, 450);
+    }
+
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _viewModel = new MainViewModel();

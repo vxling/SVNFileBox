@@ -11,6 +11,7 @@
         Title="SVNFileBox" Height="580" Width="1100"
         MinHeight="550" MinWidth="900"
         WindowStartupLocation="CenterScreen"
+        SizeChanged="MainWindow_SizeChanged"
         Icon="/Assets/Icons/app.ico"
         Background="#F0F4F8">
 
@@ -196,8 +197,8 @@
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="名称" Width="450" DisplayMemberBinding="{Binding Name}"/>
-                                <GridViewColumn Header="状态" Width="90">
+                                <GridViewColumn x:Name="NameColumn" Header="名称" Width="450" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="状态" Width="Auto">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <Border Background="{Binding SvnStatus, Converter={StaticResource SvnStatusToColorConverter}}"
