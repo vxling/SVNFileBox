@@ -8,7 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
+using System.ComponentModel;
 using SVNFileBox.Models;
 using SVNFileBox.Services;
 using SVNFileBox.ViewModels;
@@ -180,6 +182,38 @@ public partial class MainWindow : Window
                 }
             }
         }
+    }
+
+    private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not GridViewColumnHeader header || header.Column == null)
+            return;
+
+        string? sortProperty = (header.Column.DisplayMemberBinding as System.Windows.Data.Binding)?.Path.Path
+            ?? header.Column.Header?.ToString() switch
+            {
+                "类型" => "TypeDisplay",
+                "名称" => "Name",
+                "状态" => "SvnStatus",
+                "大小" => "FileSize",
+                "修改时间" => "LastModified",
+                _ => null
+            };
+
+        if (sortProperty == null) return;
+        ApplySort(FileList, sortProperty);
+    }
+
+    private static void ApplySort(ListView listView, string sortProperty)
+    {
+        var dataView = CollectionViewSource.GetDefaultView(listView.ItemsSource);
+        var currentSort = dataView.SortDescriptions.FirstOrDefault();
+        var direction = currentSort.PropertyName == sortProperty && currentSort.Direction == ListSortDirection.Ascending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+
+        dataView.SortDescriptions.Clear();
+        dataView.SortDescriptions.Add(new SortDescription(sortProperty, direction));
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e)
