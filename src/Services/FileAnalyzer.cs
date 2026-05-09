@@ -94,8 +94,6 @@ public class FileAnalyzer
         cancellationToken.ThrowIfCancellationRequested();
         items.Add(MakeFileItem(filePath, destRoot, sourceRoot));
         progress?.Report(filePath);
-        // DEBUG: 2s delay per file to observe progress window during analysis
-        Thread.Sleep(2000);
     }
 
     private static FileCopyItem MakeFileItem(string filePath, string destRoot, string sourceRoot)
