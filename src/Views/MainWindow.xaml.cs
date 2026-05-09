@@ -440,6 +440,7 @@ public partial class MainWindow : Window
             }
 
             // Phase 2: Copy in background, report progress per file
+            progressWindow.StartCopy();
             var copyProgress = new Progress<CopyProgress>(p => progressWindow.UpdateProgress(p));
 
             var result = await Task.Run(() => _fileCopier.CopyAsync(plan, copyProgress));
