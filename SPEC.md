@@ -20,9 +20,9 @@
 
 ### 手工操作
 
-- **暂不提供**任何手工操作入口（手动提交、手动 checkout 等）
-- 仅提供**同步记录**让用户查看历史
-- **理由**: MVP 阶段先跑通核心流程，手工操作留作后续迭代
+- 提供**手工同步**按钮（手动触发 SyncNowAsync）
+- 提供**同步记录**查看
+- **理由**: 便于用户主动推动同步，特别是异常场景（如网络中断后恢复）下可手动触发 FullSyncAsync 兜底
 
 ---
 
@@ -80,6 +80,14 @@ FileSystemWatcher 捕获事件
 commit 完成后刷新文件列表视图
     ↓
 写入同步记录（operation=Add/Update/Delete）
+
+=== 手工同步（用户点击"同步"按钮）===
+SyncNowAsync() 执行三步：
+  ① RetryPendingUpdatesAsync()   — 重试 pending 文件的 svn update
+  ② PollCoreAsync()              — 拉取服务器新版本（svn update）
+  ③ FullSyncAsync()              — 安全兜底：扫描整个 working copy，
+                                   对 unversioned/missing 文件执行 add+commit
+                                   （防止程序异常退出后 add 了没 commit 的遗留文件）
 ```
 
 ### 流程二：下行同步（SVN → 本地）

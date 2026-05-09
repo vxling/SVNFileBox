@@ -1,6 +1,6 @@
 # SVNFileBox 开发任务列表
 
-> 最后更新: 2026-05-01
+> 最后更新: 2026-05-09
 
 ---
 
@@ -41,25 +41,19 @@
 - [x] 设置页面基础功能
 - [x] 同步记录持久化（JSON 文件，零依赖）
 - [x] 同步记录查看 UI（点击切换文件列表/同步记录列表）
-
+- [x] 冲突处理（Last-Write-Wins）
+- [x] 最小化到托盘
+- [x] 密码加密存储（DPAPI）
+- [x] **文件复制进度窗口**（分析阶段 + 拷贝阶段独立显示，计时器不重置）
+- [x] **ExecuteCopyAsync 重入保护**（Interlocked.CompareExchange guard，防止拖拽+粘贴并发）
+- [x] **SvnService 操作串行化**（SemaphoreSlim(1,1) + 30s 超时，防止 SharpSvn 并发崩溃）
+- [x] **手工同步加 FullSyncAsync 兜底**（SyncNowAsync 最后一步做全量扫描 add+commit）
 ### ⏳ 待完成
-- [x] **冲突处理（Last-Write-Wins）** — `HandleConflictsAsync` 检测冲突文件（status='C'），比对本地vs服务器时间戳，保留较新版本
-- [x] **最小化到托盘** — 窗口关闭隐藏到托盘，双击托盘/菜单恢复，退出菜单完全关闭应用
-- [x] **密码加密存储** — DPAPI（CurrentUser scope），`DpapiService` 加解密，ConfigService load/save 自动加解密，兼容明文旧密码
+- （暂无）
 
 ---
 
-## 二、优先级建议
-
-| 优先级 | 任务 | 原因 |
-|--------|------|------|
-| P2 | 冲突处理 Last-Write-Wins | 多设备场景核心功能 |
-| P2 | 最小化到托盘 | 用户体验 |
-| P3 | 密码 DPAPI 加密 | 安全 |
-
----
-
-## 三、已完成记录
+## 二、已完成记录
 
 - Rev 228: Code review 全修复（SyncService wiring，CommitAsync 传密码，.svn 过滤修正，Repository.Password，TrayIcon null-guard）
 - Rev 225: DPAPI 密码加密（DpapiService + ConfigService 集成）
@@ -82,3 +76,7 @@
 - Rev 202: 删除冗余 Top Toolbar
 - Rev 201: nullable enable 导致的 using 顺序问题
 - Rev 200: CS8632 nullable 警告 + Task using
+- Rev 470: 文件复制进度窗口（StartAnalysis 拆分，计时器不重置）
+- Rev 468: ExecuteCopyAsync 重入保护（Interlocked.CompareExchange guard）
+- Rev 465: SvnService 操作串行化（SemaphoreSlim(1,1) + 30s 超时）
+- Rev 471: 手工同步加 FullSyncAsync 兜底
