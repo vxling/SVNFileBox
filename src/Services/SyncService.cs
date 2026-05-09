@@ -127,6 +127,7 @@ public class SyncService : IDisposable
         {
             await RetryPendingUpdatesAsync(); // upload pending local commits
             await PollCoreAsync(); // download server changes
+            await FullSyncAsync(); // safety net: commit any unversioned/missing files that were missed
         }
         finally
         {
