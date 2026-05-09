@@ -118,7 +118,7 @@ public class SvnService : IDisposable
                         _ => FileSvnStatus.Normal
                     };
 
-                    if (svnStatus != FileSvnStatus.Normal || !statuses.ContainsKey(path))
+                    if (svnStatus != FileSvnStatus.Normal)
                         statuses[path] = svnStatus;
                 });
 
