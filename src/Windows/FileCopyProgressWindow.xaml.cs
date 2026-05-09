@@ -41,15 +41,6 @@ public partial class FileCopyProgressWindow : Window
         _timer.Start();
     }
 
-    /// <summary>
-    /// Update the currently scanned item during analysis phase.
-    /// Does NOT reset the timer — safe to call repeatedly per file.
-    /// </summary>
-    public void UpdateAnalysisItem(string currentItem)
-    {
-        CurrentFileText.Text = currentItem;
-    }
-
     public void StartCopy()
     {
         Title = "正在复制文件";
