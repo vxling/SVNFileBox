@@ -409,7 +409,7 @@ public partial class MainWindow : Window
         try
         {
             // Phase 1: Analyze in background, report progress per item
-            var analysisProgress = new Progress<string>(item => progressWindow.StartAnalysis(item));
+            var analysisProgress = new Progress<string>(item => progressWindow.UpdateAnalysisItem(item));
 
             FileCopyPlan? plan;
             CancellationToken analysisToken = cts.Token;
