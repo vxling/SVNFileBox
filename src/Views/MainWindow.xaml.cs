@@ -667,7 +667,7 @@ public partial class MainWindow : Window
                     {
                         try
                         {
-                            Directory.Delete(repo.Path, true);
+                            ClearReadOnlyAndDelete(repo.Path);
                             Log.Information("Deleted network repo local working copy: {Path}", repo.Path);
                         }
                         catch (Exception ex)
@@ -742,6 +742,13 @@ public partial class MainWindow : Window
     }
     // Note: CanExecuteChanged is intentionally a no-op because CanExecute always returns true.
     // WPF/ICommand infrastructure will never block command execution, so this is safe.
+    private static void ClearReadOnlyAndDelete(string path)
+    {
+        if (!Directory.Exists(path)) return;
+        foreach (var file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+            File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
+        Directory.Delete(path, recursive: true);
+    }
     private class RelayCommand : ICommand
     {
         private readonly Action<object?> _execute;
