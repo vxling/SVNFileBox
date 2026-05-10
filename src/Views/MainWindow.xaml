@@ -54,19 +54,19 @@
 
         <!-- Context Menu for file list -->
         <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
-            <MenuItem Header="复制路径" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
+            <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
             <Separator/>
-            <MenuItem Header="粘贴" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
-            <MenuItem Header="新建文件夹" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
-            <MenuItem Header="重命名" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
+            <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
+            <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
+            <MenuItem Header="{DynamicResource Rename}" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
             <Separator/>
-            <MenuItem Header="删除" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
+            <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
             <Separator/>
-            <MenuItem Header="刷新" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
+            <MenuItem Header="{DynamicResource Refresh}" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
             <Separator/>
-            <MenuItem Header="手工同步" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Icon="🔃"/>
+            <MenuItem Header="{DynamicResource ManualSync}" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Icon="🔃"/>
             <Separator/>
-            <MenuItem Header="在资源管理器中打开" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Icon="📂"/>
+            <MenuItem Header="{DynamicResource OpenInExplorer}" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Icon="📂"/>
         </ContextMenu>
     </Window.Resources>
 
@@ -78,9 +78,9 @@
                         TrayMouseDoubleClick="TrayIcon_TrayMouseDoubleClick">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
-                    <MenuItem Header="打开 SVNFileBox" Click="TrayShow_Click"/>
+                    <MenuItem Header="{DynamicResource OpenSVNFileBox}" Click="TrayShow_Click"/>
                     <Separator/>
-                    <MenuItem Header="退出" Click="TrayExit_Click"/>
+                    <MenuItem Header="{DynamicResource Exit}" Click="TrayExit_Click"/>
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
@@ -107,17 +107,42 @@
             <!-- Left Sidebar -->
             <Border Grid.Column="0" Background="White" Margin="8" Padding="12">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="仓库列表" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Repositories}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
                     <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
                         <StackPanel HorizontalAlignment="Stretch">
                             <Separator Margin="0,0,0,8"/>
-                            <Button x:Name="AddLocalRepoButton" Content="📂 添加本地仓库" Click="AddLocalRepo_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch"/>
-                            <Button x:Name="CheckoutButton" Content="🌐 从网络添加仓库" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch"/>
-                            <Button x:Name="ViewSyncRecordsButton" Content="📋 查看同步记录" Click="ViewSyncRecords_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch"/>
+                            <Button x:Name="AddLocalRepoButton" Click="AddLocalRepo_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📂" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{DynamicResource AddLocalRepository}"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="CheckoutButton" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="🌐" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{DynamicResource CheckoutFromNetwork}"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="ViewSyncRecordsButton" Click="ViewSyncRecords_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📋" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{DynamicResource ViewSyncRecords}"/>
+                                </StackPanel>
+                            </Button>
                             <Separator Margin="0,4"/>
-                            <Button x:Name="SettingsButton" Content="⚙️ 设置" Click="Settings_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch"/>
-                            <Button x:Name="AboutButton" Content="ℹ️ 关于" Click="About_Click" Padding="8,6" HorizontalAlignment="Stretch"/>
+                            <Button x:Name="SettingsButton" Click="Settings_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="⚙️" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{DynamicResource Settings}"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="AboutButton" Click="About_Click" Padding="8,6" HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="ℹ️" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{DynamicResource About}"/>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
 
@@ -167,12 +192,12 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="路径:" FontSize="12" Margin="0,0,8,0"/>
+                                <TextBlock Text="{DynamicResource Path}" FontSize="12" Margin="0,0,8,0"/>
                                 <TextBlock x:Name="PathText" Text="" FontSize="13"/>
                             </StackPanel>
-                            <Button Grid.Column="1" x:Name="RefreshListButton" Content="刷新" Click="Refresh_Click" Padding="12,6"
+                            <Button Grid.Column="1" x:Name="RefreshListButton" Content="{DynamicResource Refresh}" Click="Refresh_Click" Padding="12,6"
                                     Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}"/>
-                            <Button Grid.Column="1" x:Name="BackToFilesButton" Content="← 返回" Click="BackToFiles_Click" Padding="12,6"
+                            <Button Grid.Column="1" x:Name="BackToFilesButton" Content="{DynamicResource ParentDirectory}" Click="BackToFiles_Click" Padding="12,6"
                                     Visibility="{Binding ShowSyncRecords, Converter={StaticResource InverseBoolToVisibleConverter}}"/>
                         </Grid>
                     </Border>
@@ -191,15 +216,15 @@
                               Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="类型" Width="50">
+                                <GridViewColumn Header="{DynamicResource ColumnType}" Width="50">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}" Width="24" Height="24"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn x:Name="NameColumn" Header="名称" Width="450" DisplayMemberBinding="{Binding Name}"/>
-                                <GridViewColumn Header="状态" Width="Auto">
+                                <GridViewColumn x:Name="NameColumn" Header="{DynamicResource ColumnName}" Width="450" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="{DynamicResource ColumnStatus}" Width="Auto">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <Border Background="{Binding SvnStatus, Converter={StaticResource SvnStatusToColorConverter}}"
@@ -212,8 +237,8 @@
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="大小" Width="110" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
-                                <GridViewColumn Header="修改时间" Width="180" DisplayMemberBinding="{Binding LastModifiedDisplay}"/>
+                                <GridViewColumn Header="{DynamicResource ColumnSize}" Width="110" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
+                                <GridViewColumn Header="{DynamicResource ColumnModified}" Width="180" DisplayMemberBinding="{Binding LastModifiedDisplay}"/>
                             </GridView>
                         </ListView.View>
                     </ListView>
@@ -226,12 +251,12 @@
                               Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToVisibleConverter}}">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="时间" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
-                                <GridViewColumn Header="仓库" Width="100" DisplayMemberBinding="{Binding RepoName}"/>
-                                <GridViewColumn Header="文件" Width="280" DisplayMemberBinding="{Binding FilePath}"/>
-                                <GridViewColumn Header="操作" Width="100" DisplayMemberBinding="{Binding OperationDisplay}"/>
-                                <GridViewColumn Header="结果" Width="80" DisplayMemberBinding="{Binding ResultDisplay}"/>
-                                <GridViewColumn Header="详情" Width="200" DisplayMemberBinding="{Binding Message}"/>
+                                <GridViewColumn Header="{DynamicResource ColTime}" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
+                                <GridViewColumn Header="{DynamicResource ColRepo}" Width="100" DisplayMemberBinding="{Binding RepoName}"/>
+                                <GridViewColumn Header="{DynamicResource ColFile}" Width="280" DisplayMemberBinding="{Binding FilePath}"/>
+                                <GridViewColumn Header="{DynamicResource ColOperation}" Width="100" DisplayMemberBinding="{Binding OperationDisplay}"/>
+                                <GridViewColumn Header="{DynamicResource ColResult}" Width="80" DisplayMemberBinding="{Binding ResultDisplay}"/>
+                                <GridViewColumn Header="{DynamicResource ColDetail}" Width="200" DisplayMemberBinding="{Binding Message}"/>
                             </GridView>
                         </ListView.View>
                     </ListView>

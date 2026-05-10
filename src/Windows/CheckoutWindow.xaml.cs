@@ -42,7 +42,7 @@ public partial class CheckoutWindow : Window
         var name = RepoNameBox.Text?.Trim();
         if (string.IsNullOrEmpty(name))
         {
-            LocalPathBox.Text = "请先输入仓库名称";
+            LocalPathBox.Text = LocalizationService.Instance.GetString("RepoNameRequired");
             _generatedLocalPath = null;
             return;
         }
@@ -101,7 +101,7 @@ public partial class CheckoutWindow : Window
         // Check duplicate by URL
         if (_existingRepos.Any(r => r.Url.Equals(RepoUrl, StringComparison.OrdinalIgnoreCase)))
         {
-            ShowError("该网络仓库地址已存在，不能重复添加");
+            ShowError(LocalizationService.Instance.GetString("DuplicateRepoUrl"));
             return;
         }
 
@@ -112,11 +112,11 @@ public partial class CheckoutWindow : Window
         }
         catch (Exception ex)
         {
-            ShowError($"无法创建目录: {ex.Message}");
+            ShowError(LocalizationService.Instance.GetString("CannotCreateDir", ex.Message));
             return;
         }
 
-        SetLoading(true, "正在 checkout，请稍候...");
+        SetLoading(true, LocalizationService.Instance.GetString("CheckoutInProgress"));
 
         try
         {

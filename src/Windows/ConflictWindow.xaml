@@ -2,11 +2,15 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:SVNFileBox.Models"
-        Title="冲突文件"
+        xmlns:conv="clr-namespace:SVNFileBox.Converters"
+        Title="{DynamicResource ConflictTitle}"
         Height="420" Width="600"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
+    <Window.Resources>
+        <conv:LocalIsNewerToSuggestionConverter x:Key="LocalIsNewerToSuggestionConverter"/>
+    </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -18,13 +22,10 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="⚠" FontSize="22" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <TextBlock Text="发现冲突文件" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <TextBlock Text="{DynamicResource ConflictTitle}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="1" TextWrapping="Wrap" Foreground="#666" FontSize="12" Margin="0,0,0,12">
-            服务器更新与本地修改产生冲突，请为每个文件选择处理方式。
-            建议参考文件修改时间判断，但最终由你决定。
-        </TextBlock>
+        <TextBlock Grid.Row="1" Text="{DynamicResource ConflictDesc}" TextWrapping="Wrap" Foreground="#666" FontSize="12" Margin="0,0,0,12"/>
 
         <!-- Conflict list -->
         <Border Grid.Row="2" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Margin="0,0,0,12">
@@ -44,10 +45,10 @@
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" FontSize="13"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="本地:" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="{DynamicResource Local}" Foreground="#888" FontSize="11"/>
                                             <TextBlock Text="{Binding LocalModifiedTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
                                                        Foreground="#555" FontSize="11" Margin="4,0,16,0"/>
-                                            <TextBlock Text="服务器:" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="{DynamicResource Server}" Foreground="#888" FontSize="11"/>
                                             <TextBlock Text="{Binding ServerModifiedTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
                                                        Foreground="#555" FontSize="11" Margin="4,0,0,0"/>
                                         </StackPanel>
@@ -65,14 +66,13 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock FontSize="11">
+                                        <TextBlock Text="{Binding LocalIsNewer, Converter={StaticResource LocalIsNewerToSuggestionConverter}}"
+                                                   FontSize="11">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="建议: 接受服务器"/>
                                                     <Setter Property="Foreground" Value="#1565C0"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding LocalIsNewer}" Value="True">
-                                                            <Setter Property="Text" Value="建议: 保留本地"/>
                                                             <Setter Property="Foreground" Value="#E65100"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
@@ -86,9 +86,9 @@
                                               SelectedValue="{Binding SelectedResolution}"
                                               SelectedValuePath="Tag"
                                               Width="200">
-                                        <ComboBoxItem Content="保留本地版本" Tag="{x:Static local:ConflictResolution.KeepLocal}"/>
-                                        <ComboBoxItem Content="接受服务器版本" Tag="{x:Static local:ConflictResolution.AcceptServer}"/>
-                                        <ComboBoxItem Content="保留两者（备份后接受服务器）" Tag="{x:Static local:ConflictResolution.KeepBoth}"/>
+                                        <ComboBoxItem Content="{DynamicResource KeepLocal}" Tag="{x:Static local:ConflictResolution.KeepLocal}"/>
+                                        <ComboBoxItem Content="{DynamicResource AcceptServer}" Tag="{x:Static local:ConflictResolution.AcceptServer}"/>
+                                        <ComboBoxItem Content="{DynamicResource KeepBoth}" Tag="{x:Static local:ConflictResolution.KeepBoth}"/>
                                     </ComboBox>
                                 </Grid>
                             </Border>
@@ -100,13 +100,13 @@
 
         <!-- Buttons -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="全选保留本地" Click="KeepAllLocal_Click"
+            <Button Content="{DynamicResource KeepAllLocal}" Click="KeepAllLocal_Click"
                     Padding="12,6" MinWidth="100" Margin="0,0,8,0"/>
-            <Button Content="全选接受服务器" Click="AcceptAllServer_Click"
+            <Button Content="{DynamicResource AcceptAllServer}" Click="AcceptAllServer_Click"
                     Padding="12,6" MinWidth="100" Margin="0,0,8,0"/>
-            <Button Content="确定" Click="OK_Click"
+            <Button Content="{DynamicResource ConflictConfirm}" Click="OK_Click"
                     Padding="16,6" MinWidth="80" Margin="0,0,8,0"/>
-            <Button Content="取消" Click="Cancel_Click"
+            <Button Content="{DynamicResource Cancel}" Click="Cancel_Click"
                     Padding="16,6" MinWidth="80"/>
         </StackPanel>
     </Grid>

@@ -29,7 +29,7 @@ public partial class AddLocalRepoWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "选择 SVN 工作副本目录"
+            Title = LocalizationService.Instance.GetString("SelectFolderTitle")
         };
 
         if (dialog.ShowDialog() == true)
@@ -46,20 +46,20 @@ public partial class AddLocalRepoWindow : Window
 
         if (string.IsNullOrEmpty(path))
         {
-            ErrorText.Text = "请选择目录";
+            ErrorText.Text = LocalizationService.Instance.GetString("PleaseSelectDir");
             return;
         }
 
         // Check duplicate by local path
         if (_existingRepos.Any(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
         {
-            ErrorText.Text = "本地路径已存在，不能重复添加";
+            ErrorText.Text = LocalizationService.Instance.GetString("LocalPathAlreadyAdded");
             return;
         }
 
         if (!_svnService.IsValidWorkingCopy(path))
         {
-            ErrorText.Text = "所选目录不是有效的 SVN 工作副本（没有 .svn 目录）";
+            ErrorText.Text = LocalizationService.Instance.GetString("NotValidWorkingCopy");
             return;
         }
     }
@@ -80,25 +80,25 @@ public partial class AddLocalRepoWindow : Window
 
         if (string.IsNullOrEmpty(path))
         {
-            ErrorText.Text = "请选择目录";
+            ErrorText.Text = LocalizationService.Instance.GetString("PleaseSelectDir");
             return;
         }
 
         // Check duplicate by local path
         if (_existingRepos.Any(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
         {
-            ErrorText.Text = "本地路径已存在，不能重复添加";
+            ErrorText.Text = LocalizationService.Instance.GetString("LocalPathAlreadyAdded");
             return;
         }
 
         if (!_svnService.IsValidWorkingCopy(path))
         {
-            ErrorText.Text = "所选目录不是有效的 SVN 工作副本";
+            ErrorText.Text = LocalizationService.Instance.GetString("NotValidWorkingCopy");
             return;
         }
 
         // Get repo URL — show progress, disable buttons
-        SetLoading(true, "正在检查仓库 URL...");
+        SetLoading(true, LocalizationService.Instance.GetString("CheckingRepoUrl"));
 
         try
         {

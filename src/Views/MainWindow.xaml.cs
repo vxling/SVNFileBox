@@ -129,18 +129,18 @@ public partial class MainWindow : Window
         if (_viewModel?.SyncService == null) return;
         try
         {
-            StatusText.Text = $"正在处理 {conflicts.Count} 个冲突文件...";
+            StatusText.Text = LocalizationService.Instance.GetString("ResolvingConflicts", conflicts.Count);
             var handled = await _viewModel.SyncService.ApplyConflictResolutionsAsync(conflicts);
             _viewModel.RecordService.AddRecord(
                 _viewModel.SelectedRepository?.Name ?? "",
                 "", "ConflictResolved", "Success", $"Resolved {handled} conflict(s)");
-            StatusText.Text = $"冲突处理完成：{handled} 个";
+            StatusText.Text = LocalizationService.Instance.GetString("ConflictsResolved", handled);
             await _viewModel.RefreshAsync();
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Conflict resolution failed");
-            StatusText.Text = "冲突处理失败";
+            StatusText.Text = LocalizationService.Instance.GetString("ConflictResolutionFailed");
         }
     }
 
@@ -178,7 +178,7 @@ public partial class MainWindow : Window
                 catch (Exception ex)
                 {
                     Log.Error(ex, "Failed to open file: {Path}", item.FullPath);
-                    _viewModel!.StatusText = $"打开失败: {ex.Message}";
+                    _viewModel!.StatusText = LocalizationService.Instance.GetString("OpenFailed", ex.Message);
                 }
             }
         }
@@ -189,16 +189,23 @@ public partial class MainWindow : Window
         if (e.OriginalSource is not GridViewColumnHeader header || header.Column == null)
             return;
 
-        string? sortProperty = (header.Column.DisplayMemberBinding as System.Windows.Data.Binding)?.Path.Path
-            ?? header.Column.Header?.ToString() switch
+        // Map column index to sort property (order matches GridView definition)
+        string? sortProperty = (header.Column.DisplayMemberBinding as System.Windows.Data.Binding)?.Path.Path;
+        if (sortProperty == null)
+        {
+            // Column indices: 0=Type, 1=Name, 2=Status, 3=Size, 4=Modified
+            var cols = (FileList?.View as GridView)?.Columns;
+            if (cols != null)
             {
-                "类型" => "TypeDisplay",
-                "名称" => "Name",
-                "状态" => "SvnStatus",
-                "大小" => "FileSize",
-                "修改时间" => "LastModified",
-                _ => null
-            };
+                var idx = cols.IndexOf(header.Column);
+                sortProperty = idx switch
+                {
+                    0 => "TypeDisplay",
+                    2 => "SvnStatus",
+                    _ => null
+                };
+            }
+        }
 
         if (sortProperty == null) return;
         ApplySort(FileList, sortProperty);
@@ -224,17 +231,17 @@ public partial class MainWindow : Window
     private async void ManualSync_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel?.SyncService == null) return;
-        _viewModel!.StatusText = "正在手工同步...";
+        _viewModel!.StatusText = LocalizationService.Instance.GetString("ManualSyncInProgress");
         try
         {
             await _viewModel.SyncService.SyncNowAsync();
-            _viewModel.StatusText = "同步完成";
+            _viewModel.StatusText = LocalizationService.Instance.GetString("SyncComplete");
             await _viewModel.RefreshAsync();
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Manual sync failed");
-            _viewModel.StatusText = $"同步失败: {ex.Message}";
+            _viewModel.StatusText = LocalizationService.Instance.GetString("SyncFailed", ex.Message);
         }
     }
 
@@ -268,7 +275,7 @@ public partial class MainWindow : Window
         try
         {
             Clipboard.SetText(path);
-            _viewModel!.StatusText = $"已复制: {path}";
+            _viewModel!.StatusText = LocalizationService.Instance.GetString("Copied", path);
         }
         catch (Exception ex) { Log.Error(ex, "CopyPath failed"); }
     }
@@ -292,7 +299,10 @@ public partial class MainWindow : Window
                 var newFolderPath = Path.Combine(targetDir, dialog.InputText.Trim());
                 if (Directory.Exists(newFolderPath))
                 {
-                    System.Windows.MessageBox.Show(this, $"文件夹 \"{dialog.InputText.Trim()}\" 已存在", "新建文件夹", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    System.Windows.MessageBox.Show(this,
+                        LocalizationService.Instance.GetString("FolderAlreadyExists", dialog.InputText.Trim()),
+                        LocalizationService.Instance.GetString("NewFolderTitle"),
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     return;
                 }
                 Directory.CreateDirectory(newFolderPath);
@@ -319,10 +329,10 @@ public partial class MainWindow : Window
 
         var dialog = new Windows.InputDialog
         {
-            Title = "重命名",
+            Title = LocalizationService.Instance.GetString("RenameTitle"),
             Owner = this
         };
-        dialog.SetPrompt("新名称:");
+        dialog.SetPrompt(LocalizationService.Instance.GetString("RenamePrompt"));
         dialog.SetInput(item.Name);
         // Pre-fill with current name, select all for easy replacement
         if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.InputText))
@@ -338,7 +348,10 @@ public partial class MainWindow : Window
             {
                 if (Directory.Exists(newPath) || File.Exists(newPath))
                 {
-                    System.Windows.MessageBox.Show(this, $"名称 \"{newName}\" 已被占用", "重命名", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    System.Windows.MessageBox.Show(this,
+                        LocalizationService.Instance.GetString("NameAlreadyTaken", newName),
+                        LocalizationService.Instance.GetString("RenameTitle"),
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     return;
                 }
                 if (Directory.Exists(item.FullPath) || File.Exists(item.FullPath))
@@ -350,12 +363,12 @@ public partial class MainWindow : Window
                 var msg = $"Auto-sync: [Rename] {item.Name} -> {newName}";
                 _ = _svnService.CommitAsync(parentDir, msg);
 
-                _viewModel!.StatusText = $"已重命名: {item.Name} -> {newName}";
+                _viewModel!.StatusText = LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}");
                 _ = _viewModel.RefreshAsync();
             }
             catch (Exception ex)
             {
-                _viewModel!.StatusText = $"重命名失败: {ex.Message}";
+                _viewModel!.StatusText = LocalizationService.Instance.GetString("RenameFailed", ex.Message);
                 Log.Error(ex, "Rename failed: {Old} -> {New}", item.FullPath, newPath);
             }
         }
@@ -368,7 +381,9 @@ public partial class MainWindow : Window
 
         var result = MessageBox.Show(
             LocalizationService.Instance.GetString("DeleteConfirmMessage",
-                item.IsDirectory ? "文件夹" : "文件", item.Name),
+                item.IsDirectory
+                    ? LocalizationService.Instance.GetString("Folder")
+                    : LocalizationService.Instance.GetString("File"), item.Name),
             LocalizationService.Instance.GetString("DeleteConfirmTitle"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
@@ -427,7 +442,10 @@ public partial class MainWindow : Window
         if (Interlocked.CompareExchange(ref _isCopying, 1, 0) == 1)
         {
             Log.Warning("[ExecuteCopyAsync] Copy already in progress, rejecting duplicate call");
-            MessageBox.Show(this, "当前正在执行复制操作，请等待完成后再试。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this,
+                LocalizationService.Instance.GetString("CopyInProgress"),
+                LocalizationService.Instance.GetString("Prompt"),
+                MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         // Pause FileWatcher during copy to avoid triggering commit监控 for each new file
@@ -480,21 +498,24 @@ public partial class MainWindow : Window
             catch (OperationCanceledException)
             {
                 progressWindow.Close();
-                _viewModel.StatusText = "已取消分析";
+                _viewModel.StatusText = LocalizationService.Instance.GetString("AnalysisCancelled");
                 return;
             }
 
             if (plan == null)
             {
                 progressWindow.Close();
-                _viewModel.StatusText = "没有文件可复制";
+                _viewModel.StatusText = LocalizationService.Instance.GetString("NoFilesToCopy");
                 return;
             }
 
             if (plan.IsSameLocation)
             {
                 progressWindow.Close();
-                MessageBox.Show(this, "源和目标位置相同，无法复制。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this,
+                    LocalizationService.Instance.GetString("SameLocation"),
+                    LocalizationService.Instance.GetString("Prompt"),
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -508,17 +529,17 @@ public partial class MainWindow : Window
 
             if (result.WasCancelled)
             {
-                _viewModel.StatusText = "已取消复制";
+                _viewModel.StatusText = LocalizationService.Instance.GetString("CopyCancelled");
             }
             else if (result.HasError)
             {
-                _viewModel.StatusText = $"复制失败: {result.ErrorMessage}";
+                _viewModel.StatusText = LocalizationService.Instance.GetString("CopyFailed", result.ErrorMessage ?? "");
             }
             else
             {
                 var summary = result.SkippedCount == 0
-                    ? $"已复制 {result.CopiedCount} 个项目"
-                    : $"已复制 {result.CopiedCount} 个，跳过 {result.SkippedCount} 个";
+                    ? LocalizationService.Instance.GetString("CopiedNItems", result.CopiedCount)
+                    : LocalizationService.Instance.GetString("CopiedNItemsSkippedM", result.CopiedCount, result.SkippedCount);
                 _viewModel.StatusText = summary;
             }
 
@@ -615,8 +636,9 @@ public partial class MainWindow : Window
         if (sender is System.Windows.Controls.Button btn && btn.Tag is Repository repo)
         {
             var result = MessageBox.Show(
-                $"确定要移除仓库 \"{repo.Name}\"？\n本地文件不会删除。",
-                "确认移除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                LocalizationService.Instance.GetString("RemoveRepoConfirm", repo.Name),
+                LocalizationService.Instance.GetString("ConfirmRemove"),
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (result == MessageBoxResult.Yes)
             {
@@ -637,7 +659,9 @@ public partial class MainWindow : Window
         e.Cancel = true;
         Hide();
         if (TrayIcon != null && !TrayIcon.IsDisposed)
-            TrayIcon.ShowBalloonTip("SVNFileBox", "已最小化到托盘，双击恢复", Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+            TrayIcon.ShowBalloonTip("SVNFileBox",
+                LocalizationService.Instance.GetString("MinimizedToTray"),
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
     }
 
     private void TrayIcon_TrayMouseDoubleClick(object sender, RoutedEventArgs e)
