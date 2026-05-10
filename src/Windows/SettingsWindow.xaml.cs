@@ -42,14 +42,6 @@ public partial class SettingsWindow : Window
         AutoStartCheckBox.IsChecked = _configService.Config.AutoStart;
         MinimizeToTrayCheckBox.IsChecked = _configService.Config.MinimizeToTray;
 
-        // Theme combo — 用 SelectedIndex 直接对应配置值
-        ThemeComboBox.SelectedIndex = _configService.Config.Theme switch
-        {
-            "light" => 1,
-            "dark" => 2,
-            _ => 0  // system
-        };
-
         // Language combo — 用 SelectedIndex 直接对应配置值
         LanguageComboBox.SelectedIndex = _configService.Config.Language switch
         {
@@ -67,14 +59,6 @@ public partial class SettingsWindow : Window
         _configService.Config.AutoStart = AutoStartCheckBox.IsChecked == true;
         _configService.Config.MinimizeToTray = MinimizeToTrayCheckBox.IsChecked == true;
 
-        // Theme
-        _configService.Config.Theme = ThemeComboBox.SelectedIndex switch
-        {
-            1 => "light",
-            2 => "dark",
-            _ => "system"
-        };
-
         // Language
         _configService.Config.Language = LanguageComboBox.SelectedIndex switch
         {
@@ -82,9 +66,6 @@ public partial class SettingsWindow : Window
             2 => "en",
             _ => "auto"
         };
-
-        // Apply theme
-        ThemeService.Instance.ApplyTheme(_configService.Config.Theme);
 
         // Apply language
         LocalizationService.Instance.SetLanguage(_configService.Config.Language);

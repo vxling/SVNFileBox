@@ -72,7 +72,6 @@ public partial class App : Application
             var configService = new ConfigService();
             await configService.LoadAsync();
             LocalizationService.Instance.SetLanguage(configService.Config.Language);
-            ThemeService.Instance.ApplyTheme(configService.Config.Theme);
 
             // Pre-create MainWindow before showing splash
             var mainWindow = new MainWindow { Visibility = Visibility.Hidden };
