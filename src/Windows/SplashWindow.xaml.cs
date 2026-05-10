@@ -11,6 +11,8 @@ public partial class SplashWindow : Window
 {
     private readonly DispatcherTimer _fakeProgressTimer;
     private int _step;
+    private int _totalSteps = 4;
+    private bool _isClosing;
 
     public SplashWindow()
     {
@@ -31,7 +33,7 @@ public partial class SplashWindow : Window
     {
         StatusText.Text = status;
         _step++;
-        StepText.Text = $"步骤 {_step} / 4";
+        StepText.Text = LocalizationService.Instance.GetString("SplashStep", _step, _totalSteps);
         Log.Debug("[Splash] {Status}", status);
         ProgressBar.Value = Math.Min(ProgressBar.Value + 20, 95);
         // Force UI update immediately so user sees the message
@@ -40,17 +42,34 @@ public partial class SplashWindow : Window
 
     public void Complete()
     {
+        if (_isClosing) return;
+        _isClosing = true;
         _fakeProgressTimer.Stop();
         ProgressBar.Value = 100;
-        StatusText.Text = "启动完成";
-        StepText.Text = "步骤 4 / 4";
+        StatusText.Text = LocalizationService.Instance.GetString("SplashComplete");
+        StepText.Text = LocalizationService.Instance.GetString("SplashStep", _totalSteps, _totalSteps);
         var mainWindow = new MainWindow();
         mainWindow.Show();
         Dispatcher.Invoke(() => Close());
     }
 
+    /// <summary>
+    /// Refreshes all UI text to match the current language.
+    /// Called after SetLanguage() so the splash reflects the saved language preference.
+    /// </summary>
+    public void ApplyLocalization()
+    {
+        Title = LocalizationService.Instance.GetString("SplashTitle");
+        TaglineText.Text = LocalizationService.Instance.GetString("SplashTagline");
+        StepText.Text = LocalizationService.Instance.GetString("SplashStep", _step, _totalSteps);
+        if (!string.IsNullOrEmpty(StatusText.Text))
+            StatusText.Text = LocalizationService.Instance.GetString("SplashInitializing");
+    }
+
     public void ShowErrorAndClose(string message)
     {
+        if (_isClosing) return;
+        _isClosing = true;
         _fakeProgressTimer.Stop();
         StatusText.Text = LocalizationService.Instance.GetString("SplashStartupFailedStatusText", message);
         StatusText.Foreground = System.Windows.Media.Brushes.Red;

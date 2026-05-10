@@ -92,6 +92,7 @@ public partial class App : Application
             // Step 5: Apply saved language
             _splash.SetStatus("正在加载语言...");
             LocalizationService.Instance.SetLanguage(configService.Config.Language);
+            _splash.ApplyLocalization();
             Log.Information("[Startup] Step 5 complete: Language applied ({Lang})", configService.Config.Language);
 
             // Step 6: Show main window

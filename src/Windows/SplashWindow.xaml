@@ -20,7 +20,8 @@
             <TextBlock Text="SVNFileBox"
                        FontSize="32" FontWeight="Bold" Foreground="White"
                        HorizontalAlignment="Center"/>
-            <TextBlock Text="SVN 文件管理器"
+            <TextBlock x:Name="TaglineText"
+                       Text="SVN File Manager"
                        FontSize="14" Foreground="#BBDEFB"
                        HorizontalAlignment="Center" Margin="0,6,0,0"/>
         </StackPanel>
@@ -28,7 +29,7 @@
         <!-- Status messages -->
         <TextBlock x:Name="StatusText"
                    Grid.Row="1"
-                   Text="正在初始化..."
+                   Text="Initializing..."
                    FontSize="13" Foreground="White"
                    HorizontalAlignment="Center" Margin="0,0,0,12"
                    TextWrapping="Wrap" MaxWidth="360" TextAlignment="Center"/>
@@ -43,7 +44,7 @@
         <!-- Bottom step indicator -->
         <StackPanel Grid.Row="3" Margin="0,12,0,20">
             <TextBlock x:Name="StepText"
-                       Text="步骤 1 / 4"
+                       Text="Step 1 / 4"
                        FontSize="11" Foreground="#90CAF9"
                        HorizontalAlignment="Center" Margin="0,0,0,0"/>
         </StackPanel>

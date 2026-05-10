@@ -139,6 +139,8 @@ public class LocalizationService
             ["SplashTagline"] = "SVN 文件管理器",
             ["SplashInitializing"] = "正在初始化...",
             ["SplashStep"] = "步骤 {0} / {1}",
+            ["SplashComplete"] = "启动完成",
+            ["SplashTitle"] = "SVNFileBox",
 
             // Sync Records
             ["SyncRecords"] = "同步记录",
@@ -321,6 +323,8 @@ public class LocalizationService
             ["SplashTagline"] = "SVN File Manager",
             ["SplashInitializing"] = "Initializing...",
             ["SplashStep"] = "Step {0} / {1}",
+            ["SplashComplete"] = "Startup complete",
+            ["SplashTitle"] = "SVNFileBox",
 
             // Sync Records
             ["SyncRecords"] = "Sync Records",
