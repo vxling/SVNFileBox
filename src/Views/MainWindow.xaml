@@ -12,7 +12,7 @@
         MinHeight="550" MinWidth="900"
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/Icons/app.ico"
-        Background="#F0F4F8">
+        >
 
     <Window.Resources>
         <conv:FileTypeIconConverter x:Key="FileTypeIconConverter"/>
