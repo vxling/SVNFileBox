@@ -196,7 +196,7 @@
                             </StackPanel>
                             <Button Grid.Column="1" x:Name="RefreshListButton" Content="{DynamicResource Refresh}" Click="Refresh_Click" Padding="12,6"
                                     Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}"/>
-                            <Button Grid.Column="1" x:Name="BackToFilesButton" Content="{DynamicResource ParentDirectory}" Click="BackToFiles_Click" Padding="12,6"
+                            <Button Grid.Column="1" x:Name="BackToFilesButton" Content="{Binding BackButtonText}" Click="BackToFiles_Click" Padding="12,6"
                                     Visibility="{Binding ShowSyncRecords, Converter={StaticResource InverseBoolToVisibleConverter}}"/>
                         </Grid>
                     </Border>

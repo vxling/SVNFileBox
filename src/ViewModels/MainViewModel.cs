@@ -47,6 +47,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showSyncRecords;
 
+    partial void OnShowSyncRecordsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(BackButtonText));
+    }
+
+    public string BackButtonText => ShowSyncRecords
+        ? LocalizationService.Instance.GetString("Back")
+        : LocalizationService.Instance.GetString("ParentDirectory");
+
     [ObservableProperty]
     private ObservableCollection<SyncRecordDisplay> _syncRecords = new();
 
