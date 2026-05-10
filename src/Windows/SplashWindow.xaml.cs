@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Threading;
 using Serilog;
+using SVNFileBox.Services;
 using SVNFileBox.Views;
 
 namespace SVNFileBox.Windows;
@@ -51,12 +52,14 @@ public partial class SplashWindow : Window
     public void ShowErrorAndClose(string message)
     {
         _fakeProgressTimer.Stop();
-        StatusText.Text = $"❌ 启动失败: {message}";
+        StatusText.Text = LocalizationService.Instance.GetString("SplashStartupFailedStatusText", message);
         StatusText.Foreground = System.Windows.Media.Brushes.Red;
-        StepText.Text = "请查看日志或重新启动程序";
+        StepText.Text = LocalizationService.Instance.GetString("SplashStartupFailedStatus");
         ProgressBar.Value = 0;
         Log.Error("[Splash] Startup failed: {Message}", message);
-        MessageBox.Show($"启动失败:\n\n{message}\n\n请修复后重新启动程序。",
-            "SVNFileBox 启动错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(
+            LocalizationService.Instance.GetString("SplashStartupFailedMessage", message),
+            LocalizationService.Instance.GetString("SplashStartupFailed"),
+            MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }

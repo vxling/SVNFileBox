@@ -117,8 +117,10 @@ public partial class App : Application
     private void Application_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Log.Error(e.Exception, "[UnhandledException] {Message}", e.Exception.Message);
-        MessageBox.Show($"发生未处理的错误:\n\n{e.Exception.Message}\n\n程序将继续运行。",
-            "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(
+            LocalizationService.Instance.GetString("AppUnhandledErrorMessage", e.Exception.Message),
+            LocalizationService.Instance.GetString("AppUnhandledError"),
+            MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
     }
 }
