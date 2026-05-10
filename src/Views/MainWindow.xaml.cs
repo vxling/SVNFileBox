@@ -410,13 +410,14 @@ public partial class MainWindow : Window
         {
             try
             {
-                var parentDir = Path.GetDirectoryName(item.FullPath);
+                // svn delete first (marks as deleted in SVN working copy), then physically remove
+                await _svnService.DeleteAsync(item.FullPath);
+
                 if (item.IsDirectory || Directory.Exists(item.FullPath))
                     Directory.Delete(item.FullPath, recursive: true);
                 else
                     File.Delete(item.FullPath);
 
-                // svn delete - removed immediate commit; let SyncService auto-commit on next sync cycle
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("DeleteSuccess", item.Name);
                 _ = _viewModel.RefreshAsync();
             }
