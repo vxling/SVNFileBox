@@ -340,7 +340,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Rename_Click(object sender, RoutedEventArgs e)
+    private async void Rename_Click(object sender, RoutedEventArgs e)
     {
         var item = GetFileItemFromContextMenu(sender);
         if (item == null || item.Name == "..") return;
@@ -372,14 +372,12 @@ public partial class MainWindow : Window
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                if (Directory.Exists(item.FullPath) || File.Exists(item.FullPath))
-                    Directory.Move(item.FullPath, newPath);
-                else
-                    return;
 
-                // svn rename
-                var msg = $"Auto-sync: [Rename] {item.Name} -> {newName}";
-                _ = _svnService.CommitAsync(parentDir, msg);
+                // svn delete old + svn add new (marks rename in working copy), then physical move
+                await _svnService.DeleteAsync(item.FullPath);
+                await _svnService.AddFileAsync(newPath);
+
+                Directory.Move(item.FullPath, newPath);
 
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}");
                 _ = _viewModel.RefreshAsync();
