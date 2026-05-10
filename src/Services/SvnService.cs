@@ -397,6 +397,8 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
+                if (!string.IsNullOrEmpty(username))
+                    client.Authentication.ForceCredentials(username, password ?? "");
                 SvnUpdateResult? result = null;
                 client.CheckOut(new SvnUriTarget(url), localPath, new SvnCheckOutArgs(), out result);
                 return (result?.Revision.ToString() ?? "", 0, "");
