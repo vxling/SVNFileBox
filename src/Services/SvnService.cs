@@ -33,7 +33,7 @@ public class SvnService : IDisposable
     /// <summary>
     /// Default network timeout in milliseconds for each SvnClient operation.
     /// </summary>
-    private const int DefaultTimeoutMs = 30_000;
+    private const int DefaultTimeoutMs = 120_000;
 
     public SvnService()
     {

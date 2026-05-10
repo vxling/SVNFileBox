@@ -60,8 +60,6 @@ public partial class CheckoutWindow : Window
         CancelButton.IsEnabled = !loading;
         StatusText.Text = statusMessage;
         StatusText.Visibility = loading ? Visibility.Visible : Visibility.Collapsed;
-        ErrorText.Visibility = loading ? Visibility.Collapsed : Visibility.Collapsed;
-        ErrorText.Text = "";
     }
 
     private void ShowError(string message)
