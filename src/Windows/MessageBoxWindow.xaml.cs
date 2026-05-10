@@ -38,6 +38,8 @@ public partial class MsgBox : Window
             WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen
         };
 
+        msgbox.TitleText.Text = title;
+        msgbox.MessageText.Text = message;
         msgbox.SetIcon(icon);
         msgbox.BuildButtons(buttons);
         msgbox.ShowDialog();
