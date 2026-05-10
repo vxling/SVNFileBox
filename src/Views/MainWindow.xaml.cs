@@ -325,10 +325,8 @@ public partial class MainWindow : Window
                 }
                 Directory.CreateDirectory(newFolderPath);
 
-                // svn add
+                // svn add (marks new folder), SyncService auto-commits on next FullSync
                 await _svnService.AddFileAsync(newFolderPath);
-                var msg = $"Auto-sync: [Add] {Path.GetFileName(newFolderPath)}";
-                await _svnService.CommitAsync(targetDir, msg);
 
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("NewFolderSuccess", dialog.InputText.Trim());
                 _ = _viewModel.RefreshAsync();
