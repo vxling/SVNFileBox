@@ -44,6 +44,8 @@ public class LocalizationService
             ["MinimizeToTrayTip"] = "关闭窗口时最小化到系统托盘",
             ["OK"] = "确定",
             ["Cancel"] = "取消",
+            ["Exit"] = "退出",
+            ["OpenSVNFileBox"] = "打开 SVNFileBox",
             ["Minutes"] = "分钟",
 
             // MainWindow
