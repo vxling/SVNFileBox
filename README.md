@@ -1,8 +1,12 @@
+！！注意： 本项目完全由AI开发，使用Hermes+MiniMax2.7模型开发，无人工代码！！！
+
 # SVNFileBox
 
 Windows SVN 同步客户端，类似 Dropbox，自动同步文档，last-write-win 的手工决策冲突机制，基于 .NET 10 + WPF 构建。
 
 本地文件变更自动 commit 到 SVN，服务器更新自动 pull 到本地，保持工作副本始终同步。
+<img width="1354" height="710" alt="image" src="https://github.com/user-attachments/assets/6b02608c-5a24-4c31-bb56-6015f864ba54" />
+
 
 ## 功能
 
