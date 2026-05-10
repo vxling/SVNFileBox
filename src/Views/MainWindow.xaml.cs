@@ -653,18 +653,53 @@ public partial class MainWindow : Window
     {
         if (sender is System.Windows.Controls.Button btn && btn.Tag is Repository repo)
         {
-            var result = MessageBox.Show(
-                LocalizationService.Instance.GetString("RemoveRepoConfirm", repo.Name),
-                LocalizationService.Instance.GetString("ConfirmRemove"),
-                MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
+            if (repo.RepositoryType == RepositoryType.Network)
             {
-                _viewModel!.Repositories.Remove(repo);
-                _configService!.Config.Repositories.Remove(repo);
-                _ = _configService.SaveAsync();
-                if (_viewModel.SelectedRepository == repo)
-                    _viewModel.SelectedRepository = null;
+                var result = MessageBox.Show(
+                    LocalizationService.Instance.GetString("RemoveNetworkRepoConfirm", repo.Name),
+                    LocalizationService.Instance.GetString("ConfirmRemove"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    // Delete local working copy for network repo
+                    if (Directory.Exists(repo.Path))
+                    {
+                        try
+                        {
+                            Directory.Delete(repo.Path, true);
+                            Log.Information("Deleted network repo local working copy: {Path}", repo.Path);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"删除本地文件失败: {ex.Message}",
+                                LocalizationService.Instance.GetString("Error"),
+                                MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
+                    }
+                    _viewModel!.Repositories.Remove(repo);
+                    _configService!.Config.Repositories.Remove(repo);
+                    _ = _configService.SaveAsync();
+                    if (_viewModel.SelectedRepository == repo)
+                        _viewModel.SelectedRepository = null;
+                }
+            }
+            else
+            {
+                var result = MessageBox.Show(
+                    LocalizationService.Instance.GetString("RemoveRepoConfirm", repo.Name),
+                    LocalizationService.Instance.GetString("ConfirmRemove"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    _viewModel!.Repositories.Remove(repo);
+                    _configService!.Config.Repositories.Remove(repo);
+                    _ = _configService.SaveAsync();
+                    if (_viewModel.SelectedRepository == repo)
+                        _viewModel.SelectedRepository = null;
+                }
             }
         }
     }

@@ -113,6 +113,7 @@ public class LocalizationService
             ["CopiedNItemsSkippedM"] = "已复制 {0} 个，跳过 {1} 个",
             ["ConfirmRemove"] = "确认移除",
             ["RemoveRepoConfirm"] = "确定要移除仓库 \"{0}\"？\n本地文件不会删除。",
+            ["RemoveNetworkRepoConfirm"] = "确定要移除网络仓库 \"{0}\"？\n移除后，本地文件也会被删除！",
             ["MinimizedToTray"] = "已最小化到托盘，双击恢复",
 
             // Sync Records columns
@@ -294,6 +295,7 @@ public class LocalizationService
             ["CopiedNItemsSkippedM"] = "Copied {0} item(s), skipped {1}",
             ["ConfirmRemove"] = "Confirm Remove",
             ["RemoveRepoConfirm"] = "Remove repository \"{0}\"?\nLocal files will not be deleted.",
+            ["RemoveNetworkRepoConfirm"] = "Remove network repository \"{0}\"?\nAfter removal, local files will also be deleted!",
             ["MinimizedToTray"] = "Minimized to tray. Double-click to restore.",
             ["RenamePrompt"] = "New name:",
             ["RenameSuccess"] = "Renamed: {0}",
