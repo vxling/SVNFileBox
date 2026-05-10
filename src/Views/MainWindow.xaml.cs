@@ -299,10 +299,10 @@ public partial class MainWindow : Window
                 var newFolderPath = Path.Combine(targetDir, dialog.InputText.Trim());
                 if (Directory.Exists(newFolderPath))
                 {
-                    System.Windows.MessageBox.Show(this,
+                    MessageBox.Show(this,
                         LocalizationService.Instance.GetString("FolderAlreadyExists", dialog.InputText.Trim()),
                         LocalizationService.Instance.GetString("NewFolderTitle"),
-                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 Directory.CreateDirectory(newFolderPath);
@@ -348,10 +348,10 @@ public partial class MainWindow : Window
             {
                 if (Directory.Exists(newPath) || File.Exists(newPath))
                 {
-                    System.Windows.MessageBox.Show(this,
+                    MessageBox.Show(this,
                         LocalizationService.Instance.GetString("NameAlreadyTaken", newName),
                         LocalizationService.Instance.GetString("RenameTitle"),
-                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 if (Directory.Exists(item.FullPath) || File.Exists(item.FullPath))

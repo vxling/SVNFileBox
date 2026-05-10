@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using Serilog;
 using SVNFileBox.Services;
 using SVNFileBox.Views;
+using SVNFileBox.Windows;
 
 namespace SVNFileBox.Windows;
 
