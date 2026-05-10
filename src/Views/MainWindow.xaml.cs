@@ -221,9 +221,18 @@ public partial class MainWindow : Window
         var gv = FileList?.View as GridView;
         if (gv == null || gv.Columns.Count < 2) return;
 
-        // Fixed columns: Type(50) + Status(auto) + Size(110) + Modified(180) = 340 + scrollbar(~17)
-        double fixedWidth = 50 + 110 + 180 + 17;
-        double availableWidth = FileList.ActualWidth - fixedWidth;
+        // Fixed columns: Type(50) + Status(auto) + Size(110) + Modified(180)
+        // Also reserve space for vertical scrollbar if content overflows
+        double fixedWidth = 50 + 110 + 180;
+        double contentWidth = FileList.ActualWidth;
+
+        // If total content overflows the visible area, vertical scrollbar appears and eats into width
+        // Rough check: if all fixed+name columns would overflow, reserve scrollbar width (~17px)
+        // Name min=450, total fixed=340, so overflow if actualWidth < 790
+        bool needsScrollbar = contentWidth < 790 && contentWidth > 0;
+        if (needsScrollbar) fixedWidth += SystemParameters.VerticalScrollBarWidth;
+
+        double availableWidth = contentWidth - fixedWidth;
         if (availableWidth < 100) availableWidth = 100;
 
         // Name column gets all remaining space
