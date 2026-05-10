@@ -47,7 +47,7 @@ public partial class SplashWindow : Window
         StepText.Text = LocalizationService.Instance.GetString("SplashStartupFailedStatus");
         ProgressBar.Value = 0;
         Log.Error("[Splash] Startup failed: {Message}", message);
-        MessageBox.Show(
+        MsgBox.Show(
             LocalizationService.Instance.GetString("SplashStartupFailedMessage", message),
             LocalizationService.Instance.GetString("SplashStartupFailed"),
             MessageBoxButton.OK, MessageBoxImage.Error);

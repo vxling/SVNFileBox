@@ -317,7 +317,7 @@ public partial class MainWindow : Window
                 var newFolderPath = Path.Combine(targetDir, dialog.InputText.Trim());
                 if (Directory.Exists(newFolderPath))
                 {
-                    MessageBox.Show(this,
+                    MsgBox.Show(this,
                         LocalizationService.Instance.GetString("FolderAlreadyExists", dialog.InputText.Trim()),
                         LocalizationService.Instance.GetString("NewFolderTitle"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -366,7 +366,7 @@ public partial class MainWindow : Window
             {
                 if (Directory.Exists(newPath) || File.Exists(newPath))
                 {
-                    MessageBox.Show(this,
+                    MsgBox.Show(this,
                         LocalizationService.Instance.GetString("NameAlreadyTaken", newName),
                         LocalizationService.Instance.GetString("RenameTitle"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -397,7 +397,7 @@ public partial class MainWindow : Window
         var item = GetFileItemFromContextMenu(sender);
         if (item == null) return;
 
-        var result = MessageBox.Show(
+        var result = MsgBox.Show(
             LocalizationService.Instance.GetString("DeleteConfirmMessage",
                 item.IsDirectory
                     ? LocalizationService.Instance.GetString("Folder")
@@ -460,7 +460,7 @@ public partial class MainWindow : Window
         if (Interlocked.CompareExchange(ref _isCopying, 1, 0) == 1)
         {
             Log.Warning("[ExecuteCopyAsync] Copy already in progress, rejecting duplicate call");
-            MessageBox.Show(this,
+            MsgBox.Show(this,
                 LocalizationService.Instance.GetString("CopyInProgress"),
                 LocalizationService.Instance.GetString("Prompt"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -530,7 +530,7 @@ public partial class MainWindow : Window
             if (plan.IsSameLocation)
             {
                 progressWindow.Close();
-                MessageBox.Show(this,
+                MsgBox.Show(this,
                     LocalizationService.Instance.GetString("SameLocation"),
                     LocalizationService.Instance.GetString("Prompt"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -655,7 +655,7 @@ public partial class MainWindow : Window
         {
             if (repo.RepositoryType == RepositoryType.Network)
             {
-                var result = MessageBox.Show(
+                var result = MsgBox.Show(
                     LocalizationService.Instance.GetString("RemoveNetworkRepoConfirm", repo.Name),
                     LocalizationService.Instance.GetString("ConfirmRemove"),
                     MessageBoxButton.YesNo, MessageBoxImage.Warning);
@@ -672,7 +672,7 @@ public partial class MainWindow : Window
                         }
                         catch (Exception ex)
                         {
-                            MessageBox.Show($"删除本地文件失败: {ex.Message}",
+                            MsgBox.Show($"删除本地文件失败: {ex.Message}",
                                 LocalizationService.Instance.GetString("Error"),
                                 MessageBoxButton.OK, MessageBoxImage.Error);
                             return;
@@ -687,7 +687,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                var result = MessageBox.Show(
+                var result = MsgBox.Show(
                     LocalizationService.Instance.GetString("RemoveRepoConfirm", repo.Name),
                     LocalizationService.Instance.GetString("ConfirmRemove"),
                     MessageBoxButton.YesNo, MessageBoxImage.Question);
