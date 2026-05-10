@@ -1,7 +1,7 @@
 <Window x:Class="SVNFileBox.Windows.MsgBox"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title=" "
+        Title="{Binding BoxTitle}"
         Height="160" Width="400"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
@@ -24,7 +24,7 @@
 
         <!-- Title -->
         <TextBlock x:Name="TitleText" Grid.Row="0" Grid.Column="1"
-                   Text="{Binding Title}"
+                   Text="{Binding BoxTitle}"
                    FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
         <!-- Message -->

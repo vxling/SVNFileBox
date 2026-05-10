@@ -13,7 +13,7 @@ public enum MessageBoxButtonType { OK, YesNo, OKCancel, YesNoCancel }
 
 public partial class MsgBox : Window
 {
-    public new string Title { get; set; } = "";
+    public string BoxTitle { get; set; } = "";
     public string Message { get; set; } = "";
     public MessageBoxResult Result { get; private set; } = MessageBoxResult.None;
 
@@ -32,7 +32,7 @@ public partial class MsgBox : Window
     {
         var msgbox = new MsgBox
         {
-            Title = title,
+            BoxTitle = title,
             Message = message,
             Owner = owner,
             WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen
