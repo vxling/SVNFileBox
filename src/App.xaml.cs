@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using Serilog;
@@ -26,6 +27,40 @@ public partial class App : Application
             .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
             .CreateLogger();
         Log.Information("SVNFileBox started");
+
+        // 监听语言切换事件，动态更新 ResourceDictionary
+        LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
+        UpdateLanguageResources();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        UpdateLanguageResources();
+    }
+
+    private void UpdateLanguageResources()
+    {
+        try
+        {
+            var langDict = LocalizationService.Instance.ResourceDictionary;
+            // 找到现有的语言字典并替换
+            ResourceDictionary? toRemove = null;
+            foreach (var d in Resources.MergedDictionaries)
+            {
+                if (d["SettingsTitle"] != null)
+                {
+                    toRemove = d;
+                    break;
+                }
+            }
+            if (toRemove != null)
+                Resources.MergedDictionaries.Remove(toRemove);
+            Resources.MergedDictionaries.Add(langDict);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[App] Failed to update language resources");
+        }
     }
 
     private async void Application_Startup(object sender, StartupEventArgs e)
@@ -54,10 +89,15 @@ public partial class App : Application
             ThemeService.Instance.ApplyTheme(configService.Config.Theme);
             Log.Information("[Startup] Step 4 complete: Theme applied ({Theme})", configService.Config.Theme);
 
-            // Step 5: Show main window
+            // Step 5: Apply saved language
+            _splash.SetStatus("正在加载语言...");
+            LocalizationService.Instance.SetLanguage(configService.Config.Language);
+            Log.Information("[Startup] Step 5 complete: Language applied ({Lang})", configService.Config.Language);
+
+            // Step 6: Show main window
             _splash.SetStatus("正在显示主窗口...");
             _splash.Complete();
-            Log.Information("[Startup] Step 5 complete: Main window shown");
+            Log.Information("[Startup] Step 6 complete: Main window shown");
         }
         catch (InvalidOperationException ex)
         {

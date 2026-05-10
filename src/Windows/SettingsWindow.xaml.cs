@@ -20,46 +20,43 @@ public partial class SettingsWindow : Window
 
         SyncIntervalSlider.ValueChanged += (s, e) =>
         {
-            SyncIntervalText.Text = $"{(int)SyncIntervalSlider.Value} 分钟";
+            SyncIntervalText.Text = $"{(int)SyncIntervalSlider.Value} {LocalizationService.Instance.GetString("Minutes")}";
         };
+
+        // 监听语言切换，动态刷新界面文本
+        LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        // 语言切换后刷新 SyncIntervalText（因为它是代码动态设置的）
+        SyncIntervalText.Text = $"{(int)SyncIntervalSlider.Value} {LocalizationService.Instance.GetString("Minutes")}";
     }
 
     private void LoadSettings()
     {
         AutoSyncCheckBox.IsChecked = _configService.Config.AutoSyncEnabled;
         SyncIntervalSlider.Value = _configService.Config.SyncIntervalMinutes;
-        SyncIntervalText.Text = $"{_configService.Config.SyncIntervalMinutes} 分钟";
+        SyncIntervalText.Text = $"{_configService.Config.SyncIntervalMinutes} {LocalizationService.Instance.GetString("Minutes")}";
         ProxyUrlBox.Text = _configService.Config.ProxyUrl;
         AutoStartCheckBox.IsChecked = _configService.Config.AutoStart;
         MinimizeToTrayCheckBox.IsChecked = _configService.Config.MinimizeToTray;
 
-        // Theme combo
-        var theme = _configService.Config.Theme;
-        foreach (ComboBoxItem item in ThemeComboBox.Items)
+        // Theme combo — 用 SelectedIndex 直接对应配置值
+        ThemeComboBox.SelectedIndex = _configService.Config.Theme switch
         {
-            var content = item.Content?.ToString() ?? "";
-            if ((theme == "system" && content == "跟随系统") ||
-                (theme == "light" && content == "浅色") ||
-                (theme == "dark" && content == "深色"))
-            {
-                ThemeComboBox.SelectedItem = item;
-                break;
-            }
-        }
+            "light" => 1,
+            "dark" => 2,
+            _ => 0  // system
+        };
 
-        // Language combo
-        var lang = _configService.Config.Language;
-        foreach (ComboBoxItem item in LanguageComboBox.Items)
+        // Language combo — 用 SelectedIndex 直接对应配置值
+        LanguageComboBox.SelectedIndex = _configService.Config.Language switch
         {
-            var content = item.Content?.ToString() ?? "";
-            if ((lang == "auto" && content == "跟随系统") ||
-                (lang == "zh" && content == "中文") ||
-                (lang == "en" && content == "English"))
-            {
-                LanguageComboBox.SelectedItem = item;
-                break;
-            }
-        }
+            "zh" => 1,
+            "en" => 2,
+            _ => 0  // auto
+        };
     }
 
     private void OK_Click(object sender, RoutedEventArgs e)
@@ -70,22 +67,20 @@ public partial class SettingsWindow : Window
         _configService.Config.AutoStart = AutoStartCheckBox.IsChecked == true;
         _configService.Config.MinimizeToTray = MinimizeToTrayCheckBox.IsChecked == true;
 
-        // Language
-        var selectedLang = (LanguageComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "跟随系统";
-        _configService.Config.Language = selectedLang switch
+        // Theme
+        _configService.Config.Theme = ThemeComboBox.SelectedIndex switch
         {
-            "中文" => "zh",
-            "English" => "en",
-            _ => "auto"
+            1 => "light",
+            2 => "dark",
+            _ => "system"
         };
 
-        // Theme
-        var selectedTheme = (ThemeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "跟随系统";
-        _configService.Config.Theme = selectedTheme switch
+        // Language
+        _configService.Config.Language = LanguageComboBox.SelectedIndex switch
         {
-            "浅色" => "light",
-            "深色" => "dark",
-            _ => "system"
+            1 => "zh",
+            2 => "en",
+            _ => "auto"
         };
 
         // Apply theme

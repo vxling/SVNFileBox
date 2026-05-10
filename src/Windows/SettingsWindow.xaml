@@ -1,7 +1,8 @@
 <Window x:Class="SVNFileBox.Windows.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="设置" Height="400" Width="450"
+        Title="{DynamicResource SettingsTitle}"
+        Height="440" Width="450"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
@@ -21,8 +22,8 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="自动同步" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="启用后自动同步文件变更（不可关闭）" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource AutoSync}" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{DynamicResource AutoSyncTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="AutoSyncCheckBox" Grid.Column="1" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
                     </Grid>
@@ -31,12 +32,12 @@
                 <!-- Sync Interval -->
                 <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="同步周期（分钟）" FontWeight="SemiBold" FontSize="13"/>
-                        <TextBlock Text="服务器轮询检查的间隔（1-30分钟）" FontSize="11" Foreground="#666" Margin="0,2,0,6"/>
+                        <TextBlock Text="{DynamicResource SyncInterval}" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Text="{DynamicResource SyncIntervalTip}" FontSize="11" Foreground="#666" Margin="0,2,0,6"/>
                         <StackPanel Orientation="Horizontal">
                             <Slider x:Name="SyncIntervalSlider" Minimum="1" Maximum="30" Width="200" Value="1"
                                     TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="SyncIntervalText" Text="1 分钟" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"/>
+                            <TextBlock x:Name="SyncIntervalText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -49,13 +50,13 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="主题" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="界面外观颜色模式" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource Theme}" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{DynamicResource ThemeTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
                         </StackPanel>
                         <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center">
-                            <ComboBoxItem Content="跟随系统" IsSelected="True"/>
-                            <ComboBoxItem Content="浅色"/>
-                            <ComboBoxItem Content="深色"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeSystem}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeLight}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeDark}"/>
                         </ComboBox>
                     </Grid>
                 </Border>
@@ -68,13 +69,13 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="语言" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="界面显示语言" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource Language}" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{DynamicResource LanguageTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
                         </StackPanel>
                         <ComboBox x:Name="LanguageComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center">
-                            <ComboBoxItem Content="跟随系统" IsSelected="True"/>
-                            <ComboBoxItem Content="中文"/>
-                            <ComboBoxItem Content="English"/>
+                            <ComboBoxItem Content="{DynamicResource LangSystem}"/>
+                            <ComboBoxItem Content="{DynamicResource LangZh}"/>
+                            <ComboBoxItem Content="{DynamicResource LangEn}"/>
                         </ComboBox>
                     </Grid>
                 </Border>
@@ -82,8 +83,8 @@
                 <!-- Proxy -->
                 <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="代理地址" FontWeight="SemiBold" FontSize="13"/>
-                        <TextBlock Text="HTTP 代理（留空则不使用代理）" FontSize="11" Foreground="#666" Margin="0,2,0,6"/>
+                        <TextBlock Text="{DynamicResource ProxyUrl}" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Text="{DynamicResource ProxyUrlTip}" FontSize="11" Foreground="#666" Margin="0,2,0,6"/>
                         <TextBox x:Name="ProxyUrlBox" Padding="4,3" FontSize="12"/>
                     </StackPanel>
                 </Border>
@@ -96,8 +97,8 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="开机启动" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="Windows 启动时自动运行" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource AutoStart}" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{DynamicResource AutoStartTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="AutoStartCheckBox" Grid.Column="1" VerticalAlignment="Center"/>
                     </Grid>
@@ -111,8 +112,8 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="最小化到托盘" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="关闭窗口时最小化到系统托盘" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource MinimizeToTray}" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{DynamicResource MinimizeToTrayTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="MinimizeToTrayCheckBox" Grid.Column="1" IsChecked="True" VerticalAlignment="Center"/>
                     </Grid>
@@ -121,8 +122,8 @@
         </ScrollViewer>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="确定" Margin="0,0,10,0" Click="OK_Click" MinWidth="80" Padding="12,6"/>
-            <Button Content="取消" Click="Cancel_Click" MinWidth="80" Padding="12,6"/>
+            <Button Content="{DynamicResource OK}" Margin="0,0,10,0" Click="OK_Click" MinWidth="80" Padding="12,6"/>
+            <Button Content="{DynamicResource Cancel}" Click="Cancel_Click" MinWidth="80" Padding="12,6"/>
         </StackPanel>
     </Grid>
 </Window>

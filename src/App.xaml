@@ -8,6 +8,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <!-- 微软官方 Fluent 主题 (.NET 9+ 内置，无需 NuGet) -->
                 <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml"/>
+                <!-- 语言资源（运行时由 LocalizationService 动态替换） -->
+                <ResourceDictionary x:Name="LangResources"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
