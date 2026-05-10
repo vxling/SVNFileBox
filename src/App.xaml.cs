@@ -109,6 +109,7 @@ public partial class App : Application
     {
         Log.Error(e.Exception, "[UnhandledException] {Message}", e.Exception.Message);
         MsgBox.Show(
+            null, // no owner during app crash
             LocalizationService.Instance.GetString("AppUnhandledErrorMessage", e.Exception.Message),
             LocalizationService.Instance.GetString("AppUnhandledError"),
             MessageBoxButton.OK, MessageBoxImage.Error);

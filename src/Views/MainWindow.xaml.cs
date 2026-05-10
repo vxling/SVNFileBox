@@ -655,7 +655,7 @@ public partial class MainWindow : Window
         {
             if (repo.RepositoryType == RepositoryType.Network)
             {
-                var result = MsgBox.Show(
+                var result = MsgBox.Show(this,
                     LocalizationService.Instance.GetString("RemoveNetworkRepoConfirm", repo.Name),
                     LocalizationService.Instance.GetString("ConfirmRemove"),
                     MessageBoxButton.YesNo, MessageBoxImage.Warning);
@@ -672,7 +672,7 @@ public partial class MainWindow : Window
                         }
                         catch (Exception ex)
                         {
-                            MsgBox.Show($"删除本地文件失败: {ex.Message}",
+                            MsgBox.Show(this, $"删除本地文件失败: {ex.Message}",
                                 LocalizationService.Instance.GetString("Error"),
                                 MessageBoxButton.OK, MessageBoxImage.Error);
                             return;
@@ -687,7 +687,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                var result = MsgBox.Show(
+                var result = MsgBox.Show(this,
                     LocalizationService.Instance.GetString("RemoveRepoConfirm", repo.Name),
                     LocalizationService.Instance.GetString("ConfirmRemove"),
                     MessageBoxButton.YesNo, MessageBoxImage.Question);
