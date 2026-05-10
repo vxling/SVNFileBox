@@ -43,7 +43,8 @@
         </Grid>
 
         <TextBlock x:Name="ErrorText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
-                   Foreground="Red" FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap" Visibility="Collapsed"/>
+                   Foreground="Red" FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap"
+                   MaxHeight="60" TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
         <TextBlock x:Name="StatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                    FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap" Visibility="Collapsed"/>
 
