@@ -397,7 +397,7 @@ public partial class MainWindow : Window
         var item = GetFileItemFromContextMenu(sender);
         if (item == null) return;
 
-        var result = MsgBox.Show(
+        var result = MsgBox.Show(this,
             LocalizationService.Instance.GetString("DeleteConfirmMessage",
                 item.IsDirectory
                     ? LocalizationService.Instance.GetString("Folder")
