@@ -1,4 +1,5 @@
 #nullable enable
+
 using System;
 using Microsoft.Win32;
 using Serilog;
@@ -6,61 +7,30 @@ using Serilog;
 namespace SVNFileBox.Services;
 
 /// <summary>
-/// 管理 Windows 主题设置，读写注册表，支持浅色/深色/跟随系统三种模式。
-/// 切换主题时会广播 WM_SETTINGCHANGE，部分应用会自动响应。
+/// 管理 SVNFileBox 的主题偏好设置。
+///
+/// 注意：本类只负责读写 app 自己的配置，不操作 OS 注册表。
+/// 主题的实际呈现由 PresentationFramework.Fluent 决定（跟随 OS 主题）。
+/// 若需要 app 自己的浅色/深色主题切换而不影响 OS，需自定义资源字典替换。
 /// </summary>
 public class ThemeService
 {
     private static ThemeService? _instance;
     public static ThemeService Instance => _instance ??= new ThemeService();
 
-    private const string ThemeRegPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize";
-    private const string AppsUseLightThemeKey = "AppsUseLightTheme";
-
-    private string CurrentTheme { get; set; } = "system";
+    /// <summary>当前 app 偏好的主题（light / dark / system）</summary>
+    private string _currentTheme = "system";
 
     public event EventHandler<string>? ThemeChanged;
 
     /// <summary>
-    /// 应用主题设置（从配置读取后调用）
+    /// 应用主题偏好（仅记录到内存，不写 OS 注册表）
     /// </summary>
     public void ApplyTheme(string theme)
     {
-        CurrentTheme = theme;
-        try
-        {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ThemeRegPath, true);
-            if (key == null)
-            {
-                Log.Warning("[Theme] Cannot open registry key for theme");
-                return;
-            }
-
-            switch (theme)
-            {
-                case "light":
-                    key.SetValue(AppsUseLightThemeKey, 1, RegistryValueKind.DWord);
-                    Log.Information("[Theme] Applied: Light");
-                    break;
-                case "dark":
-                    key.SetValue(AppsUseLightThemeKey, 0, RegistryValueKind.DWord);
-                    Log.Information("[Theme] Applied: Dark");
-                    break;
-                case "system":
-                    // 跟随系统：删除键值让系统自己决定
-                    try { key.DeleteValue(AppsUseLightThemeKey, false); } catch { }
-                    Log.Information("[Theme] Applied: System");
-                    break;
-            }
-
-            // 广播 WM_SETTINGCHANGE，让其他窗口感知变化
-            BroadcastSettingChange();
-            ThemeChanged?.Invoke(this, theme);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "[Theme] Failed to apply theme: {Theme}", theme);
-        }
+        _currentTheme = theme;
+        Log.Information("[Theme] Preference set to: {Theme}", theme);
+        ThemeChanged?.Invoke(this, theme);
     }
 
     /// <summary>
@@ -70,10 +40,11 @@ public class ThemeService
     {
         try
         {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ThemeRegPath, false);
+            using var key = Registry.CurrentUser.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize", false);
             if (key != null)
             {
-                var value = key.GetValue(AppsUseLightThemeKey);
+                var value = key.GetValue("AppsUseLightTheme");
                 if (value is int intVal)
                     return intVal == 1 ? "light" : "dark";
             }
@@ -82,7 +53,7 @@ public class ThemeService
         {
             Log.Warning(ex, "[Theme] Cannot read system theme");
         }
-        return "light"; // 默认浅色
+        return "light";
     }
 
     /// <summary>
@@ -92,44 +63,4 @@ public class ThemeService
     {
         return configTheme == "system" ? GetSystemTheme() : configTheme;
     }
-
-    private void BroadcastSettingChange()
-    {
-        try
-        {
-            // 广播 WM_SETTINGCHANGE
-            // HwndSource.FromHwnd(IntPtr.Zero)?.Invoke(...)  // 需要窗口句柄
-            // 改用 P/Invoke 直接发送广播
-            NativeMethods.SendMessageTimeout(
-                NativeMethods.HWND_BROADCAST,
-                NativeMethods.WM_SETTINGCHANGE,
-                IntPtr.Zero,
-                "ImmersiveColorSet",
-                NativeMethods.SMTO_ABORTIFHUNG,
-                5000,
-                out _);
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "[Theme] Failed to broadcast WM_SETTINGCHANGE");
-        }
-    }
-}
-
-// Native methods for WM_SETTINGCHANGE broadcast
-internal static class NativeMethods
-{
-    public static readonly IntPtr HWND_BROADCAST = new IntPtr(0xffff);
-    public const int WM_SETTINGCHANGE = 0x001A;
-    public const int SMTO_ABORTIFHUNG = 0x0002;
-
-    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
-    public static extern IntPtr SendMessageTimeout(
-        IntPtr hWnd,
-        int Msg,
-        IntPtr wParam,
-        string lParam,
-        int fuFlags,
-        int uTimeout,
-        out IntPtr lpdwResult);
 }
