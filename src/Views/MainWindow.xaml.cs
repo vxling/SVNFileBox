@@ -60,17 +60,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (FileList?.View is not GridView gv || NameColumn == null)
-            return;
-
-        // Fixed column widths (类型, 状态, 大小, 修改时间)
-        double fixedWidth = 50 + 60 + 110 + 180;
-        double available = FileList.ActualWidth;
-        if (available <= 0)
-            return;
-
-        // Name column takes all remaining space, min 450
-        NameColumn.Width = Math.Max(available - fixedWidth, 450);
+        // Removed: no longer auto-fill columns on resize
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -213,7 +203,7 @@ public partial class MainWindow : Window
 
     private void FileList_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        AdjustNameColumnWidth();
+        // Removed: no longer auto-fill columns
     }
 
     private void AdjustNameColumnWidth()
