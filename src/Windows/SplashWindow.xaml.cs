@@ -12,7 +12,6 @@ public partial class SplashWindow : Window
     private readonly DispatcherTimer _fakeProgressTimer;
     private int _step;
     private int _totalSteps = 4;
-    private bool _isClosing;
 
     public SplashWindow()
     {
@@ -27,7 +26,6 @@ public partial class SplashWindow : Window
 
     /// <summary>
     /// Call sequentially to advance through startup steps.
-    /// Throws exceptions to abort startup.
     /// </summary>
     public void SetStatus(string status)
     {
@@ -40,36 +38,8 @@ public partial class SplashWindow : Window
         Dispatcher.Invoke(() => { }, DispatcherPriority.Render);
     }
 
-    public void Complete()
-    {
-        if (_isClosing) return;
-        _isClosing = true;
-        _fakeProgressTimer.Stop();
-        ProgressBar.Value = 100;
-        StatusText.Text = LocalizationService.Instance.GetString("SplashComplete");
-        StepText.Text = LocalizationService.Instance.GetString("SplashStep", _totalSteps, _totalSteps);
-        var mainWindow = new MainWindow();
-        mainWindow.Show();
-        Dispatcher.Invoke(() => Close());
-    }
-
-    /// <summary>
-    /// Refreshes all UI text to match the current language.
-    /// Called after SetLanguage() so the splash reflects the saved language preference.
-    /// </summary>
-    public void ApplyLocalization()
-    {
-        Title = LocalizationService.Instance.GetString("SplashTitle");
-        TaglineText.Text = LocalizationService.Instance.GetString("SplashTagline");
-        StepText.Text = LocalizationService.Instance.GetString("SplashStep", _step, _totalSteps);
-        if (!string.IsNullOrEmpty(StatusText.Text))
-            StatusText.Text = LocalizationService.Instance.GetString("SplashInitializing");
-    }
-
     public void ShowErrorAndClose(string message)
     {
-        if (_isClosing) return;
-        _isClosing = true;
         _fakeProgressTimer.Stop();
         StatusText.Text = LocalizationService.Instance.GetString("SplashStartupFailedStatusText", message);
         StatusText.Foreground = System.Windows.Media.Brushes.Red;
