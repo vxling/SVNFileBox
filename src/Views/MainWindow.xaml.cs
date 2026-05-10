@@ -416,13 +416,7 @@ public partial class MainWindow : Window
                 else
                     File.Delete(item.FullPath);
 
-                // svn delete
-                if (!string.IsNullOrEmpty(parentDir))
-                {
-                    var msg = $"Auto-sync: [Delete] {item.Name}";
-                    await _svnService.CommitAsync(parentDir, msg);
-                }
-
+                // svn delete - removed immediate commit; let SyncService auto-commit on next sync cycle
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("DeleteSuccess", item.Name);
                 _ = _viewModel.RefreshAsync();
             }
