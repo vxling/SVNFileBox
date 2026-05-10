@@ -211,6 +211,25 @@ public partial class MainWindow : Window
         ApplySort(FileList, sortProperty);
     }
 
+    private void FileList_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        AdjustNameColumnWidth();
+    }
+
+    private void AdjustNameColumnWidth()
+    {
+        var gv = FileList?.View as GridView;
+        if (gv == null || gv.Columns.Count < 2) return;
+
+        // Fixed columns: Type(50) + Status(auto) + Size(110) + Modified(180) = 340 + scrollbar(~17)
+        double fixedWidth = 50 + 110 + 180 + 17;
+        double availableWidth = FileList.ActualWidth - fixedWidth;
+        if (availableWidth < 100) availableWidth = 100;
+
+        // Name column gets all remaining space
+        gv.Columns[1].Width = Math.Max(100, availableWidth);
+    }
+
     private static void ApplySort(ListView listView, string sortProperty)
     {
         var dataView = CollectionViewSource.GetDefaultView(listView.ItemsSource);

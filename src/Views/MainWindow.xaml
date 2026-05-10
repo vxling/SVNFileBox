@@ -212,6 +212,7 @@
                               AllowDrop="True"
                               Drop="FileList_Drop"
                               DragOver="FileList_DragOver"
+                              SizeChanged="FileList_SizeChanged"
                               GridViewColumnHeader.Click="GridViewColumnHeader_Click"
                               Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}">
                         <ListView.View>
