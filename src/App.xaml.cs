@@ -74,7 +74,10 @@ public partial class App : Application
             LocalizationService.Instance.SetLanguage(configService.Config.Language);
             ThemeService.Instance.ApplyTheme(configService.Config.Theme);
 
-            // Now show splash — language is already set
+            // Pre-create MainWindow before showing splash
+            var mainWindow = new MainWindow { Visibility = Visibility.Hidden };
+
+            // Now show splash — language/theme are already set
             _splash = new SplashWindow();
             _splash.Show();
 
@@ -83,15 +86,11 @@ public partial class App : Application
             var syncRecordService = SyncRecordService.Instance;
             Log.Information("[Startup] Step 1 complete: Services initialized");
 
-            // Step 2: Pre-create MainWindow (hidden)
+            // Step 2: Show main window
             _splash.SetStatus("Loading main window...");
-            var mainWindow = new MainWindow { Visibility = Visibility.Hidden };
-            Log.Information("[Startup] Step 2 complete: MainWindow pre-created");
-
-            // Step 3: Show main window
             mainWindow.Show();
             _splash.Close();
-            Log.Information("[Startup] Step 3 complete: Main window shown");
+            Log.Information("[Startup] Step 2 complete: Main window shown");
         }
         catch (InvalidOperationException ex)
         {
