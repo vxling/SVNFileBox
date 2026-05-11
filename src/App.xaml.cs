@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using Serilog;
@@ -13,10 +14,24 @@ namespace SVNFileBox;
 
 public partial class App : Application
 {
+    private static readonly Mutex _instanceMutex = new(true, @"Global\SVNFileBox_SingleInstance");
     private SplashWindow? _splash;
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Single-instance check: if another instance is already running, show error and exit
+        if (!_instanceMutex.WaitOne(TimeSpan.Zero))
+        {
+            MessageBox.Show(
+                "SVNFileBox is already running.\n\nIf the main window is hidden, check the system tray.",
+                "SVNFileBox - Already Running",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            Log.CloseAndFlush();
+            Shutdown(1);
+            return;
+        }
+
         base.OnStartup(e);
         var logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
