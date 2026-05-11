@@ -120,13 +120,9 @@ public partial class MainWindow : Window
     /// </summary>
     private void InjectIconsOnFirstOpen(ItemsControl menu)
     {
-        Log.Information("[IconInject] InjectIconsOnFirstOpen: Name={Name}, Items.Count={ChildCount}",
-            (menu as MenuItem)?.Name, menu.Items.Count);
-
         // 第二次打开时如果已有注入（父 Icon != null），直接跳过
         if ((menu as MenuItem)?.Icon != null)
         {
-            Log.Information("[IconInject] → Already injected, skipping");
             return;
         }
 
@@ -134,19 +130,14 @@ public partial class MainWindow : Window
         {
             if (item is MenuItem mi)
             {
-                Log.Information("[IconInject]   MenuItem: Name={Name}, Header={Header}, Items.Count={ChildCount}",
-                    mi.Name, mi.Header, mi.Items.Count);
-
                 if (mi.Items.Count > 0)
                 {
                     // 有子项的父 MenuItem → 设置 ✨ 并递归处理子项
                     mi.Icon = "✨";
-                    Log.Information("[IconInject]   → Parent (has children): Icon=✨, recursing into {ChildCount} children", mi.Items.Count);
                     foreach (var child in mi.Items)
                     {
                         if (child is MenuItem childMi)
                         {
-                            Log.Information("[IconInject]     Child: Name={Name}, Header={Header}", childMi.Name, childMi.Header);
                             ApplyIconByExt(childMi);
                         }
                     }
@@ -169,7 +160,6 @@ public partial class MainWindow : Window
             if (mi.Name?.StartsWith(kv.Key) == true)
             {
                 ext = kv.Value;
-                Log.Information("[IconInject]     → Name matched: {Key} → {Ext}", kv.Key, ext);
                 break;
             }
         }
@@ -182,23 +172,15 @@ public partial class MainWindow : Window
                 if (kv.Key.Equals(mi.Header as string, StringComparison.OrdinalIgnoreCase))
                 {
                     ext = kv.Value;
-                    Log.Information("[IconInject]     → Header matched: {Key} → {Ext}", kv.Key, ext);
                     break;
                 }
             }
         }
 
         if (ext == null)
-        {
-            Log.Information("[IconInject]     → No ext match for Name={Name}, Header={Header}, skipping",
-                mi.Name, mi.Header);
             return;
-        }
 
-        Log.Information("[IconInject]     → Calling IconExtractor.GetIcon({Ext})", ext);
         var icon = IconExtractor.GetIcon(ext);
-        Log.Information("[IconInject]     → IconExtractor returned: Type={Type}, Value={Value}",
-            icon?.GetType().Name ?? "null", icon);
 
         if (icon is System.Windows.Media.ImageSource img)
         {
