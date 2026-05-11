@@ -94,6 +94,15 @@ public partial class App : Application
             _splash.SetStatus("Loading main window...");
             mainWindow.Show();
             _splash.Close();
+
+            // Auto-start: hide main window immediately, keep running in tray
+            if (configService.Config.AutoStart)
+            {
+                mainWindow.WindowState = WindowState.Minimized;
+                mainWindow.Hide();
+                Log.Information("[Startup] Auto-start mode: main window hidden, running in tray");
+            }
+
             Log.Information("[Startup] Step 3 complete: Main window shown");
         }
         catch (InvalidOperationException ex)
