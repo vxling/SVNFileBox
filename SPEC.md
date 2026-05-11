@@ -50,7 +50,7 @@
 ## 暂不提供（后续迭代）
 
 - 手动 commit / revert / checkout（已通过首次添加自动完成）
-- 冲突手动解决界面
+- ~~冲突手动解决界面~~ ✅ 已实现（Last-Write-Wins + ConflictWindow 辅助）
 - 多文件夹同时监控
 - 文件夹级别的 exclude 规则（.gitignore 类）
 - 分块同步 / 增量同步
@@ -86,8 +86,8 @@ SyncNowAsync() 执行三步：
   ① RetryPendingUpdatesAsync()   — 重试 pending 文件的 svn update
   ② PollCoreAsync()              — 拉取服务器新版本（svn update）
   ③ FullSyncAsync()              — 安全兜底：扫描整个 working copy，
-                                   对 unversioned/missing 文件执行 add+commit
-                                   （防止程序异常退出后 add 了没 commit 的遗留文件）
+                                    对 unversioned/missing 文件执行 add+commit
+                                    （防止程序异常退出后 add 了没 commit 的遗留文件）
 ```
 
 ### 流程二：下行同步（SVN → 本地）
@@ -135,7 +135,7 @@ svn update 执行
          通知用户：「file.xlsx 被其他程序占用，已跳过，将在下次轮询时重试」
               ↓
 下次轮询（60秒后）→ 先重试 pending 文件 → 再检查新变化
-    
+
 连续失败 3 次 → 标记为「同步失败」→ 提示用户手动关闭占用程序
 ```
 
@@ -156,7 +156,7 @@ svn update 执行
     ↓
 本地工作副本目录已存在？
     ├── 是 → 提示「该仓库已存在」，终止
-    └── 否 → 执行 svn checkout URL --username user --password pass
+    └── 否 → 执行 SvnClient.CheckoutAsync()
               ↓
          checkout 成功？
            ├── 失败 → 提示错误，清空残留目录，让用户重试
@@ -213,6 +213,27 @@ svn update 执行时发现冲突文件
 写入同步记录（operation=ConflictResolved）
 ```
 
+### 流程五：文件复制/拖拽（两阶段异步）
+
+```
+用户拖拽文件 或 Ctrl+V 粘贴
+    ↓
+ExecuteCopyAsync() 入口，统一处理
+    ↓
+Phase 1: FileAnalyzer.Analyze()（后台 Task）
+  遍历源文件树，构建 FileCopyPlan 快照
+  防递归：源 == 目标 → 弹窗报错退出
+  进度窗口实时显示正在扫描的文件名
+    ↓
+Phase 2: FileCopier.CopyAsync()（后台 Task）
+  按快照逐个复制（异步流式复制，大文件不卡 UI）
+  每文件复制后立即 svn add（确保即使取消也纳入版本控制）
+  支持 CancellationToken，可取消
+    ↓
+全部完成后执行一次 svn commit（批量提交所有新文件）
+刷新文件列表视图
+```
+
 ---
 
 ## 功能详细设计
@@ -239,8 +260,7 @@ svn update 执行时发现冲突文件
 
 ### 首次 Checkout
 
-- 用户添加仓库时，若本地路径为空或不是有效 SVN 工作副本，则自动执行 `svn checkout`
-- 命令: `svn checkout --non-interactive URL localPath [--username user [--password pass]]`
+- 用户添加仓库时，若本地路径为空或不是有效 SVN 工作副本，则自动执行 `SvnClient.CheckoutAsync()`
 - Checkout 完成后自动开始监控
 - 若本地已是有效工作副本（已有 `.svn`），跳过 checkout，直接监控
 
@@ -361,11 +381,11 @@ svn update 执行时发现冲突文件
 |------|----------|------|
 | 在文件资源管理器中打开 | 右键菜单「打开文件夹」 | 打开当前文件所在目录 |
 | 复制路径 | 右键菜单「复制路径」 | 复制文件完整路径到剪贴板 |
-| 粘贴文件 | 右键菜单「粘贴」或 `Ctrl+V` | 从剪贴板粘贴文件到当前目录 |
-| 新建文件夹 | 右键菜单「新建文件夹」 | 弹出输入框，创建新文件夹 |
-| 重命名 | 右键菜单「重命名」 | 弹出输入框，重命名文件/文件夹 |
-| 删除 | 右键菜单「删除」 | 确认后删除，显示对话框 |
-| 拖拽文件进入 | 拖拽外部文件到列表 | 复制文件到当前目录（冲突时提示） |
+| 粘贴文件 | 右键菜单「粘贴」或 `Ctrl+V` | 从剪贴板粘贴文件到当前目录（两阶段异步复制带进度窗口） |
+| 新建文件夹 | 右键菜单「新建文件夹」 | 弹出输入框，创建新文件夹（svn add，不立即 commit） |
+| 重命名 | 右键菜单「重命名」 | 弹出输入框，重命名文件/文件夹（svn delete+add，不立即 commit） |
+| 删除 | 右键菜单「删除」 | 确认后删除（svn delete，不立即 commit，由 SyncService FullSync 兜底 commit） |
+| 拖拽文件进入 | 拖拽外部文件到列表 | 复制文件到当前目录（两阶段异步复制带进度窗口） |
 | 双击打开 | 双击文件/文件夹 | 文件用系统默认程序打开，文件夹进入目录 |
 | 刷新 | 工具栏 Refresh 按钮 或 右键「刷新」 | 重新加载当前目录文件列表 |
 
@@ -387,19 +407,17 @@ svn update 执行时发现冲突文件
 #### 拖拽处理
 
 - `DragEnter` / `DragOver`: 仅允许 `FileDrop` 格式，显示 Copy 光标
-- `Drop`: 遍历拖拽的文件列表，复制到当前目录
-  - **文件**: 复制到当前目录，若目标已存在则弹出确认框询问是否覆盖
-  - **文件夹**: 递归复制整个目录树到目标路径，若目标已存在则提示跳过（不覆盖）
+- `Drop`: 统一由 `ExecuteCopyAsync()` 处理，与 Ctrl+V 共用同一复制流程
+  - **Phase 1**: FileAnalyzer 遍历文件树，生成快照
+  - **Phase 2**: FileCopier 按快照复制，支持取消和大文件
+  - 进度窗口实时显示扫描/复制进度
   - 复制完成后自动刷新文件列表视图
 
 #### 粘贴处理（Ctrl+V）
 
 - 检查剪贴板是否有文件列表
 - 目标目录为当前工作副本路径
-- **文件**: 复制到当前目录，若目标已存在则弹出确认框询问是否覆盖
-- **文件夹**: 递归复制整个目录树到目标路径，若目标已存在则提示跳过（不覆盖）
-- 复制完成后自动刷新文件列表视图
-- **与拖拽处理逻辑保持一致**
+- **与拖拽处理完全共用 ExecuteCopyAsync()**，统一两阶段的体验
 
 #### 样式参考 SVNFileManager
 
@@ -413,9 +431,9 @@ svn update 执行时发现冲突文件
 
 ## 技术栈
 
-- **主程序**: WPF (.NET 8) + C#（Windows 原生 UI）
-- **后端同步引擎**: 纯 C# + SVN 命令行（`svn` CLI）
-- **数据持久化**: SQLite（仓库列表 + 同步记录）
+- **主程序**: WPF (.NET 10) + C#（Windows 原生 UI）
+- **后端同步引擎**: SharpSvn 1.14005.390（原生 .NET SVN 绑定，无需 svn CLI）
+- **数据持久化**: JSON 文件（仓库列表 + 同步记录，零依赖）
 - **配置存储**: JSON 配置文件（`%APPDATA%/SVNFileBox/config.json`）
 
 ---
@@ -424,9 +442,9 @@ svn update 执行时发现冲突文件
 
 | 项目 | 技术栈 | 说明 |
 |------|--------|------|
-| SVNFileBox | WPF (.NET 8) | 主程序，仓库管理 + 双向同步 |
+| SVNFileBox | WPF (.NET 10) + SharpSvn | 主程序，仓库管理 + 双向同步 |
 | SVNFileManager1 | WPF (.NET 8) | 文件管理器（ SVNFileBox 的功能原型） |
-| SVNFileBoxWpf | ? | （待确认） |
+| SVNFileBoxWpf | WPF (.NET 8) | （待确认） |
 
 **注意**: SVNFileBox 是 WPF 项目，代码在 `~/aiworks/projects/repos/SVNFileBox/src/` 目录下。
 
@@ -441,3 +459,4 @@ svn update 执行时发现冲突文件
 5. 同步记录正确显示每次操作的轨迹（包括冲突解决）
 6. 多个设备同时修改同一文件，最终以最后写入时间为准统一
 7. 主窗口显示文件列表，列样式与 SVNFileManager 一致（Type/Name/Status/Size/Modified）
+8. 拖拽/粘贴文件时显示进度窗口，支持取消，复制完成后 svn add + commit 一次完成
