@@ -382,12 +382,16 @@ public partial class MainWindow : Window
                     return;
                 }
 
-                // svn delete old + svn add new (marks rename in working copy), then physical move
-                await _svnService.DeleteAsync(item.FullPath);
-                await _svnService.AddFileAsync(newPath);
+                // Physical move first, then let FileWatcher detect and enqueue the change.
+                // This avoids issues with svn delete removing the working-copy directory
+                // before Directory.Move can access it.
                 Directory.Move(item.FullPath, newPath);
 
-                // Enqueue as Move instead of relying on FileWatcher to detect rename
+                // svn delete old + svn add new (marks the rename in working copy)
+                await _svnService.DeleteAsync(item.FullPath);
+                await _svnService.AddFileAsync(newPath);
+
+                // Enqueue as Move so QueueCommitProcessor resolves it correctly
                 PendingCommitQueue.Instance.EnqueueMove(item.FullPath, newPath);
 
                 ShowToast(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
