@@ -51,9 +51,10 @@ public partial class MainWindow : Window
         }
 
         // Inject system icons (or emoji fallback) into the "新建" submenu — once
-        // 判断条件：第一个子项 Icon 为 null 表示尚未注入
-        if (cm.Items.Count > 0 && cm.Items[0] is MenuItem firstRoot && firstRoot.Icon == null)
-            InjectIconsOnFirstOpen(cm);
+        // 动态查找 NewMenuItem，用 LogicalTreeHelper 避免 x:Name 字段生成问题
+        var newMenu = LogicalTreeHelper.FindLogicalNode(cm, "NewMenuItem") as MenuItem;
+        if (newMenu?.Icon == null)
+            InjectIconsOnFirstOpen(newMenu);
     }
 
     public MainWindow()
@@ -118,23 +119,24 @@ public partial class MainWindow : Window
     /// </summary>
     private void InjectIconsOnFirstOpen(ItemsControl menu)
     {
-        Log.Debug("[IconInject] InjectIconsOnFirstOpen called, Items.Count={Count}", menu.Items.Count);
+        Log.Information("[IconInject] InjectIconsOnFirstOpen: Name={Name}, Items.Count={ChildCount}, Icon={Icon}",
+            (menu as MenuItem)?.Name, menu.Items.Count, (menu as MenuItem)?.Icon);
         foreach (var item in menu.Items)
         {
             if (item is MenuItem mi)
             {
-                Log.Debug("[IconInject]   MenuItem: Name={Name}, Header={Header}, Items.Count={ChildCount}, Icon={Icon}",
+                Log.Information("[IconInject]   MenuItem: Name={Name}, Header={Header}, Items.Count={ChildCount}, Icon={Icon}",
                     mi.Name, mi.Header, mi.Items.Count, mi.Icon);
                 // "新建" 子菜单：判断条件改为有子项且没有 Icon（即尚未注入）
                 if (mi.Items.Count > 0 && mi.Icon == null)
                 {
                     mi.Icon = "✨";
-                    Log.Debug("[IconInject]   → Set parent Icon=✨, iterating {ChildCount} children", mi.Items.Count);
+                    Log.Information("[IconInject]   → Set parent Icon=✨, iterating {ChildCount} children", mi.Items.Count);
                     foreach (var child in mi.Items)
                     {
                         if (child is MenuItem childMi)
                         {
-                            Log.Debug("[IconInject]     Child: Name={Name}, Header={Header}", childMi.Name, childMi.Header);
+                            Log.Information("[IconInject]     Child: Name={Name}, Header={Header}", childMi.Name, childMi.Header);
                             ApplyIconByExt(childMi);
                         }
                     }
@@ -157,13 +159,13 @@ public partial class MainWindow : Window
         }
         if (ext == null)
         {
-            Log.Debug("[IconInject]     → No ext match for {Name}, skipping", mi.Name);
+            Log.Information("[IconInject]     → No ext match for {Name}, skipping", mi.Name);
             return;
         }
 
-        Log.Debug("[IconInject]     → Matched ext={Ext}, calling IconExtractor.GetIcon", ext);
+        Log.Information("[IconInject]     → Matched ext={Ext}, calling IconExtractor.GetIcon", ext);
         var icon = IconExtractor.GetIcon(ext);
-        Log.Debug("[IconInject]     → IconExtractor returned: {Type} = {Value}", icon?.GetType().Name, icon);
+        Log.Information("[IconInject]     → IconExtractor returned: {Type} = {Value}", icon?.GetType().Name, icon);
         if (icon is System.Windows.Media.ImageSource img)
             mi.Icon = img;
         else if (icon is string emoji)

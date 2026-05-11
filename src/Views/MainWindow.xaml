@@ -57,7 +57,7 @@
             <Separator/>
             <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
             <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
-            <MenuItem Header="{DynamicResource New}" IsEnabled="{Binding CanOperate}">
+            <MenuItem Header="{DynamicResource New}" x:Name="NewMenuItem" IsEnabled="{Binding CanOperate}">
                 <MenuItem Header="{DynamicResource NewTextFile}" Click="NewTextFile_Click" x:Name="NewTextFileMenuItem"/>
                 <MenuItem Header="{DynamicResource NewWordDoc}" Click="NewWordDoc_Click" x:Name="NewWordDocMenuItem"/>
                 <MenuItem Header="{DynamicResource NewExcelSheet}" Click="NewExcelSheet_Click" x:Name="NewExcelSheetMenuItem"/>
