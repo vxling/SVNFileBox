@@ -103,12 +103,13 @@ public class QueueCommitProcessor : IDisposable
                 return;
             }
 
-            // Timer-triggered: only commit if queue has reached minimum batch size.
+            // Timer-triggered (forceCommit=false): commit if there's anything in the queue.
+            // The minBatchSize is a hint for batching optimisation, not a gate —
+            // a user change should never be left hanging because the queue is "too small".
             // SyncNow (forceCommit=true): always flush regardless of size.
-            if (!forceCommit && queue.Count < _minBatchSize)
+            if (!forceCommit && queue.Count == 0)
             {
-                Log.Debug("[QueueCommitProcessor] Queue size {Count} < minBatch {MinBatch}, skipping",
-                    queue.Count, _minBatchSize);
+                Log.Debug("[QueueCommitProcessor] Queue is empty, nothing to do");
                 return;
             }
 

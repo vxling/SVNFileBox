@@ -20,18 +20,16 @@ public class SyncService : IDisposable
     private readonly FileWatcherService _fileWatcher = new();
     private readonly SyncRecordService _recordService;
     private readonly QueueCommitProcessor _queueProcessor;
-    private readonly System.Timers.Timer _pollTimer;
+    private readonly System.Timers.Timer _syncTimer;
     private readonly System.Timers.Timer _fullSyncTimer;
     private readonly ConcurrentDictionary<string, int> _failedFileAttempts = new();
     private readonly object _pendingLock = new();
     private readonly List<string> _pendingUpdates = new();
     private Repository? _currentRepo;
-    private int _isPolling;
-    private int _isCommitting;
     private int _isSyncing;
+    private int _isCommitting;  // used by OnFilesChanged to prevent concurrent enqueues
     private int _disableCount; // >0 means FileWatcher is paused
     private bool _watcherEnabledBeforeDisable;
-    private int _pollIntervalMs = 60000;
     private int _maxRetries = 3;
 
     public event EventHandler<string>? SyncNotification;
@@ -61,28 +59,26 @@ public class SyncService : IDisposable
             foreach (var item in failedItems)
                 AddPendingUpdate(item.Path);
         };
-        _pollTimer = new System.Timers.Timer(_pollIntervalMs);
-        _pollTimer.Elapsed += OnPollTimerElapsed;
-        _pollTimer.AutoReset = true;
 
         _fileWatcher.FilesChanged += OnFilesChanged;
 
-        _pollIntervalMs = _configService.Config.SyncIntervalMinutes * 60 * 1000;
-        _pollTimer.Interval = _pollIntervalMs;
+        _syncTimer = new System.Timers.Timer(_configService.Config.SyncIntervalMinutes * 60_000);
+        _syncTimer.Elapsed += OnSyncTimerElapsed;
+        _syncTimer.AutoReset = true;
 
-        // Full sync every 30 minutes to catch anything FileWatcher missed
-        _fullSyncTimer = new System.Timers.Timer(30 * 60 * 1000);
+        // Full sync safety net: fixed 15-minute interval, independent of user sync interval
+        _fullSyncTimer = new System.Timers.Timer(15 * 60 * 1000);
         _fullSyncTimer.Elapsed += OnFullSyncTimerElapsed;
         _fullSyncTimer.AutoReset = true;
 
-        Log.Information("SyncService created with poll interval {IntervalMs}ms", _pollIntervalMs);
+        Log.Information("SyncService created, sync interval {IntervalMin}min", _configService.Config.SyncIntervalMinutes);
     }
 
     public void StartSync(Repository repo)
     {
         _currentRepo = repo;
         _fileWatcher.StartWatching(repo.Path);
-        _pollTimer.Start();
+        _syncTimer.Start();
         _fullSyncTimer.Start();
         Log.Information("Sync started for {Name} at {Path}", repo.Name, repo.Path);
     }
@@ -90,8 +86,7 @@ public class SyncService : IDisposable
     public void StopSync()
     {
         _fileWatcher.StopWatching();
-        _pollTimer.Stop();
-        _fullSyncTimer.Stop();
+        _syncTimer.Stop();
         Log.Information("Sync stopped");
     }
 
@@ -142,7 +137,7 @@ public class SyncService : IDisposable
         try
         {
             await _queueProcessor.SyncNowAsync(); // flush pending queue (上行)
-            await PollCoreAsync();                  // download server changes (下行)
+            await PollServerAsync();               // download server changes (下行)
             await FullSyncAsync();                  // safety net: scan & commit unversioned/missing
         }
         finally
@@ -273,6 +268,33 @@ public class SyncService : IDisposable
         }
     }
 
+    private async void OnSyncTimerElapsed(object? sender, ElapsedEventArgs e)
+    {
+        if (_currentRepo == null) return;
+        if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) == 1)
+        {
+            Log.Debug("[SyncTimer] Sync already in progress, skipping");
+            return;
+        }
+
+        try
+        {
+            // Every cycle: flush pending queue (上行) + check server (下行)
+            await _queueProcessor.ProcessQueueAsync();       // timer-triggered → commits if queue non-empty
+
+            // Retry any previously failed files + poll server (下行)
+            await PollServerAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[SyncTimer] Sync cycle failed");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isSyncing, 0);
+        }
+    }
+
     /// <summary>
     /// Full sync: scan all changes via svn status and commit everything in one shot.
     /// This acts as a safety net for changes that FileWatcher may have missed.
@@ -347,67 +369,46 @@ public class SyncService : IDisposable
         }
     }
 
-    private void OnPollTimerElapsed(object? sender, ElapsedEventArgs e)
-    {
-        // Fire-and-forget: don't await, timer handler must not be async void
-        _ = PollCoreAsync();
-    }
-
-    private async Task PollCoreAsync()
+    // Separate entry point for server polling — used by SyncNowAsync for
+    // an immediate server check without going through the full timer cycle.
+    private async Task PollServerAsync()
     {
         if (_currentRepo == null) return;
-        if (Interlocked.CompareExchange(ref _isPolling, 1, 0) == 1) return;
 
-        try
+        await RetryPendingUpdatesAsync();
+
+        var localRev = await _svnService.GetWorkingCopyRevisionAsync(_currentRepo.Path);
+        var serverRev = await _svnService.GetHeadRevisionAsync(_currentRepo.Url, _currentRepo.Username, _currentRepo.Password);
+
+        Log.Debug("PollCheck: local={Local}, server={Server}", localRev, serverRev);
+        if (serverRev <= localRev)
         {
-            // First: retry pending files
-            await RetryPendingUpdatesAsync();
+            Log.Debug("No server updates, local={Local}, server={Server}", localRev, serverRev);
+            return;
+        }
 
-            // Then: check for new server changes
-            var localRev = await _svnService.GetWorkingCopyRevisionAsync(_currentRepo.Path);
-            var serverRev = await _svnService.GetHeadRevisionAsync(_currentRepo.Url, _currentRepo.Username, _currentRepo.Password);
-
-            Log.Debug("PollCheck: local={Local}, server={Server}", localRev, serverRev);
-            if (serverRev <= localRev)
+        Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
+        var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
+        if (updateSuccess)
+        {
+            var conflictInfo = await BuildConflictInfoListAsync(_currentRepo.Path);
+            if (conflictInfo.Count > 0)
             {
-                Log.Debug("No server updates, local={Local}, server={Server}", localRev, serverRev);
-                return;
-            }
-
-            Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
-            var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
-            if (updateSuccess)
-            {
-                var conflictInfo = await BuildConflictInfoListAsync(_currentRepo.Path);
-                if (conflictInfo.Count > 0)
-                {
-                    // Raise event — MainWindow shows ConflictWindow as a modal dialog,
-                    // waits for user to pick resolutions, then calls ApplyConflictResolutionsAsync.
-                    ConflictDetected?.Invoke(this, conflictInfo);
-                    // Do NOT await or call ApplyConflictResolutionsAsync here.
-                    // The MainWindow.OnConflictDetected handler shows the dialog and triggers resolution.
-                }
-                else
-                {
-                    _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Success", $"Updated {serverRev - localRev} revision(s)");
-                    Notify($"已从服务器更新 {serverRev - localRev} 个版本");
-                    FilesChanged?.Invoke(this, EventArgs.Empty);
-                }
+                ConflictDetected?.Invoke(this, conflictInfo);
             }
             else
             {
-                Log.Warning("Update failed for {Path}", _currentRepo.Path);
-                _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Failed", "Update returned false");
-                Notify($"更新失败");
+                _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Success",
+                    $"Updated {serverRev - localRev} revision(s)");
+                Notify($"已从服务器更新 {serverRev - localRev} 个版本");
+                FilesChanged?.Invoke(this, EventArgs.Empty);
             }
         }
-        catch (Exception ex)
+        else
         {
-            Log.Error(ex, "Poll timer error");
-        }
-        finally
-        {
-            Interlocked.Exchange(ref _isPolling, 0);
+            Log.Warning("Update failed for {Path}", _currentRepo.Path);
+            _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Failed", "Update returned false");
+            Notify("更新失败");
         }
     }
 
@@ -590,10 +591,8 @@ public class SyncService : IDisposable
     public void Dispose()
     {
         _fileWatcher.Dispose();
-        _pollTimer.Stop();
-        _pollTimer.Dispose();
-        _fullSyncTimer.Stop();
-        _fullSyncTimer.Dispose();
+        _syncTimer.Stop();
+        _syncTimer.Dispose();
         _queueProcessor.Dispose();
     }
 }
