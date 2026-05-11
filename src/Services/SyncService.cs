@@ -214,7 +214,7 @@ public class SyncService : IDisposable
             // svn delete marks it as deleted; later commit will finalize
             await _svnService.DeleteAsync(filePath);
             queue.Enqueue(filePath, CommitOperation.Delete);
-            Log.Information("Enqueued Delete: {File}", filePath);
+            Log.Information("[FileWatcher] SvnStatus: Deleted, Path: {File}", filePath);
             return;
         }
 
@@ -224,13 +224,13 @@ public class SyncService : IDisposable
             // Unversioned → svn add marks it for addition; later commit will finalize
             await _svnService.AddPathAsync(filePath);
             queue.Enqueue(filePath, CommitOperation.Add);
-            Log.Information("Enqueued Add: {File}", filePath);
+            Log.Information("[FileWatcher] SvnStatus: Added, Path: {File}", filePath);
         }
         else
         {
             // Already versioned — svn commit will auto-detect content changes
             queue.Enqueue(filePath, CommitOperation.Modify);
-            Log.Information("Enqueued Modify: {File}", filePath);
+            Log.Information("[FileWatcher] SvnStatus: Modified, Path: {File}", filePath);
         }
     }
 
