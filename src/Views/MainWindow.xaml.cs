@@ -201,7 +201,16 @@ public partial class MainWindow : Window
             icon?.GetType().Name ?? "null", icon);
 
         if (icon is System.Windows.Media.ImageSource img)
-            mi.Icon = img;
+        {
+            // WPF MenuItem.Icon 需要包在 Image 控件里才能正确渲染 ImageSource
+            var image = new System.Windows.Controls.Image
+            {
+                Source = img,
+                Width = 16,
+                Height = 16
+            };
+            mi.Icon = image;
+        }
         else if (icon is string emoji)
             mi.Icon = emoji;
     }
