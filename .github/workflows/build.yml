@@ -69,6 +69,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
+          $version = "v2.3.0"
           $notes = @"
           Windows SVN 同步客户端，基于 .NET 10 + WPF 构建。
 
@@ -76,20 +77,31 @@ jobs:
           - Windows: `SVNFileBox-win64.zip`（内置 .NET 10 运行时，无需单独安装）
 
           ## 更新日志
-          - 版本 v2.1.0
+
+          ### 新功能
+          - **批量提交队列** — 本地优先的异步提交队列，减少 SVN 网络往返（PendingCommitQueue + QueueCommitProcessor）
+          - **Toast 通知** — 所有用户操作结果均通过系统托盘气泡提示（复制、重命名、删除、新建文件夹、手动同步）
+          - **SVN Move 支持** — 新增 SvnService.MoveAsync() 方法
+
+          ### Bug 修复
+          - 修复单例线程安全问题（Lazy<T>）
+          - 修复批量失败后重新入队死循环 — 失败批次现在正确桥接到重试池
+          - 修复 Move 操作中 FromPath 在 GetCommonParent 中被忽略
+          - 修复 minBatchSize 导致计时器触发的提交被静默跳过
+          - 修复 EnqueueFileChange 中 fire-and-forget 的 SVN 命令未正确 await
+          - 修复 SyncNow 在队列 < minBatchSize 时行为不可预测
+          - 修复删除/添加拓扑 — 嵌套操作按路径深度排序（先删深层，先加浅层）
           "@
-          # Check if v2.1.0 draft already exists
-          $existing = gh release view v2.1.0 --repo vxling/SVNFileBox --json id --jq .id 2>$null
+          # Check if draft already exists
+          $existing = gh release view $version --repo vxling/SVNFileBox --json id --jq .id 2>$null
           if ($existing) {
-            # Delete old draft so we can re-create with fresh artifact
-            gh release delete v2.1.0 --repo vxling/SVNFileBox --yes
-            Write-Host "Deleted existing draft release v2.1.0"
+            gh release delete $version --repo vxling/SVNFileBox --yes
+            Write-Host "Deleted existing draft release $version"
           }
-          # Create new draft (artifact already uploaded via actions/upload-artifact, re-upload here)
-          gh release create v2.1.0 `
+          gh release create $version `
             ./SVNFileBox-win64.zip `
             --draft `
             --repo vxling/SVNFileBox `
-            --title "SVNFileBox v2.1.0" `
+            --title "SVNFileBox $version" `
             --notes "$notes"
-          Write-Host "Draft release v2.1.0 ready"
+          Write-Host "Draft release $version ready"
