@@ -54,7 +54,7 @@ public partial class MainWindow : Window
         // 动态查找 NewMenuItem，用 LogicalTreeHelper 避免 x:Name 字段生成问题
         var newMenu = LogicalTreeHelper.FindLogicalNode(cm, "NewMenuItem") as MenuItem;
         if (newMenu?.Icon == null)
-            InjectIconsOnFirstOpen(newMenu);
+            InjectIconsOnFirstOpen(newMenu!);
     }
 
     public MainWindow()
@@ -279,7 +279,7 @@ public partial class MainWindow : Window
         }
 
         if (sortProperty == null) return;
-        ApplySort(FileList, sortProperty);
+        ApplySort(FileList!, sortProperty);
     }
 
     private void FileList_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -295,7 +295,7 @@ public partial class MainWindow : Window
         // Fixed columns: Type(50) + Status(auto) + Size(110) + Modified(180)
         // Also reserve space for vertical scrollbar if content overflows
         double fixedWidth = 50 + 110 + 180;
-        double contentWidth = FileList.ActualWidth;
+        double contentWidth = FileList!.ActualWidth;
 
         // If total content overflows the visible area, vertical scrollbar appears and eats into width
         // Rough check: if all fixed+name columns would overflow, reserve scrollbar width (~17px)
@@ -674,7 +674,7 @@ public partial class MainWindow : Window
             {
                 progressWindow.Close();
                 ShowToast(LocalizationService.Instance.GetString("AnalysisCancelled"));
-                _viewModel.StatusText = LocalizationService.Instance.GetString("AnalysisCancelled");
+                _viewModel!.StatusText = LocalizationService.Instance.GetString("AnalysisCancelled");
                 return;
             }
 
@@ -682,7 +682,7 @@ public partial class MainWindow : Window
             {
                 progressWindow.Close();
                 ShowToast(LocalizationService.Instance.GetString("NoFilesToCopy"));
-                _viewModel.StatusText = LocalizationService.Instance.GetString("NoFilesToCopy");
+                _viewModel!.StatusText = LocalizationService.Instance.GetString("NoFilesToCopy");
                 return;
             }
 
@@ -707,13 +707,13 @@ public partial class MainWindow : Window
             if (result.WasCancelled)
             {
                 ShowToast(LocalizationService.Instance.GetString("CopyCancelled"));
-                _viewModel.StatusText = LocalizationService.Instance.GetString("CopyCancelled");
+                _viewModel!.StatusText = LocalizationService.Instance.GetString("CopyCancelled");
             }
             else if (result.HasError)
             {
                 ShowToast(LocalizationService.Instance.GetString("CopyFailed", result.ErrorMessage ?? ""),
                     Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
-                _viewModel.StatusText = LocalizationService.Instance.GetString("CopyFailed", result.ErrorMessage ?? "");
+                _viewModel!.StatusText = LocalizationService.Instance.GetString("CopyFailed", result.ErrorMessage ?? "");
             }
             else
             {
@@ -721,7 +721,7 @@ public partial class MainWindow : Window
                     ? LocalizationService.Instance.GetString("CopiedNItems", result.CopiedCount)
                     : LocalizationService.Instance.GetString("CopiedNItemsSkippedM", result.CopiedCount, result.SkippedCount);
                 ShowToast(summary);
-                _viewModel.StatusText = summary;
+                _viewModel!.StatusText = summary;
             }
 
             _ = _viewModel.RefreshAsync();

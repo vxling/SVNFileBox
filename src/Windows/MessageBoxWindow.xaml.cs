@@ -56,7 +56,7 @@ public partial class MsgBox : Window
         System.Windows.MessageBoxImage image = System.Windows.MessageBoxImage.None)
     {
         var (btnType, iconType) = ConvertParams(button, image);
-        return Show(null, message, title, btnType, iconType);
+        return Show(default(Window?), message, title, btnType, iconType);
     }
 
     /// <summary>

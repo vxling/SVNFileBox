@@ -92,7 +92,7 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
-                var handler = new EventHandler<SvnStatusEventArgs>(delegate(object sender, SvnStatusEventArgs item)
+                var handler = new EventHandler<SvnStatusEventArgs>(delegate(object? sender, SvnStatusEventArgs item)
                 {
                     var path = item.Path;
                     if (string.IsNullOrEmpty(path)) return;
