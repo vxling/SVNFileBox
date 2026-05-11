@@ -195,8 +195,16 @@ public class QueueCommitProcessor : IDisposable
                 return result;
             }
 
+            if (items.Count == 0)
+            {
+                result.Success = false;
+                result.ErrorMessage = "Nothing to commit";
+                return result;
+            }
+
             result.Success = true;
             result.Revision = "ok";
+            result.ItemsCount = items.Count;
         }
         catch (TimeoutException ex)
         {
@@ -299,4 +307,6 @@ public class BatchCommitResult
     public bool Success { get; set; }
     public string? Revision { get; set; }
     public string? ErrorMessage { get; set; }
+    /// <summary>Number of items in the batch. 0 means there was nothing to commit.</summary>
+    public int ItemsCount { get; set; }
 }

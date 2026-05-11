@@ -47,11 +47,12 @@ public class SyncService : IDisposable
         _queueProcessor = new QueueCommitProcessor(_svnService);
         _queueProcessor.BatchCompleted += (_, result) =>
         {
-            if (result.Success)
+            // Only notify for actual changes — skip if queue was empty (ItemsCount == 0)
+            if (result.Success && result.ItemsCount > 0)
                 Notify(result.Revision == "ok"
                     ? "批量同步完成"
                     : $"批量同步完成 (r{result.Revision})");
-            else
+            else if (!result.Success && !string.IsNullOrEmpty(result.ErrorMessage))
                 Notify($"批量同步失败: {result.ErrorMessage}");
         };
         _queueProcessor.BatchFailed += (_, failedItems) =>
