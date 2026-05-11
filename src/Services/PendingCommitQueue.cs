@@ -3,8 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
@@ -283,6 +285,8 @@ public class PendingCommitQueue
         }
     }
 
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+
     private async Task SaveAsync()
     {
         List<PendingCommitItem> snapshot;
@@ -290,15 +294,20 @@ public class PendingCommitQueue
         {
             snapshot = _items.ToList();
         }
+        await _saveLock.WaitAsync();
         try
         {
             var json = JsonSerializer.Serialize(snapshot, _jsonOptions);
-            await File.WriteAllTextAsync(_queueFilePath, json);
+            await File.WriteAllTextAsync(_queueFilePath, json, Encoding.UTF8);
             Log.Debug("[PendingCommitQueue] Saved {Count} items to disk", snapshot.Count);
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "[PendingCommitQueue] Failed to persist queue to disk");
+        }
+        finally
+        {
+            _saveLock.Release();
         }
     }
 
