@@ -12,7 +12,7 @@ public partial class SplashWindow : Window
 {
     private readonly DispatcherTimer _fakeProgressTimer;
     private int _step;
-    private int _totalSteps = 4;
+    private int _totalSteps = 3;
 
     public SplashWindow()
     {

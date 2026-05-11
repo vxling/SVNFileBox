@@ -85,11 +85,16 @@ public partial class App : Application
             var syncRecordService = SyncRecordService.Instance;
             Log.Information("[Startup] Step 1 complete: Services initialized");
 
-            // Step 2: Show main window
+            // Step 2: Load system file type icons (fallback to emoji on failure)
+            _splash.SetStatus("Loading resources...");
+            IconExtractor.Initialize();
+            Log.Information("[Startup] Step 2 complete: IconExtractor initialized");
+
+            // Step 3: Show main window
             _splash.SetStatus("Loading main window...");
             mainWindow.Show();
             _splash.Close();
-            Log.Information("[Startup] Step 2 complete: Main window shown");
+            Log.Information("[Startup] Step 3 complete: Main window shown");
         }
         catch (InvalidOperationException ex)
         {

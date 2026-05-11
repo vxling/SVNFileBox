@@ -97,9 +97,6 @@ public partial class MainWindow : Window
 
         _viewModel!.ConflictDetected += OnConflictDetected;
 
-        // 预加载系统文件图标（提取失败时自动降级为 emoji）
-        IconExtractor.Initialize();
-
         await _viewModel.InitializeAsync();
     }
 
