@@ -103,7 +103,8 @@ public partial class MainWindow : Window
 
     // ---- Icon injection helpers ----
 
-    private static readonly Dictionary<string, string> _headerToExt = new()
+    // 新建菜单：Resource key → 扩展名映射（用于图标匹配）
+    private static readonly Dictionary<string, string> _newMenuResourceKeyToExt = new()
     {
         { "NewTextFile",   ".txt"  },
         { "NewWordDoc",    ".docx" },
@@ -115,23 +116,32 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 首次打开右键菜单时注入系统图标（提取失败则降级为 emoji）。
-    /// 判断条件：子项 Icon 为 null 表示尚未注入。
+    /// 调用一次后即停止再次注入。
     /// </summary>
     private void InjectIconsOnFirstOpen(ItemsControl menu)
     {
-        Log.Information("[IconInject] InjectIconsOnFirstOpen: Name={Name}, Items.Count={ChildCount}, Icon={Icon}",
-            (menu as MenuItem)?.Name, menu.Items.Count, (menu as MenuItem)?.Icon);
+        Log.Information("[IconInject] InjectIconsOnFirstOpen: Name={Name}, Items.Count={ChildCount}",
+            (menu as MenuItem)?.Name, menu.Items.Count);
+
+        // 第二次打开时如果已有注入（父 Icon != null），直接跳过
+        if ((menu as MenuItem)?.Icon != null)
+        {
+            Log.Information("[IconInject] → Already injected, skipping");
+            return;
+        }
+
         foreach (var item in menu.Items)
         {
             if (item is MenuItem mi)
             {
-                Log.Information("[IconInject]   MenuItem: Name={Name}, Header={Header}, Items.Count={ChildCount}, Icon={Icon}",
-                    mi.Name, mi.Header, mi.Items.Count, mi.Icon);
-                // "新建" 子菜单：判断条件改为有子项且没有 Icon（即尚未注入）
-                if (mi.Items.Count > 0 && mi.Icon == null)
+                Log.Information("[IconInject]   MenuItem: Name={Name}, Header={Header}, Items.Count={ChildCount}",
+                    mi.Name, mi.Header, mi.Items.Count);
+
+                if (mi.Items.Count > 0)
                 {
+                    // 有子项的父 MenuItem → 设置 ✨ 并递归处理子项
                     mi.Icon = "✨";
-                    Log.Information("[IconInject]   → Set parent Icon=✨, iterating {ChildCount} children", mi.Items.Count);
+                    Log.Information("[IconInject]   → Parent (has children): Icon=✨, recursing into {ChildCount} children", mi.Items.Count);
                     foreach (var child in mi.Items)
                     {
                         if (child is MenuItem childMi)
@@ -141,31 +151,55 @@ public partial class MainWindow : Window
                         }
                     }
                 }
+                else
+                {
+                    // 无子项的叶子 MenuItem → 直接按 Name 匹配设置图标
+                    ApplyIconByExt(mi);
+                }
             }
         }
     }
 
     private void ApplyIconByExt(MenuItem mi)
     {
+        // 1. 优先用 x:Name 匹配（NewTextFileMenuItem → NewTextFile）
         string? ext = null;
-        foreach (var kv in _headerToExt)
+        foreach (var kv in _newMenuResourceKeyToExt)
         {
-            // x:Name = "NewTextFileMenuItem" → starts with "NewTextFile"
             if (mi.Name?.StartsWith(kv.Key) == true)
             {
                 ext = kv.Value;
+                Log.Information("[IconInject]     → Name matched: {Key} → {Ext}", kv.Key, ext);
                 break;
             }
         }
+
+        // 2. 用 Header 直接匹配（兼容本地化）
         if (ext == null)
         {
-            Log.Information("[IconInject]     → No ext match for {Name}, skipping", mi.Name);
+            foreach (var kv in _newMenuResourceKeyToExt)
+            {
+                if (kv.Key.Equals(mi.Header as string, StringComparison.OrdinalIgnoreCase))
+                {
+                    ext = kv.Value;
+                    Log.Information("[IconInject]     → Header matched: {Key} → {Ext}", kv.Key, ext);
+                    break;
+                }
+            }
+        }
+
+        if (ext == null)
+        {
+            Log.Information("[IconInject]     → No ext match for Name={Name}, Header={Header}, skipping",
+                mi.Name, mi.Header);
             return;
         }
 
-        Log.Information("[IconInject]     → Matched ext={Ext}, calling IconExtractor.GetIcon", ext);
+        Log.Information("[IconInject]     → Calling IconExtractor.GetIcon({Ext})", ext);
         var icon = IconExtractor.GetIcon(ext);
-        Log.Information("[IconInject]     → IconExtractor returned: {Type} = {Value}", icon?.GetType().Name, icon);
+        Log.Information("[IconInject]     → IconExtractor returned: Type={Type}, Value={Value}",
+            icon?.GetType().Name ?? "null", icon);
+
         if (icon is System.Windows.Media.ImageSource img)
             mi.Icon = img;
         else if (icon is string emoji)
