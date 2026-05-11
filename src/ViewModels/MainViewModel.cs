@@ -83,12 +83,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
 
     public event EventHandler<List<ConflictedFileInfo>>? ConflictDetected;
+    public event EventHandler<string>? SyncNotification;
 
     public MainViewModel()
     {
         _configService = new ConfigService();
         _syncService = new SyncService(_configService, SyncRecordService.Instance);
-        _syncService.SyncNotification += (_, msg) => StatusText = msg;
+        _syncService.SyncNotification += (_, msg) => { StatusText = msg; SyncNotification?.Invoke(this, msg); };
         _syncService.FilesChanged += async (_, _) => await RefreshAsync();
         _syncService.ConflictDetected += (_, conflicts) => ConflictDetected?.Invoke(this, conflicts);
 

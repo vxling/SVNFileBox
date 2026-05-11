@@ -69,6 +69,8 @@ public partial class MainWindow : Window
         _configService = _viewModel.ConfigService;
         DataContext = _viewModel;
 
+        _viewModel.SyncNotification += (_, msg) => ShowToast(msg);
+
         _viewModel.PropertyChanged += (s, ev) =>
         {
             Dispatcher.Invoke(() =>
@@ -728,6 +730,16 @@ public partial class MainWindow : Window
         _isExiting = true;
         TrayIcon?.Dispose();
         Application.Current.Shutdown();
+    }
+
+    /// <summary>Shows a toast notification via the system tray balloon tip. Auto-closes after the system timeout.</summary>
+    public void ShowToast(string message)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (TrayIcon == null || TrayIcon.IsDisposed) return;
+            TrayIcon.ShowBalloonTip("SVNFileBox", message, Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+        });
     }
 
     private void ShowMainWindow()
