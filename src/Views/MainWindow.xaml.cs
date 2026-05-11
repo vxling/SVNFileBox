@@ -426,13 +426,16 @@ public partial class MainWindow : Window
         {
             try
             {
-                // svn delete first (marks as deleted in SVN working copy), then physically remove
-                await _svnService.DeleteAsync(item.FullPath);
-
+                // Physical delete first — let FileWatcher detect the missing file and enqueue.
+                // If FileWatcher fires before we reach enqueue below, it handles svn delete too.
+                // Either way the Delete operation gets committed.
                 if (item.IsDirectory || Directory.Exists(item.FullPath))
                     Directory.Delete(item.FullPath, recursive: true);
                 else
                     File.Delete(item.FullPath);
+
+                // svn delete marks the deletion in the working copy (after physical file is gone)
+                await _svnService.DeleteAsync(item.FullPath);
 
                 // Enqueue the delete so QueueCommitProcessor can batch-commit it
                 PendingCommitQueue.Instance.Enqueue(item.FullPath, CommitOperation.Delete);
