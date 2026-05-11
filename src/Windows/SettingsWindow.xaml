@@ -35,7 +35,7 @@
                         <TextBlock Text="{DynamicResource SyncInterval}" FontWeight="SemiBold" FontSize="13"/>
                         <TextBlock Text="{DynamicResource SyncIntervalTip}" FontSize="11" Foreground="#666" Margin="0,2,0,6"/>
                         <StackPanel Orientation="Horizontal">
-                            <Slider x:Name="SyncIntervalSlider" Minimum="1" Maximum="10" Width="200" Value="1"
+                            <Slider x:Name="SyncIntervalSlider" Minimum="1" Maximum="30" Width="200" Value="1"
                                     TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
                             <TextBlock x:Name="SyncIntervalText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"/>
                         </StackPanel>

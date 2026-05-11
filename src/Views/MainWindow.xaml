@@ -57,6 +57,14 @@
             <Separator/>
             <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
             <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
+            <MenuItem Header="{DynamicResource New}" Icon="✨" IsEnabled="{Binding CanOperate}">
+                <MenuItem Header="{DynamicResource NewTextFile}" Click="NewTextFile_Click" Icon="📄"/>
+                <MenuItem Header="{DynamicResource NewWordDoc}" Click="NewWordDoc_Click" Icon="📘"/>
+                <MenuItem Header="{DynamicResource NewExcelSheet}" Click="NewExcelSheet_Click" Icon="📗"/>
+                <MenuItem Header="{DynamicResource NewPowerPoint}" Click="NewPowerPoint_Click" Icon="📙"/>
+                <MenuItem Header="{DynamicResource NewPngImage}" Click="NewPngImage_Click" Icon="🖼️"/>
+                <MenuItem Header="{DynamicResource NewBmpImage}" Click="NewBmpImage_Click" Icon="🎨"/>
+            </MenuItem>
             <MenuItem Header="{DynamicResource Rename}" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
             <Separator/>
             <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>

@@ -11,6 +11,7 @@ public class LocalizationService
     public static LocalizationService Instance => _instance ??= new LocalizationService();
 
     private string _currentLanguage = "auto";
+    public string CurrentLanguage => _currentLanguage;
     private ResourceDictionary? _resourceDict;
 
     public event EventHandler? LanguageChanged;
@@ -24,7 +25,7 @@ public class LocalizationService
             ["AutoSync"] = "自动同步",
             ["AutoSyncTip"] = "启用后自动同步文件变更（不可关闭）",
             ["SyncInterval"] = "同步周期（分钟）",
-            ["SyncIntervalTip"] = "服务器轮询检查的间隔（1-10分钟）",
+            ["SyncIntervalTip"] = "服务器轮询检查的间隔（1-30分钟）",
             ["Theme"] = "主题",
             ["ThemeTip"] = "界面外观颜色模式",
             ["ThemeSystem"] = "跟随系统",
@@ -83,6 +84,15 @@ public class LocalizationService
             ["NewFolderSuccess"] = "已创建文件夹: {0}",
             ["NewFolderFailed"] = "创建文件夹失败: {0}",
             ["FolderAlreadyExists"] = "文件夹 \"{0}\" 已存在",
+            ["New"] = "新建",
+            ["NewTextFile"] = "文本文档",
+            ["NewWordDoc"] = "Microsoft Word 文档",
+            ["NewExcelSheet"] = "Microsoft Excel 工作表",
+            ["NewPowerPoint"] = "Microsoft PowerPoint",
+            ["NewPngImage"] = "PNG 图片",
+            ["NewBmpImage"] = "BMP 图片",
+            ["NewFileSuccess"] = "已创建: {0}",
+            ["NewFileFailed"] = "创建文件失败: {0}",
             ["RenameTitle"] = "重命名",
             ["RenamePrompt"] = "新名称:",
             ["RenameSuccess"] = "已重命名: {0}",
@@ -214,7 +224,7 @@ public class LocalizationService
             ["AutoSync"] = "Auto Sync",
             ["AutoSyncTip"] = "Automatically sync file changes (cannot be disabled)",
             ["SyncInterval"] = "Sync Interval (minutes)",
-            ["SyncIntervalTip"] = "Server poll interval (1-10 minutes)",
+            ["SyncIntervalTip"] = "Server poll interval (1-30 minutes)",
             ["Theme"] = "Theme",
             ["ThemeTip"] = "Application color mode",
             ["ThemeSystem"] = "Follow System",
@@ -273,6 +283,15 @@ public class LocalizationService
             ["PasteFailed"] = "Paste failed: {0}",
             ["NewFolderSuccess"] = "Folder created: {0}",
             ["NewFolderFailed"] = "Failed to create folder: {0}",
+            ["New"] = "New",
+            ["NewTextFile"] = "Text Document",
+            ["NewWordDoc"] = "Microsoft Word Document",
+            ["NewExcelSheet"] = "Microsoft Excel Worksheet",
+            ["NewPowerPoint"] = "Microsoft PowerPoint",
+            ["NewPngImage"] = "PNG Image",
+            ["NewBmpImage"] = "BMP Image",
+            ["NewFileSuccess"] = "Created: {0}",
+            ["NewFileFailed"] = "Failed to create file: {0}",
             ["FolderAlreadyExists"] = "Folder \"{0}\" already exists",
             ["NameAlreadyTaken"] = "Name \"{0}\" is already taken",
             ["OpenFailed"] = "Failed to open: {0}",

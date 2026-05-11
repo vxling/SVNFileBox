@@ -349,6 +349,64 @@ public partial class MainWindow : Window
         }
     }
 
+    // ─── New File submenu ─────────────────────────────────────────────────────
+
+    private string GetUniqueFilePath(string dir, string baseName, string ext)
+    {
+        string path = Path.Combine(dir, baseName + ext);
+        int i = 1;
+        while (File.Exists(path) || Directory.Exists(path))
+            path = Path.Combine(dir, $"{baseName} ({i++}){ext}");
+        return path;
+    }
+
+    private async void NewTextFile_Click(object sender, RoutedEventArgs e) =>
+        await NewFileAsync("新建文本文档", "New Text Document", ".txt");
+
+    private async void NewWordDoc_Click(object sender, RoutedEventArgs e) =>
+        await NewFileAsync("新建 Microsoft Word 文档", "New Microsoft Word Document", ".docx");
+
+    private async void NewExcelSheet_Click(object sender, RoutedEventArgs e) =>
+        await NewFileAsync("新建 Microsoft Excel 工作表", "New Microsoft Excel Worksheet", ".xlsx");
+
+    private async void NewPowerPoint_Click(object sender, RoutedEventArgs e) =>
+        await NewFileAsync("新建 Microsoft PowerPoint 文档", "New Microsoft PowerPoint", ".pptx");
+
+    private async void NewPngImage_Click(object sender, RoutedEventArgs e) =>
+        await NewFileAsync("新建 PNG 图片", "New PNG Image", ".png");
+
+    private async void NewBmpImage_Click(object sender, RoutedEventArgs e) =>
+        await NewFileAsync("新建 BMP 图片", "New BMP Image", ".bmp");
+
+    private async Task NewFileAsync(string defaultNameCn, string defaultNameEn, string ext)
+    {
+        if (_viewModel == null) return;
+        var targetDir = _viewModel.CurrentPath;
+        if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return;
+
+        // Use localized default name — detect current language from CultureInfo
+        var isZh = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh";
+        var defaultName = isZh ? defaultNameCn : defaultNameEn;
+        var newPath = GetUniqueFilePath(targetDir, defaultName, ext);
+
+        try
+        {
+            if (!NewFileService.Create(newPath))
+                throw new Exception("NewFileService returned false");
+
+            await _svnService.AddFileAsync(newPath);
+            ShowToast(LocalizationService.Instance.GetString("NewFileSuccess", defaultName));
+            _viewModel!.StatusText = LocalizationService.Instance.GetString("NewFileSuccess", defaultName);
+            _ = _viewModel.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowToast(LocalizationService.Instance.GetString("NewFileFailed", ex.Message),
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
+            _viewModel!.StatusText = LocalizationService.Instance.GetString("NewFileFailed", ex.Message);
+        }
+    }
+
     private async void Rename_Click(object sender, RoutedEventArgs e)
     {
         var item = GetFileItemFromContextMenu(sender);
