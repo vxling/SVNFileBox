@@ -56,11 +56,27 @@ jobs:
           Write-Host "Zip size: $size bytes ($([math]::Round($size/1MB, 2)) MB)"
           if ($size -lt 10MB) { Write-Host "WARNING: zip is smaller than 10MB, likely missing runtime" }
 
+      - name: Download Inno Setup
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          curl -sSL -o is.exe "https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe"
+          Start-Process -Wait -FilePath ./is.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -NoNewWindow
+          Write-Host "Inno Setup installed"
+
+      - name: Build installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          Write-Host "Installer built: $(Get-Item SVNFileBox-Setup.exe).Length bytes"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: SVNFileBox-win64
-          path: SVNFileBox-win64.zip
+          path: |
+            SVNFileBox-win64.zip
+            SVNFileBox-Setup.exe
           retention-days: 5
 
       - name: Create or Update Draft Release
@@ -74,7 +90,8 @@ jobs:
           Windows SVN 同步客户端，基于 .NET 10 + WPF 构建。
 
           ## 下载
-          - Windows: `SVNFileBox-win64.zip`（内置 .NET 10 运行时，无需单独安装）
+          - Windows 便携版: `SVNFileBox-win64.zip`（绿色版，解压即用，内置 .NET 10 运行时）
+          - Windows 安装包: `SVNFileBox-Setup.exe`（安装向导，支持开始菜单/桌面快捷方式/卸载）
 
           ## 更新日志
 
@@ -100,6 +117,7 @@ jobs:
           }
           gh release create $version `
             ./SVNFileBox-win64.zip `
+            ./SVNFileBox-Setup.exe `
             --draft `
             --repo vxling/SVNFileBox `
             --title "SVNFileBox $version" `
