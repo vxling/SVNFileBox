@@ -90,7 +90,7 @@ public partial class SettingsWindow : Window
             {
                 var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
                 if (!string.IsNullOrEmpty(exePath))
-                    key.SetValue("SVNFileBox", $"\"{exePath}\"");
+                    key.SetValue("SVNFileBox", $"\"{exePath}\" --autostart");
             }
             else
             {

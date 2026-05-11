@@ -96,11 +96,14 @@ public partial class App : Application
             _splash.Close();
 
             // Auto-start: hide main window immediately, keep running in tray
-            if (configService.Config.AutoStart)
+            // Only minimize if launched with --autostart (i.e., from Windows startup),
+            // NOT when the user manually launches the app from Explorer/Start Menu.
+            bool isAutoStart = e.Args.Contains("--autostart", StringComparer.OrdinalIgnoreCase);
+            if (configService.Config.AutoStart && isAutoStart)
             {
                 mainWindow.WindowState = WindowState.Minimized;
                 mainWindow.Hide();
-                Log.Information("[Startup] Auto-start mode: main window hidden, running in tray");
+                Log.Information("[Startup] Auto-start from Windows startup: main window hidden, running in tray");
             }
 
             Log.Information("[Startup] Step 3 complete: Main window shown");
