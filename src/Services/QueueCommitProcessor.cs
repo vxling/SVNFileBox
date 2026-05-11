@@ -33,6 +33,12 @@ public class QueueCommitProcessor : IDisposable
     /// <summary>Fired after a batch commit completes (success or failure).</summary>
     public event EventHandler<BatchCommitResult>? BatchCompleted;
 
+    /// <summary>
+    /// Fired when a batch commit fails. Failed items are still in the queue (via MarkFailed)
+    /// and are also forwarded here so SyncService can add them to its _pendingUpdates retry pool.
+    /// </summary>
+    public event EventHandler<IReadOnlyList<PendingCommitItem>>? BatchFailed;
+
     public QueueCommitProcessor(SvnService svnService, int intervalSeconds = 30, int minBatchSize = 5)
     {
         _svnService = svnService;
@@ -50,6 +56,8 @@ public class QueueCommitProcessor : IDisposable
 
     private void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
     {
+        // Timer always processes the queue regardless of size —
+        // otherwise the timer would silently skip commits when the queue is small.
         _ = ProcessQueueAsync();
     }
 
@@ -60,7 +68,8 @@ public class QueueCommitProcessor : IDisposable
     public async Task SyncNowAsync()
     {
         Log.Debug("[QueueCommitProcessor] SyncNow requested");
-        await ProcessQueueAsync();
+        // Always flush on explicit user request — ignore minBatchSize
+        await ProcessQueueAsync(forceCommit: true);
     }
 
     /// <summary>
@@ -69,13 +78,15 @@ public class QueueCommitProcessor : IDisposable
     public void SyncNow()
     {
         Log.Debug("[QueueCommitProcessor] SyncNow (fire-and-forget) requested");
-        _ = ProcessQueueAsync();
+        // Always flush on explicit user request — ignore minBatchSize
+        _ = ProcessQueueAsync(forceCommit: true);
     }
 
     /// <summary>
     /// Main entry point: resolves the queue and executes a batch commit.
     /// </summary>
-    public async Task ProcessQueueAsync()
+    /// <param name="forceCommit">If true, commits regardless of queue size (user-triggered SyncNow).</param>
+    public async Task ProcessQueueAsync(bool forceCommit = false)
     {
         if (Interlocked.CompareExchange(ref _isRunning, 1, 0) == 1)
         {
@@ -92,8 +103,9 @@ public class QueueCommitProcessor : IDisposable
                 return;
             }
 
-            // Trigger if queue is large enough, or if timer fired (timer always triggers regardless of size)
-            if (queue.Count < _minBatchSize)
+            // Timer-triggered: only commit if queue has reached minimum batch size.
+            // SyncNow (forceCommit=true): always flush regardless of size.
+            if (!forceCommit && queue.Count < _minBatchSize)
             {
                 Log.Debug("[QueueCommitProcessor] Queue size {Count} < minBatch {MinBatch}, skipping",
                     queue.Count, _minBatchSize);
@@ -123,12 +135,8 @@ public class QueueCommitProcessor : IDisposable
                 queue.MarkFailed(resolved);
                 Log.Warning("[QueueCommitProcessor] Batch commit failed: {Error}", result.ErrorMessage);
 
-                // Add failed items to RetryPendingUpdatesAsync pool for periodic retry
-                foreach (var item in resolved)
-                {
-                    // Re-enqueue for RetryPendingUpdatesAsync processing
-                    // This bridges to the existing retry mechanism without major restructuring
-                }
+                // Bridge failed items to SyncService's retry pool (RetryPendingUpdatesAsync)
+                BatchFailed?.Invoke(this, resolved.ToList());
             }
 
             BatchCompleted?.Invoke(this, result);
@@ -145,63 +153,49 @@ public class QueueCommitProcessor : IDisposable
 
         try
         {
-            // Group by parent directory for efficient commits
-            var byParent = items
-                .GroupBy(GetCommonParent)
-                .ToList();
+            // Commit all items together from the repo root so cross-directory moves
+            // (e.g. /src/a.txt → /dst/b.txt) are handled atomically in one commit.
+            // Topological sort ensures parent dirs are deleted before children,
+            // and added before their descendants.
+            var sorted = TopologicalSort(items);
 
-            foreach (var group in byParent)
+            // Execute pre-commit commands in topological order
+            foreach (var item in sorted)
             {
-                var parentDir = group.Key;
-                var groupItems = group.ToList();
-
-                // Determine what needs to be done before commit
-                var addItems = groupItems.Where(x => x.Operation == CommitOperation.Add).ToList();
-                var deleteItems = groupItems.Where(x => x.Operation == CommitOperation.Delete).ToList();
-                var moveItems = groupItems.Where(x => x.Operation == CommitOperation.Move).ToList();
-                // Modify items require no pre-command — commit will auto-detect
-
-                // Step 1: Execute Deletes first (parent-child ordering already handled by Resolve)
-                foreach (var item in deleteItems)
+                switch (item.Operation)
                 {
-                    // svn delete works even if file is already physically gone
-                    var ok = await _svnService.DeleteAsync(item.Path);
-                    if (!ok)
-                        Log.Warning("[QueueCommitProcessor] svn delete failed for {Path}", item.Path);
-                }
-
-                // Step 2: Execute Moves
-                foreach (var item in moveItems)
-                {
-                    var ok = await _svnService.MoveAsync(item.FromPath!, item.Path);
-                    if (!ok)
-                        Log.Warning("[QueueCommitProcessor] svn move failed: {From} → {To}", item.FromPath, item.Path);
-                }
-
-                // Step 3: Execute Adds
-                foreach (var item in addItems)
-                {
-                    var ok = await _svnService.AddPathAsync(item.Path);
-                    if (!ok)
-                        Log.Warning("[QueueCommitProcessor] svn add failed for {Path}", item.Path);
-                }
-
-                // Step 4: Commit the group
-                var message = BuildCommitMessage(groupItems);
-                var committed = await _svnService.CommitAsync(parentDir, message);
-                if (committed)
-                {
-                    result.Revision ??= "ok";
-                }
-                else
-                {
-                    result.Success = false;
-                    result.ErrorMessage = $"Commit failed for parent dir: {parentDir}";
-                    return result;
+                    case CommitOperation.Delete:
+                        var delOk = await _svnService.DeleteAsync(item.Path);
+                        if (!delOk)
+                            Log.Warning("[QueueCommitProcessor] svn delete failed for {Path}", item.Path);
+                        break;
+                    case CommitOperation.Move:
+                        var mvOk = await _svnService.MoveAsync(item.FromPath!, item.Path);
+                        if (!mvOk)
+                            Log.Warning("[QueueCommitProcessor] svn move failed: {From} → {To}", item.FromPath, item.Path);
+                        break;
+                    case CommitOperation.Add:
+                        var addOk = await _svnService.AddPathAsync(item.Path);
+                        if (!addOk)
+                            Log.Warning("[QueueCommitProcessor] svn add failed for {Path}", item.Path);
+                        break;
+                    // Modify: no pre-command needed, commit auto-detects changes
                 }
             }
 
+            // Single commit for all items from the repo root
+            var message = BuildCommitMessage(items);
+            var repoRoot = FindRepoRoot(sorted);
+            var committed = await _svnService.CommitAsync(repoRoot, message);
+            if (!committed)
+            {
+                result.Success = false;
+                result.ErrorMessage = "Commit failed";
+                return result;
+            }
+
             result.Success = true;
+            result.Revision = "ok";
         }
         catch (TimeoutException ex)
         {
@@ -219,9 +213,55 @@ public class QueueCommitProcessor : IDisposable
         return result;
     }
 
+    private static List<PendingCommitItem> TopologicalSort(List<PendingCommitItem> items)
+    {
+        // Deletes: deepest paths first (delete child before parent)
+        // Adds:    shallowest paths first (add parent before child)
+        // Moves/Modifies: no ordering constraint, place at the end
+        var deletes = items.Where(x => x.Operation == CommitOperation.Delete)
+                           .OrderByDescending(x => GetPathDepth(x.Path))
+                           .ThenBy(x => x.Path)
+                           .ToList();
+        var adds = items.Where(x => x.Operation == CommitOperation.Add)
+                        .OrderBy(x => GetPathDepth(x.Path))
+                        .ThenBy(x => x.Path)
+                        .ToList();
+        var rest = items.Where(x => x.Operation != CommitOperation.Delete
+                                 && x.Operation != CommitOperation.Add)
+                        .ToList();
+
+        var sorted = new List<PendingCommitItem>(deletes.Count + adds.Count + rest.Count);
+        sorted.AddRange(deletes);
+        sorted.AddRange(adds);
+        sorted.AddRange(rest);
+        return sorted;
+    }
+
+    private static int GetPathDepth(string path)
+    {
+        // Counts path segments; deeper paths (more segments) sort after shallower ones.
+        // /a/b/c.txt → 3,  /a/b → 2,  /a → 1
+        return string.IsNullOrEmpty(path) ? 0
+            : path.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                   .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar,
+                          StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    private static string FindRepoRoot(List<PendingCommitItem> items)
+    {
+        if (items.Count == 0) return ".";
+        // Use the shallowest path as the commit root (covers all children)
+        var shallowest = items.OrderBy(x => GetPathDepth(
+            x.Operation == CommitOperation.Move ? x.FromPath! : x.Path)).First();
+        var path = shallowest.Operation == CommitOperation.Move ? shallowest.FromPath! : shallowest.Path;
+        return Path.GetDirectoryName(path) ?? ".";
+    }
+
     private static string GetCommonParent(PendingCommitItem item)
     {
-        var path = item.Operation == CommitOperation.Move ? item.Path : item.Path;
+        // For Move, both the source (FromPath) and destination (Path) must be included
+        // in the common-parent calculation so they land in the same commit group.
+        var path = item.Operation == CommitOperation.Move ? item.FromPath! : item.Path;
         return Path.GetDirectoryName(path) ?? ".";
     }
 

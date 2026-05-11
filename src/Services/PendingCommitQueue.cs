@@ -69,8 +69,8 @@ public enum CommitStatus
 /// </summary>
 public class PendingCommitQueue
 {
-    private static PendingCommitQueue? _instance;
-    public static PendingCommitQueue Instance => _instance ??= new PendingCommitQueue();
+    private static readonly Lazy<PendingCommitQueue> _lazy = new(() => new PendingCommitQueue());
+    public static PendingCommitQueue Instance => _lazy.Value;
 
     private readonly object _lock = new();
     private readonly List<PendingCommitItem> _items = new();

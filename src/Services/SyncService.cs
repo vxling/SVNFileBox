@@ -56,6 +56,11 @@ public class SyncService : IDisposable
             else
                 Notify($"批量同步失败: {result.ErrorMessage}");
         };
+        _queueProcessor.BatchFailed += (_, failedItems) =>
+        {
+            foreach (var item in failedItems)
+                AddPendingUpdate(item.Path);
+        };
         _pollTimer = new System.Timers.Timer(_pollIntervalMs);
         _pollTimer.Elapsed += OnPollTimerElapsed;
         _pollTimer.AutoReset = true;
@@ -167,7 +172,7 @@ public class SyncService : IDisposable
             {
                 try
                 {
-                    EnqueueFileChange(file, queue);
+                    await EnqueueFileChange(file, queue);
                 }
                 catch (Exception ex)
                 {
@@ -192,7 +197,7 @@ public class SyncService : IDisposable
     /// QueueCommitProcessor.Resolve() collapses this to a Move when it sees
     /// a Delete+Add on logically the same rename.
     /// </summary>
-    private void EnqueueFileChange(string filePath, PendingCommitQueue queue)
+    private async Task EnqueueFileChange(string filePath, PendingCommitQueue queue)
     {
         if (_currentRepo == null) return;
         if (string.IsNullOrEmpty(Path.GetDirectoryName(filePath))) return;
@@ -209,7 +214,7 @@ public class SyncService : IDisposable
                 return;
             }
             // svn delete marks it as deleted; later commit will finalize
-            _svnService.DeleteAsync(filePath).ConfigureAwait(false);
+            await _svnService.DeleteAsync(filePath);
             queue.Enqueue(filePath, CommitOperation.Delete);
             Log.Information("Enqueued Delete: {File}", filePath);
             return;
@@ -219,7 +224,7 @@ public class SyncService : IDisposable
         if (!IsSvnManaged(filePath))
         {
             // Unversioned → svn add marks it for addition; later commit will finalize
-            _svnService.AddPathAsync(filePath).ConfigureAwait(false);
+            await _svnService.AddPathAsync(filePath);
             queue.Enqueue(filePath, CommitOperation.Add);
             Log.Information("Enqueued Add: {File}", filePath);
         }
