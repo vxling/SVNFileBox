@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows;
 using System.Windows.Interop;
+using Serilog;
 
 namespace SVNFileBox.Services;
 
@@ -135,8 +136,9 @@ public static class IconExtractor
             imageSource.Freeze(); // 跨线程使用
             return imageSource;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("[IconExtractor] Failed to extract system icon for {Extension}: {Error}", extension, ex.Message);
             return null;
         }
         finally
