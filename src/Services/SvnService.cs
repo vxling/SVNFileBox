@@ -290,6 +290,23 @@ public class SvnService : IDisposable
         });
     }
 
+    public async Task<bool> MoveAsync(string fromPath, string toPath)
+    {
+        return await ExecuteAsync(token =>
+        {
+            try
+            {
+                using var client = new SvnClient();
+                return client.Move(fromPath, toPath);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Move failed: {From} → {To}", fromPath, toPath);
+                return false;
+            }
+        });
+    }
+
     public async Task<bool> RevertAsync(string path, bool recursive = true)
     {
         return await ExecuteAsync(token =>

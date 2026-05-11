@@ -374,8 +374,10 @@ public partial class MainWindow : Window
                 // svn delete old + svn add new (marks rename in working copy), then physical move
                 await _svnService.DeleteAsync(item.FullPath);
                 await _svnService.AddFileAsync(newPath);
-
                 Directory.Move(item.FullPath, newPath);
+
+                // Enqueue as Move instead of relying on FileWatcher to detect rename
+                PendingCommitQueue.Instance.EnqueueMove(item.FullPath, newPath);
 
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}");
                 _ = _viewModel.RefreshAsync();
@@ -413,6 +415,9 @@ public partial class MainWindow : Window
                     Directory.Delete(item.FullPath, recursive: true);
                 else
                     File.Delete(item.FullPath);
+
+                // Enqueue the delete so QueueCommitProcessor can batch-commit it
+                PendingCommitQueue.Instance.Enqueue(item.FullPath, CommitOperation.Delete);
 
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("DeleteSuccess", item.Name);
                 _ = _viewModel.RefreshAsync();

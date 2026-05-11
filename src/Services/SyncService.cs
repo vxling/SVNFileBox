@@ -147,18 +147,20 @@ public class SyncService : IDisposable
         {
             Log.Information("File changes detected: {Count} files", files.Length);
 
-            // 5s debounce before commit
+            // 5s debounce — wait for the burst of FileWatcher events to settle
             await Task.Delay(5000);
+
+            var queue = PendingCommitQueue.Instance;
 
             foreach (var file in files)
             {
                 try
                 {
-                    await CommitFileAsync(file);
+                    EnqueueFileChange(file, queue);
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "Failed to commit file: {File}", file);
+                    Log.Error(ex, "Failed to enqueue file change: {File}", file);
                 }
             }
 
@@ -170,86 +172,51 @@ public class SyncService : IDisposable
         }
     }
 
-    private async Task CommitFileAsync(string filePath)
+    /// <summary>
+    /// Analyzes a single file path and determines the appropriate queue operation,
+    /// then enqueues it. This replaces the old CommitFileAsync logic.
+    ///
+    /// For OS-level renames, both old and new paths are in the `files` array, so
+    /// the Delete will be queued for the old path and Add for the new path;
+    /// QueueCommitProcessor.Resolve() collapses this to a Move when it sees
+    /// a Delete+Add on logically the same rename.
+    /// </summary>
+    private void EnqueueFileChange(string filePath, PendingCommitQueue queue)
     {
         if (_currentRepo == null) return;
         if (string.IsNullOrEmpty(Path.GetDirectoryName(filePath))) return;
 
-        var fileName = Path.GetFileName(filePath);
-        var parentDir = Path.GetDirectoryName(filePath) ?? _currentRepo.Path;
         bool fileExists = File.Exists(filePath) || Directory.Exists(filePath);
 
-        // Handle deleted files: svn delete + commit
         if (!fileExists)
         {
-            // Check if file was actually tracked by SVN before attempting delete
+            // Physical file/folder is gone — either deleted externally or part of a rename
             if (!_svnService.IsVersioned(filePath))
             {
-                // File was never tracked by SVN, nothing to sync
-                Log.Information("Deleted file was never tracked by SVN, skipping: {File}", filePath);
+                // Was never tracked — nothing to sync
+                Log.Debug("Skipping untracked missing file: {File}", filePath);
                 return;
             }
-            var delSuccess = await _svnService.DeleteAsync(filePath);
-            if (!delSuccess)
-            {
-                Log.Warning("svn delete failed for {File}", filePath);
-                _recordService.AddRecord(_currentRepo.Name, fileName, "Delete", "Failed", "Delete returned false");
-                Notify($"删除同步失败: {fileName}");
-                return;
-            }
-            var delCommit = await _svnService.CommitAsync(parentDir, $"Auto-sync: [Delete] {fileName}", _currentRepo.Username, _currentRepo.Password);
-            if (delCommit)
-            {
-                Log.Information("Deleted and committed: {File}", filePath);
-                _recordService.AddRecord(_currentRepo.Name, fileName, "Delete", "Success");
-                Notify($"已同步删除: {fileName}");
-            }
-            else
-            {
-                _recordService.AddRecord(_currentRepo.Name, fileName, "Delete", "Failed", "Commit returned non-zero");
-                Notify($"删除同步失败: {fileName}");
-            }
+            // svn delete marks it as deleted; later commit will finalize
+            _svnService.DeleteAsync(filePath).ConfigureAwait(false);
+            queue.Enqueue(filePath, CommitOperation.Delete);
+            Log.Information("Enqueued Delete: {File}", filePath);
             return;
         }
 
-        var operation = Directory.Exists(filePath) ? "Add" : "Update";
-
-        // svn add for unversioned files
+        // File/folder exists — could be a new create, a modify, or the destination of a rename
         if (!IsSvnManaged(filePath))
         {
-            await _svnService.AddFileAsync(filePath);
-            operation = "Add";
-        }
-
-        var message = $"Auto-sync: [{operation}] {fileName}";
-        var success = await _svnService.CommitAsync(
-            Path.GetDirectoryName(filePath) ?? _currentRepo.Path,
-            message,
-            _currentRepo.Username,
-            _currentRepo.Password);
-
-        if (success)
-        {
-            Log.Information("Committed: {File}", filePath);
-            _recordService.AddRecord(_currentRepo.Name, fileName, operation, "Success");
-            Notify($"已同步: {fileName}");
+            // Unversioned → svn add marks it for addition; later commit will finalize
+            _svnService.AddPathAsync(filePath).ConfigureAwait(false);
+            queue.Enqueue(filePath, CommitOperation.Add);
+            Log.Information("Enqueued Add: {File}", filePath);
         }
         else
         {
-            // Retry up to _maxRetries times with delay
-            var attempts = _failedFileAttempts.GetOrAdd(filePath, 0) + 1;
-            _failedFileAttempts[filePath] = attempts;
-            if (attempts < _maxRetries)
-            {
-                Log.Warning("Commit failed for {File}, will retry ({Attempts}/{Max})", filePath, attempts, _maxRetries);
-                AddPendingUpdate(filePath);
-            }
-            else
-            {
-                _recordService.AddRecord(_currentRepo.Name, fileName, operation, "Failed", "Commit returned non-zero after retries");
-                Notify($"同步失败: {fileName}");
-                _failedFileAttempts.TryRemove(filePath, out _);
-            }
+            // Already versioned — svn commit will auto-detect content changes
+            queue.Enqueue(filePath, CommitOperation.Modify);
+            Log.Information("Enqueued Modify: {File}", filePath);
         }
     }
 
