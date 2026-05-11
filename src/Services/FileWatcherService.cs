@@ -15,7 +15,7 @@ public class FileWatcherService : IDisposable
     private readonly System.Timers.Timer _retryTimer;
     private readonly object _lock = new();
     private readonly HashSet<string> _changedFiles = new();
-    private int _debounceMs = 5000;
+    private int _debounceMs = 1000;
     private string? _watchPath;
     private bool _isRetrying;
 
