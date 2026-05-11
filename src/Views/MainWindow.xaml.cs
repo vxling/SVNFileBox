@@ -170,6 +170,8 @@ public partial class MainWindow : Window
                 catch (Exception ex)
                 {
                     Log.Error(ex, "Failed to open file: {Path}", item.FullPath);
+                    ShowToast(LocalizationService.Instance.GetString("OpenFailed", ex.Message),
+                        Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                     _viewModel!.StatusText = LocalizationService.Instance.GetString("OpenFailed", ex.Message);
                 }
             }
@@ -255,12 +257,15 @@ public partial class MainWindow : Window
         try
         {
             await _viewModel.SyncService.SyncNowAsync();
+            ShowToast(LocalizationService.Instance.GetString("SyncComplete"));
             _viewModel.StatusText = LocalizationService.Instance.GetString("SyncComplete");
             await _viewModel.RefreshAsync();
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Manual sync failed");
+            ShowToast(LocalizationService.Instance.GetString("SyncFailed", ex.Message),
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
             _viewModel.StatusText = LocalizationService.Instance.GetString("SyncFailed", ex.Message);
         }
     }
@@ -295,6 +300,7 @@ public partial class MainWindow : Window
         try
         {
             Clipboard.SetText(path);
+            ShowToast(LocalizationService.Instance.GetString("Copied", path));
             _viewModel!.StatusText = LocalizationService.Instance.GetString("Copied", path);
         }
         catch (Exception ex) { Log.Error(ex, "CopyPath failed"); }
@@ -330,11 +336,14 @@ public partial class MainWindow : Window
                 // svn add (marks new folder), SyncService auto-commits on next FullSync
                 await _svnService.AddFileAsync(newFolderPath);
 
+                ShowToast(LocalizationService.Instance.GetString("NewFolderSuccess", dialog.InputText.Trim()));
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("NewFolderSuccess", dialog.InputText.Trim());
                 _ = _viewModel.RefreshAsync();
             }
             catch (Exception ex)
             {
+                ShowToast(LocalizationService.Instance.GetString("NewFolderFailed", ex.Message),
+                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("NewFolderFailed", ex.Message);
             }
         }
@@ -381,11 +390,14 @@ public partial class MainWindow : Window
                 // Enqueue as Move instead of relying on FileWatcher to detect rename
                 PendingCommitQueue.Instance.EnqueueMove(item.FullPath, newPath);
 
+                ShowToast(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}");
                 _ = _viewModel.RefreshAsync();
             }
             catch (Exception ex)
             {
+                ShowToast(LocalizationService.Instance.GetString("RenameFailed", ex.Message),
+                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("RenameFailed", ex.Message);
                 Log.Error(ex, "Rename failed: {Old} -> {New}", item.FullPath, newPath);
             }
@@ -421,11 +433,14 @@ public partial class MainWindow : Window
                 // Enqueue the delete so QueueCommitProcessor can batch-commit it
                 PendingCommitQueue.Instance.Enqueue(item.FullPath, CommitOperation.Delete);
 
+                ShowToast(LocalizationService.Instance.GetString("DeleteSuccess", item.Name));
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("DeleteSuccess", item.Name);
                 _ = _viewModel.RefreshAsync();
             }
             catch (Exception ex)
             {
+                ShowToast(LocalizationService.Instance.GetString("DeleteFailed", ex.Message),
+                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("DeleteFailed", ex.Message);
             }
         }
@@ -448,6 +463,8 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Error(ex, "Paste failed");
+            ShowToast(LocalizationService.Instance.GetString("PasteFailed", ex.Message),
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
             _viewModel.StatusText = LocalizationService.Instance.GetString("PasteFailed", ex.Message);
         }
     }
@@ -514,6 +531,7 @@ public partial class MainWindow : Window
             catch (OperationCanceledException)
             {
                 progressWindow.Close();
+                ShowToast(LocalizationService.Instance.GetString("AnalysisCancelled"));
                 _viewModel.StatusText = LocalizationService.Instance.GetString("AnalysisCancelled");
                 return;
             }
@@ -521,6 +539,7 @@ public partial class MainWindow : Window
             if (plan == null)
             {
                 progressWindow.Close();
+                ShowToast(LocalizationService.Instance.GetString("NoFilesToCopy"));
                 _viewModel.StatusText = LocalizationService.Instance.GetString("NoFilesToCopy");
                 return;
             }
@@ -545,10 +564,13 @@ public partial class MainWindow : Window
 
             if (result.WasCancelled)
             {
+                ShowToast(LocalizationService.Instance.GetString("CopyCancelled"));
                 _viewModel.StatusText = LocalizationService.Instance.GetString("CopyCancelled");
             }
             else if (result.HasError)
             {
+                ShowToast(LocalizationService.Instance.GetString("CopyFailed", result.ErrorMessage ?? ""),
+                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                 _viewModel.StatusText = LocalizationService.Instance.GetString("CopyFailed", result.ErrorMessage ?? "");
             }
             else
@@ -556,6 +578,7 @@ public partial class MainWindow : Window
                 var summary = result.SkippedCount == 0
                     ? LocalizationService.Instance.GetString("CopiedNItems", result.CopiedCount)
                     : LocalizationService.Instance.GetString("CopiedNItemsSkippedM", result.CopiedCount, result.SkippedCount);
+                ShowToast(summary);
                 _viewModel.StatusText = summary;
             }
 
@@ -732,13 +755,13 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 
-    /// <summary>Shows a toast notification via the system tray balloon tip. Auto-closes after the system timeout.</summary>
-    public void ShowToast(string message)
+    /// <summary>Shows a toast notification via the system tray balloon tip.</summary>
+    public void ShowToast(string message, Hardcodet.Wpf.TaskbarNotification.BalloonIcon icon = Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info)
     {
         Dispatcher.Invoke(() =>
         {
             if (TrayIcon == null || TrayIcon.IsDisposed) return;
-            TrayIcon.ShowBalloonTip("SVNFileBox", message, Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+            TrayIcon.ShowBalloonTip("SVNFileBox", message, icon);
         });
     }
 
