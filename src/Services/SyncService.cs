@@ -19,6 +19,7 @@ public class SyncService : IDisposable
     private readonly SvnService _svnService = new();
     private readonly FileWatcherService _fileWatcher = new();
     private readonly SyncRecordService _recordService;
+    private readonly QueueCommitProcessor _queueProcessor;
     private readonly System.Timers.Timer _pollTimer;
     private readonly System.Timers.Timer _fullSyncTimer;
     private readonly ConcurrentDictionary<string, int> _failedFileAttempts = new();
@@ -45,6 +46,16 @@ public class SyncService : IDisposable
     {
         _configService = configService;
         _recordService = recordService;
+        _queueProcessor = new QueueCommitProcessor(_svnService);
+        _queueProcessor.BatchCompleted += (_, result) =>
+        {
+            if (result.Success)
+                Notify(result.Revision == "ok"
+                    ? "批量同步完成"
+                    : $"批量同步完成 (r{result.Revision})");
+            else
+                Notify($"批量同步失败: {result.ErrorMessage}");
+        };
         _pollTimer = new System.Timers.Timer(_pollIntervalMs);
         _pollTimer.Elapsed += OnPollTimerElapsed;
         _pollTimer.AutoReset = true;
@@ -125,9 +136,9 @@ public class SyncService : IDisposable
         }
         try
         {
-            await RetryPendingUpdatesAsync(); // upload pending local commits
-            await PollCoreAsync(); // download server changes
-            await FullSyncAsync(); // safety net: commit any unversioned/missing files that were missed
+            await _queueProcessor.SyncNowAsync(); // flush pending queue (上行)
+            await PollCoreAsync();                  // download server changes (下行)
+            await FullSyncAsync();                  // safety net: scan & commit unversioned/missing
         }
         finally
         {
@@ -578,5 +589,6 @@ public class SyncService : IDisposable
         _pollTimer.Dispose();
         _fullSyncTimer.Stop();
         _fullSyncTimer.Dispose();
+        _queueProcessor.Dispose();
     }
 }

@@ -55,10 +55,20 @@ public class QueueCommitProcessor : IDisposable
 
     /// <summary>
     /// Triggers an immediate queue flush. Safe to call from UI or other threads.
+    /// Returns a Task that completes when the batch commit finishes.
+    /// </summary>
+    public async Task SyncNowAsync()
+    {
+        Log.Debug("[QueueCommitProcessor] SyncNow requested");
+        await ProcessQueueAsync();
+    }
+
+    /// <summary>
+    /// Triggers an immediate queue flush (fire-and-forget, no await).
     /// </summary>
     public void SyncNow()
     {
-        Log.Debug("[QueueCommitProcessor] SyncNow requested");
+        Log.Debug("[QueueCommitProcessor] SyncNow (fire-and-forget) requested");
         _ = ProcessQueueAsync();
     }
 
