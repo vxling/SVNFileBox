@@ -102,9 +102,14 @@ public class FileWatcherService : IDisposable
     private bool IsSvnDirectory(string path)
     {
         // Normalize to handle both Unix '/' and Windows '\' separators
-        var normalized = path.Replace('/', Path.DirectorySeparatorChar);
-        return normalized.Contains(Path.DirectorySeparatorChar + ".svn" + Path.DirectorySeparatorChar)
-            || normalized.EndsWith(Path.DirectorySeparatorChar + ".svn");
+        var normalized = path.Replace('\\', '/');
+        var segments = normalized.Split('/');
+        foreach (var segment in segments)
+        {
+            if (segment == ".svn")
+                return true;
+        }
+        return false;
     }
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)

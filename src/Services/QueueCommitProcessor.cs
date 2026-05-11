@@ -103,9 +103,8 @@ public class QueueCommitProcessor : IDisposable
                 return;
             }
 
-            // Timer-triggered (forceCommit=false): commit if there's anything in the queue.
-            // The minBatchSize is a hint for batching optimisation, not a gate —
-            // a user change should never be left hanging because the queue is "too small".
+            // Timer-triggered: only skip if queue is completely empty.
+            // minBatchSize is a batching hint — timer fires whenever there's any pending work.
             // SyncNow (forceCommit=true): always flush regardless of size.
             if (!forceCommit && queue.Count == 0)
             {
