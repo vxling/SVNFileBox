@@ -38,18 +38,22 @@ public partial class MainWindow : Window
 
     private void ContextMenu_Opened(object sender, RoutedEventArgs e)
     {
-        // Only paste needs clipboard check — all other items use XAML bindings
-        if (sender is ContextMenu cm && _viewModel != null)
+        if (sender is not ContextMenu cm || _viewModel == null) return;
+
+        // Paste enabled state
+        foreach (var item in cm.Items)
         {
-            foreach (var item in cm.Items)
+            if (item is MenuItem mi && mi.Name == "PasteMenuItem")
             {
-                if (item is MenuItem mi && mi.Name == "PasteMenuItem")
-                {
-                    mi.IsEnabled = _viewModel.CanOperate && Clipboard.ContainsFileDropList();
-                    break;
-                }
+                mi.IsEnabled = _viewModel.CanOperate && Clipboard.ContainsFileDropList();
+                break;
             }
         }
+
+        // Inject system icons (or emoji fallback) into the "新建" submenu — once
+        // 判断条件：第一个子项 Icon 为 null 表示尚未注入
+        if (cm.Items.Count > 0 && cm.Items[0] is MenuItem firstRoot && firstRoot.Icon == null)
+            InjectIconsOnFirstOpen(cm);
     }
 
     public MainWindow()
@@ -92,7 +96,67 @@ public partial class MainWindow : Window
             Key.V, ModifierKeys.Control));
 
         _viewModel!.ConflictDetected += OnConflictDetected;
+
+        // 预加载系统文件图标（提取失败时自动降级为 emoji）
+        IconExtractor.Initialize();
+
         await _viewModel.InitializeAsync();
+    }
+
+    // ---- Icon injection helpers ----
+
+    private static readonly Dictionary<string, string> _headerToExt = new()
+    {
+        { "NewTextFile",   ".txt"  },
+        { "NewWordDoc",    ".docx" },
+        { "NewExcelSheet", ".xlsx" },
+        { "NewPowerPoint", ".pptx" },
+        { "NewPngImage",   ".png"  },
+        { "NewBmpImage",   ".bmp"  },
+    };
+
+    /// <summary>
+    /// 首次打开右键菜单时注入系统图标（提取失败则降级为 emoji）。
+    /// 判断条件：子项 Icon 为 null 表示尚未注入。
+    /// </summary>
+    private void InjectIconsOnFirstOpen(ItemsControl menu)
+    {
+        foreach (var item in menu.Items)
+        {
+            if (item is MenuItem mi)
+            {
+                // "新建" 子菜单
+                if (mi.Header?.ToString()?.Contains("New") == true && mi.Items.Count > 0)
+                {
+                    mi.Icon = "✨";
+                    foreach (var child in mi.Items)
+                    {
+                        if (child is MenuItem childMi)
+                            ApplyIconByExt(childMi);
+                    }
+                }
+            }
+        }
+    }
+
+    private void ApplyIconByExt(MenuItem mi)
+    {
+        string? ext = null;
+        foreach (var kv in _headerToExt)
+        {
+            if (mi.Name == kv.Key || mi.Header?.ToString()?.Contains(kv.Key) == true)
+            {
+                ext = kv.Value;
+                break;
+            }
+        }
+        if (ext == null) return;
+
+        var icon = IconExtractor.GetIcon(ext);
+        if (icon is System.Windows.Media.ImageSource img)
+            mi.Icon = img;
+        else if (icon is string emoji)
+            mi.Icon = emoji;
     }
 
     private void OnConflictDetected(object? sender, List<ConflictedFileInfo> conflicts)
