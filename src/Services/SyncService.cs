@@ -297,12 +297,12 @@ public class SyncService : IDisposable
                     var addSuccess = await _svnService.AddFileAsync(path);
                     if (addSuccess)
                     {
-                        Log.Information("[FullSync] Added: {Path}", path);
+                        Log.Information("[FullSync] SvnStatus: Added, Path: {Path}", path);
                         anyChange = true;
                     }
                     else
                     {
-                        Log.Warning("[FullSync] Failed to add {Path}", path);
+                        Log.Warning("[FullSync] SvnStatus: AddFailed, Path: {Path}", path);
                     }
                     break;
                 }
@@ -311,12 +311,12 @@ public class SyncService : IDisposable
                     var delSuccess = await _svnService.DeleteAsync(path);
                     if (delSuccess)
                     {
-                        Log.Information("[FullSync] Marked deleted: {Path}", path);
+                        Log.Information("[FullSync] SvnStatus: Deleted, Path: {Path}", path);
                         anyChange = true;
                     }
                     else
                     {
-                        Log.Warning("[FullSync] Failed to delete {Path}", path);
+                        Log.Warning("[FullSync] SvnStatus: DeleteFailed, Path: {Path}", path);
                     }
                     break;
                 }
