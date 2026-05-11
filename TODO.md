@@ -52,6 +52,12 @@
 - [x] **自定义 MsgBox 对话框**（解决 Alt+Tab 时 dialog 消失、title 遮蔽基类、binding 失效三个坑）
 - [x] **本地化 MsgBox 按钮文本**（中文：是/否，英文：Yes/No）
 - [x] **删除/重命名/新建文件夹去掉立即 commit**（由 SyncService 的 FullSyncAsync 统一兜底，避免频繁网络延迟阻塞）
+- [x] **右键菜单图标注入**（首次打开右键菜单时按扩展名注入系统文件图标）
+- [x] **单实例运行**（Global Mutex，重复启动弹 MessageBox 后退出）
+- [x] **开机启动区分**（--autostart 参数，区分系统启动和手动启动）
+- [x] **同步周期调整为 1-10 分钟**（UI 滑块 + 提示文本 + 注册表写入）
+- [x] **移除 [IconInject] 调试日志**
+- [x] **Windows 安装包**（Inno Setup，CI 自动编译，Release 同时包含 zip 便携版和 exe 安装包）
 
 ### ⏳ 待完成
 
@@ -63,7 +69,11 @@
 
 | Rev | 内容 |
 |-----|------|
-| r511 | NewFolder: svn add only, no immediate commit - SyncService auto-commits on FullSync |
+| r547 | Add Inno Setup installer for Windows (installer.iss + CI steps) |
+| r546 | Remove [IconInject] debug logs |
+| r545 | Sync interval slider: 1-30 min → 1-10 min (UI + zh/en tips + registry) |
+| r544 | Auto-start: add --autostart arg to distinguish boot vs manual launch |
+| r543 | Add single-instance Global Mutex (second launch shows MsgBox and exits) |
 | r510 | Rename: svn delete old + svn add new, no immediate commit - SyncService auto-commits |
 | r509 | Delete: svn delete then physical delete - SyncService auto-commits on FullSync |
 | r508 | Delete: remove immediate SVN commit - let SyncService auto-commit to avoid blocking on network latency |

@@ -32,6 +32,11 @@ dotnet build -c Release
 
 运行：`bin/Release/net10.0-windows/win-x64/SVNFileBox.exe`
 
+## 下载
+
+- **便携版** `SVNFileBox-win64.zip`：绿色版，解压即用，内置 .NET 10 运行时
+- **安装包** `SVNFileBox-Setup.exe`：安装向导，支持开始菜单/桌面快捷方式/卸载程序
+
 ## 技术栈
 
 - .NET 10.0 + WPF + Fluent UI（内置 `PresentationFramework.Fluent`）
