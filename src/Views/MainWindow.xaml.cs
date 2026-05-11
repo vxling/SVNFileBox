@@ -118,18 +118,25 @@ public partial class MainWindow : Window
     /// </summary>
     private void InjectIconsOnFirstOpen(ItemsControl menu)
     {
+        Log.Debug("[IconInject] InjectIconsOnFirstOpen called, Items.Count={Count}", menu.Items.Count);
         foreach (var item in menu.Items)
         {
             if (item is MenuItem mi)
             {
+                Log.Debug("[IconInject]   MenuItem: Name={Name}, Header={Header}, Items.Count={ChildCount}, Icon={Icon}",
+                    mi.Name, mi.Header, mi.Items.Count, mi.Icon);
                 // "新建" 子菜单：判断条件改为有子项且没有 Icon（即尚未注入）
                 if (mi.Items.Count > 0 && mi.Icon == null)
                 {
                     mi.Icon = "✨";
+                    Log.Debug("[IconInject]   → Set parent Icon=✨, iterating {ChildCount} children", mi.Items.Count);
                     foreach (var child in mi.Items)
                     {
                         if (child is MenuItem childMi)
+                        {
+                            Log.Debug("[IconInject]     Child: Name={Name}, Header={Header}", childMi.Name, childMi.Header);
                             ApplyIconByExt(childMi);
+                        }
                     }
                 }
             }
@@ -148,9 +155,15 @@ public partial class MainWindow : Window
                 break;
             }
         }
-        if (ext == null) return;
+        if (ext == null)
+        {
+            Log.Debug("[IconInject]     → No ext match for {Name}, skipping", mi.Name);
+            return;
+        }
 
+        Log.Debug("[IconInject]     → Matched ext={Ext}, calling IconExtractor.GetIcon", ext);
         var icon = IconExtractor.GetIcon(ext);
+        Log.Debug("[IconInject]     → IconExtractor returned: {Type} = {Value}", icon?.GetType().Name, icon);
         if (icon is System.Windows.Media.ImageSource img)
             mi.Icon = img;
         else if (icon is string emoji)
