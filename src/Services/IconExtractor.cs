@@ -17,8 +17,8 @@ namespace SVNFileBox.Services;
 /// </summary>
 public static class IconExtractor
 {
-    // 扩展名 → ImageSource（系统图标）
-    private static readonly Dictionary<string, ImageSource> _iconCache = new();
+    // 扩展名 → Icon（可能是 ImageSource 系统图标，也可能是 string emoji）
+    private static readonly Dictionary<string, object> _iconCache = new();
 
     // 扩展名 → 回退用的 emoji（提取失败时使用）
     private static readonly Dictionary<string, string> _fallbackEmoji = new()
@@ -93,9 +93,9 @@ public static class IconExtractor
             return systemIcon;
         }
 
-        // 3. 回退到 emoji（同时缓存 null，，下次直接返回 emoji，不再做系统调用）
+        // 3. 回退到 emoji（缓存 emoji，下次直接返回，不再做系统调用）
         var emoji = _fallbackEmoji.GetValueOrDefault(ext, "📄");
-        _iconCache[ext] = null!; // 标记"已尝试，失败"
+        _iconCache[ext] = emoji;
         return emoji;
     }
 

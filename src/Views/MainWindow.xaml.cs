@@ -122,8 +122,8 @@ public partial class MainWindow : Window
         {
             if (item is MenuItem mi)
             {
-                // "新建" 子菜单
-                if (mi.Header?.ToString()?.Contains("New") == true && mi.Items.Count > 0)
+                // "新建" 子菜单：判断条件改为有子项且没有 Icon（即尚未注入）
+                if (mi.Items.Count > 0 && mi.Icon == null)
                 {
                     mi.Icon = "✨";
                     foreach (var child in mi.Items)
@@ -141,7 +141,8 @@ public partial class MainWindow : Window
         string? ext = null;
         foreach (var kv in _headerToExt)
         {
-            if (mi.Name == kv.Key || mi.Header?.ToString()?.Contains(kv.Key) == true)
+            // x:Name = "NewTextFileMenuItem" → starts with "NewTextFile"
+            if (mi.Name?.StartsWith(kv.Key) == true)
             {
                 ext = kv.Value;
                 break;
