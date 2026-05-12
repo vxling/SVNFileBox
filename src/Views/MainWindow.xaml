@@ -56,7 +56,7 @@
             <MenuItem Header="{DynamicResource Refresh}" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
             <Separator/>
             <MenuItem Header="{DynamicResource Copy}" Click="Copy_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
-            <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="🔗"/>
+            <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="🔗" Visibility="Collapsed"/>
             <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
             <Separator/>
             <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
