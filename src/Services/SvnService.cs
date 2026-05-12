@@ -183,6 +183,7 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
+                AcceptSelfSignedCert(client);
                 var uri = new Uri(repoUrl);
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
@@ -415,6 +416,7 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
+                AcceptSelfSignedCert(client);
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
                 SvnUpdateResult? result = null;
@@ -460,6 +462,19 @@ public class SvnService : IDisposable
     }
 
     /// <summary>
+    /// Registers a self-signed certificate acceptance handler on the client so
+    /// --trust-server-cert behavior is consistent across all operations.
+    /// </summary>
+    private static void AcceptSelfSignedCert(SvnClient client)
+    {
+        client.ServersCertificateFailure += (sender, e) =>
+        {
+            Log.Debug("Accepting self-signed SSL certificate for {Host}", e.HostName);
+            e.Accept = true;
+        };
+    }
+
+    /// <summary>
     /// Lightweight connection test — does a single svn list with depth=empty
     /// to determine reachability and categorize the error if any.
     /// </summary>
@@ -473,6 +488,7 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
+                AcceptSelfSignedCert(client);
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
 
