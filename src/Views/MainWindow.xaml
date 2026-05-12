@@ -53,10 +53,14 @@
 
         <!-- Context Menu for file list -->
         <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
+            <MenuItem Header="{DynamicResource Refresh}" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
+            <Separator/>
             <MenuItem Header="{DynamicResource Copy}" Click="Copy_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
             <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="🔗"/>
-            <Separator/>
             <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
+            <Separator/>
+            <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
+            <MenuItem Header="{DynamicResource Rename}" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
             <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
             <MenuItem Header="{DynamicResource New}" x:Name="NewMenuItem" IsEnabled="{Binding CanOperate}">
                 <MenuItem Header="{DynamicResource NewTextFile}" Click="NewTextFile_Click" x:Name="NewTextFileMenuItem"/>
@@ -66,11 +70,6 @@
                 <MenuItem Header="{DynamicResource NewPngImage}" Click="NewPngImage_Click" x:Name="NewPngImageMenuItem"/>
                 <MenuItem Header="{DynamicResource NewBmpImage}" Click="NewBmpImage_Click" x:Name="NewBmpImageMenuItem"/>
             </MenuItem>
-            <MenuItem Header="{DynamicResource Rename}" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
-            <Separator/>
-            <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
-            <Separator/>
-            <MenuItem Header="{DynamicResource Refresh}" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
             <Separator/>
             <MenuItem Header="{DynamicResource ManualSync}" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Icon="🔃"/>
             <Separator/>
