@@ -53,7 +53,9 @@ public partial class MainWindow : Window
         // Inject system icons (or emoji fallback) into the "新建" submenu — once
         // 动态查找 NewMenuItem，用 LogicalTreeHelper 避免 x:Name 字段生成问题
         var newMenu = LogicalTreeHelper.FindLogicalNode(cm, "NewMenuItem") as MenuItem;
-        if (newMenu?.Icon == null)
+        // 检查子项是否已有图标（已有注入则跳过）
+        var firstChild = newMenu?.Items.Count > 0 ? newMenu!.Items[0] as MenuItem : null;
+        if (firstChild?.Icon == null)
             InjectIconsOnFirstOpen(newMenu!);
     }
 
@@ -120,11 +122,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void InjectIconsOnFirstOpen(ItemsControl menu)
     {
-        // 第二次打开时如果已有注入（父 Icon != null），直接跳过
-        if ((menu as MenuItem)?.Icon != null)
-        {
-            return;
-        }
+        // Guard: 由调用方 ContextMenu_Opened 通过 firstChild?.Icon == null 保证，
+        // 这里不再检查父 Icon，避免 XAML 已设 Icon 时阻止子项注入
 
         foreach (var item in menu.Items)
         {
@@ -132,13 +131,12 @@ public partial class MainWindow : Window
             {
                 if (mi.Items.Count > 0)
                 {
-                    // 有子项的父 MenuItem → 设置 ✨ 并递归处理子项
-                    mi.Icon = "✨";
+                    // 有子项 → 递归处理子项（父 Icon 已由 XAML 设置）
                     foreach (var child in mi.Items)
                     {
                         if (child is MenuItem childMi)
                         {
-                            ApplyIconByExt(childMi);
+                            InjectIconsOnFirstOpen(childMi);
                         }
                     }
                 }
