@@ -39,7 +39,7 @@ public class QueueCommitProcessor : IDisposable
     /// </summary>
     public event EventHandler<IReadOnlyList<PendingCommitItem>>? BatchFailed;
 
-    public QueueCommitProcessor(SvnService svnService, int intervalSeconds = 30, int minBatchSize = 5)
+    public QueueCommitProcessor(SvnService svnService, int intervalSeconds = 60, int minBatchSize = 5)
     {
         _svnService = svnService;
         _intervalMs = intervalSeconds * 1000;
@@ -48,10 +48,21 @@ public class QueueCommitProcessor : IDisposable
         _timer = new System.Timers.Timer(_intervalMs);
         _timer.Elapsed += OnTimerElapsed;
         _timer.AutoReset = true;
-        _timer.Start();
 
-        Log.Information("[QueueCommitProcessor] Started, interval={Interval}s, minBatch={MinBatch}",
+        Log.Information("[QueueCommitProcessor] Created, interval={Interval}s, minBatch={MinBatch}",
             intervalSeconds, minBatchSize);
+    }
+
+    public void Start()
+    {
+        _timer.Start();
+        Log.Debug("[QueueCommitProcessor] Timer started");
+    }
+
+    public void Stop()
+    {
+        _timer.Stop();
+        Log.Debug("[QueueCommitProcessor] Timer stopped");
     }
 
     private void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)

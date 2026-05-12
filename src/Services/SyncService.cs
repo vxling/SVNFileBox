@@ -85,6 +85,7 @@ public class SyncService : IDisposable
         _fileWatcher.StartWatching(repo.Path);
         _pollTimer.Start();
         _fullSyncTimer.Start();
+        _queueProcessor.Start();
         Log.Information("Sync started for {Name} at {Path}", repo.Name, repo.Path);
     }
 
@@ -93,6 +94,7 @@ public class SyncService : IDisposable
         _fileWatcher.StopWatching();
         _pollTimer.Stop();
         _fullSyncTimer.Stop();
+        _queueProcessor.Stop();
         Log.Information("Sync stopped");
     }
 
