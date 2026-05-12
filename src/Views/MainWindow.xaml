@@ -53,6 +53,8 @@
 
         <!-- Context Menu for file list -->
         <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
+            <MenuItem Header="{DynamicResource Open}" Click="Open_Click" x:Name="OpenMenuItem" Icon="📂"/>
+            <Separator/>
             <MenuItem Header="{DynamicResource Refresh}" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
             <Separator/>
             <MenuItem Header="{DynamicResource Copy}" Click="Copy_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>

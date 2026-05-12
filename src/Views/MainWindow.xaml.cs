@@ -46,7 +46,10 @@ public partial class MainWindow : Window
             if (item is MenuItem mi && mi.Name == "PasteMenuItem")
             {
                 mi.IsEnabled = _viewModel.CanOperate && Clipboard.ContainsFileDropList();
-                break;
+            }
+            else if (item is MenuItem mi2 && mi2.Name == "OpenMenuItem")
+            {
+                mi2.IsEnabled = GetFileItemFromContextMenu(mi2) != null;
             }
         }
 
@@ -274,6 +277,38 @@ public partial class MainWindow : Window
                         Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                     _viewModel!.StatusText = LocalizationService.Instance.GetString("OpenFailed", ex.Message);
                 }
+            }
+        }
+    }
+
+    private void Open_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetFileItemFromContextMenu(sender) is not FileItem item)
+            return;
+
+        if (item.Name == "..")
+        {
+            _viewModel?.NavigateInto(item);
+            return;
+        }
+
+        if (item.IsDirectory || Directory.Exists(item.FullPath))
+        {
+            _viewModel?.NavigateInto(item);
+        }
+        else if (File.Exists(item.FullPath))
+        {
+            try
+            {
+                var psi = new ProcessStartInfo { FileName = item.FullPath, UseShellExecute = true };
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to open file: {Path}", item.FullPath);
+                ShowToast(LocalizationService.Instance.GetString("OpenFailed", ex.Message),
+                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
+                _viewModel!.StatusText = LocalizationService.Instance.GetString("OpenFailed", ex.Message);
             }
         }
     }
