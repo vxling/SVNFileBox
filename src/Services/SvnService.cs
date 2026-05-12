@@ -476,6 +476,13 @@ public class SvnService : IDisposable
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
 
+                // Auto-accept self-signed/insecure SSL certificates
+                client.Authentication.SslServerTrustHandlers += (sender, e) =>
+                {
+                    e.AcceptedFailures = e.Failures;
+                    e.Save = true;
+                };
+
                 SvnListEventArgs? info = null;
                 client.List(new SvnUriTarget(url), new SvnListArgs { Depth = SvnDepth.Empty },
                     new EventHandler<SvnListEventArgs>((s, e) => info = e));
