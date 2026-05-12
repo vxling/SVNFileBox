@@ -11,7 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Logo / Title -->
@@ -31,11 +31,11 @@
 
         <!-- Description -->
         <StackPanel Grid.Row="2" Margin="0,0,0,12">
-            <TextBlock Text="{DynamicResource Desc1}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center"/>
-            <TextBlock Text="{DynamicResource Desc2}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Margin="0,5,0,0"/>
+            <TextBlock Text="{DynamicResource Desc1}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" MaxHeight="40" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{DynamicResource Desc2}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Margin="0,5,0,0" MaxHeight="40" TextTrimming="CharacterEllipsis"/>
         </StackPanel>
 
         <!-- Close button -->
-        <Button Grid.Row="3" Content="{DynamicResource Close}" HorizontalAlignment="Center" VerticalAlignment="Top" Click="Close_Click" Margin="0,20,0,0" MinWidth="80" Padding="12,6"/>
+        <Button Grid.Row="3" Content="{DynamicResource Close}" HorizontalAlignment="Center" Click="Close_Click" MinWidth="80" Padding="12,6"/>
     </Grid>
 </Window>
