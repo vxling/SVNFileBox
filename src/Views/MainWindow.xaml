@@ -238,7 +238,7 @@
                                                     CornerRadius="9" Padding="2,0" HorizontalAlignment="Center"
                                                     Width="18" Height="18">
                                                 <TextBlock Text="{Binding SvnStatus, Converter={StaticResource SvnStatusToTextConverter}}"
-                                                           FontSize="10" FontWeight="Bold"
+                                                           Foreground="White" FontSize="10" FontWeight="Bold"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                         </DataTemplate>
