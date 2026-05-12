@@ -16,7 +16,7 @@ public partial class CheckoutWindow : Window
     private readonly IReadOnlyList<Repository> _existingRepos;
     private string? _generatedLocalPath;
 
-    public string? RepoName => RepoNameBox.Text?.Trim();
+    public string? RepoName => RepoNameBox.Text.Trim();
     public string? RepoUrl => RepoUrlBox.Text?.Trim();
     public string? Username => string.IsNullOrWhiteSpace(UsernameBox.Text) ? null : UsernameBox.Text.Trim();
     public string? Password => string.IsNullOrWhiteSpace(PasswordBox.Password) ? null : PasswordBox.Password;
@@ -74,9 +74,17 @@ public partial class CheckoutWindow : Window
         ErrorText.Text = "";
 
         // Validation
-        if (string.IsNullOrWhiteSpace(RepoName))
+        var repoName = RepoName;
+        if (string.IsNullOrWhiteSpace(repoName))
         {
             ShowError(LocalizationService.Instance.GetString("RepoNameRequired"));
+            return;
+        }
+        // Check invalid path characters
+        var invalidChars = Path.GetInvalidFileNameChars();
+        if (repoName.IndexOfAny(invalidChars) >= 0)
+        {
+            ShowError(LocalizationService.Instance.GetString("RepoNameInvalid"));
             return;
         }
         if (string.IsNullOrWhiteSpace(RepoUrl))

@@ -16,20 +16,20 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="100"/>
+            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource RepoName}" VerticalAlignment="Center" FontSize="13"/>
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource RepoName}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
         <TextBox x:Name="RepoNameBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource RepoUrl}" VerticalAlignment="Center" FontSize="13"/>
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource RepoUrl}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
         <TextBox x:Name="RepoUrlBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Username}" VerticalAlignment="Center" FontSize="13"/>
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Username}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
         <TextBox x:Name="UsernameBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Password}" VerticalAlignment="Center" FontSize="13"/>
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Password}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
         <PasswordBox x:Name="PasswordBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
 
         <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource LocalPath}" VerticalAlignment="Center" FontSize="13" Visibility="Collapsed"/>
