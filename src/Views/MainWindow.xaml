@@ -99,8 +99,8 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="CurrentPathText" Grid.Column="0" Text="" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Grid.Column="1" Text="" Foreground="White" FontSize="12" VerticalAlignment="Center" MaxWidth="500" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="CurrentPathText" Grid.Column="0" Text="" FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Grid.Column="1" Text="" FontSize="12" VerticalAlignment="Center" MaxWidth="500" TextTrimming="CharacterEllipsis"/>
             </Grid>
         </Border>
 
@@ -238,7 +238,7 @@
                                                     CornerRadius="9" Padding="2,0" HorizontalAlignment="Center"
                                                     Width="18" Height="18">
                                                 <TextBlock Text="{Binding SvnStatus, Converter={StaticResource SvnStatusToTextConverter}}"
-                                                           Foreground="White" FontSize="10" FontWeight="Bold"
+                                                           FontSize="10" FontWeight="Bold"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                         </DataTemplate>
