@@ -89,15 +89,22 @@ jobs:
             exit 1
           }
           Write-Host "Running: $iscc installer.iss"
-          # Use cmd /c to capture exit code properly
-          $output = & cmd /c "$iscc installer.iss 2>&1"
-          $exitCode = $LASTEXITCODE
-          Write-Host $output
-          Write-Host "Exit code: $exitCode"
-          if ($exitCode -ne 0) {
-            Write-Host "ERROR: ISCC failed with exit code $exitCode"
-            exit 1
-          }
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = $iscc
+          $psi.Arguments = "installer.iss"
+          $psi.WorkingDirectory = (Get-Location).Path
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+          $psi.UseShellExecute = $false
+          $psi.CreateNoWindow = $true
+          $proc = [System.Diagnostics.Process]::Start($psi)
+          $stdout = $proc.StandardOutput.ReadToEnd()
+          $stderr = $proc.StandardError.ReadToEnd()
+          $proc.WaitForExit()
+          Write-Host "STDOUT: $stdout"
+          Write-Host "STDERR: $stderr"
+          Write-Host "Exit code: $($proc.ExitCode)"
+          if ($proc.ExitCode -ne 0) { exit 1 }
           if (Test-Path SVNFileBox-Setup.exe) {
             $size = (Get-Item SVNFileBox-Setup.exe).Length
             Write-Host "Installer built: $size bytes ($([math]::Round($size/1MB, 2)) MB)"
