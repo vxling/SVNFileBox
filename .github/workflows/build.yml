@@ -82,8 +82,27 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-          Write-Host "Installer built: $(Get-Item SVNFileBox-Setup.exe).Length bytes"
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Host "ERROR: ISCC.exe not found at $iscc"
+            Get-ChildItem "C:\Program Files (x86)" -Filter "ISCC*" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
+            exit 1
+          }
+          Write-Host "Found ISCC at: $iscc"
+          Write-Host "Current dir: $(Get-Location)"
+          Write-Host "Files in current dir:"
+          Get-ChildItem | Select-Object Name, Length | Format-Table
+          & $iscc installer.iss
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ISCC exited with code: $LASTEXITCODE"
+            exit 1
+          }
+          if (Test-Path SVNFileBox-Setup.exe) {
+            Write-Host "Installer built: $(Get-Item SVNFileBox-Setup.exe).Length bytes"
+          } else {
+            Write-Host "ERROR: SVNFileBox-Setup.exe was not created"
+            exit 1
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
