@@ -59,7 +59,7 @@ jobs:
       - name: Download Inno Setup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          curl -sSL -o is.exe "https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe"
+          curl -sSL -o is.exe "https://jrsoftware.org/download.php/is.exe"
           Start-Process -Wait -FilePath ./is.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -NoNewWindow
           Write-Host "Inno Setup installed"
 
