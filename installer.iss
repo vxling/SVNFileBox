@@ -42,3 +42,12 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Uninstall]
+; 先强制杀掉正在运行的程序（防止程序驻留后台导致卸载失败）
+Exec('cmd', '/c taskkill /F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+; 删除安装目录（程序文件）
+DirExists: "{app}"; Flags: removedirectories
+; 删除 %APPDATA%\SVNFileBox（配置信息）
+Delete: "{userappdata}\{#MyAppName}\*"
+RMDir: "{userappdata}\{#MyAppName}"
