@@ -2,7 +2,7 @@
 ; 生成 Windows 安装包 (EXE)
 
 #define MyAppName "SVNFileBox"
-#define MyAppVersion "2.3.0"
+#define MyAppVersion "2.3.1"
 #define MyAppPublisher "vxling"
 #define MyAppExeName "SVNFileBox.exe"
 
