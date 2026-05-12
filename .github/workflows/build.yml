@@ -60,8 +60,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
-          curl -sSL -o is.exe "https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe"
-          Start-Process -Wait -FilePath ./is.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -NoNewWindow
+          choco install innosetup -y
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           $timeout = 120
           $elapsed = 0
