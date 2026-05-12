@@ -286,6 +286,14 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] Add locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(filePath);
+                    using var retryClient = CreateClient();
+                    return retryClient.Add(filePath);
+                }
                 Log.Error(ex, "Add failed for {Path}", filePath);
                 return false;
             }
@@ -379,6 +387,15 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] Revert locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(path);
+                    using var retryClient = CreateClient();
+                    var retryArgs = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
+                    return retryClient.Revert(path, retryArgs);
+                }
                 Log.Error(ex, "Revert failed for {Path}", path);
                 return false;
             }
@@ -423,6 +440,25 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] SvnAddRecursive locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(directoryPath);
+
+                    using var retryClient = CreateClient();
+                    retryClient.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
+                    int count = 0;
+                    foreach (var r in results)
+                    {
+                        if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
+                        {
+                            if (retryClient.Add(r.Path))
+                                count++;
+                        }
+                    }
+                    return (count.ToString(), 0);
+                }
                 Log.Error(ex, "Add recursive failed for {Path}", directoryPath);
                 return ("", 1);
             }
@@ -482,6 +518,18 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] Checkout locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(localPath);
+                    using var retryClient = CreateClient();
+                    if (!string.IsNullOrEmpty(username))
+                        retryClient.Authentication.ForceCredentials(username, password ?? "");
+                    SvnUpdateResult? result2 = null;
+                    retryClient.CheckOut(new SvnUriTarget(url), localPath, new SvnCheckOutArgs(), out result2);
+                    return (result2?.Revision.ToString() ?? "", 0, "");
+                }
                 Log.Error(ex, "Checkout failed for {Url} to {Path}", url, localPath);
                 return ("", 1, ex.Message);
             }
@@ -616,6 +664,14 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] Resolve locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(path);
+                    using var retryClient = CreateClient();
+                    return retryClient.Resolve(path, accept);
+                }
                 Log.Error(ex, "Resolve failed for {Path}", path);
                 return false;
             }
