@@ -93,7 +93,7 @@
         </tb:TaskbarIcon>
 
         <!-- Bottom Status Bar -->
-        <Border DockPanel.Dock="Bottom" Background="#1E88E5" Padding="12,6">
+        <Border DockPanel.Dock="Bottom" Padding="12,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
