@@ -27,6 +27,8 @@ public partial class MainWindow : Window
     private readonly FileAnalyzer _fileAnalyzer = new();
     private readonly FileCopier _fileCopier = new();
     private bool _isExiting;
+    private readonly List<(string Message, Hardcodet.Wpf.TaskbarNotification.BalloonIcon Icon)> _pendingToasts = new();
+    private bool _toastIconReady;
     /// <summary>Prevents concurrent ExecuteCopyAsync calls (drag/drop + paste simultaneously).</summary>
     private int _isCopying;
 
@@ -969,12 +971,29 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 
-    /// <summary>Shows a toast notification via the system tray balloon tip.</summary>
+    /// <summary>Shows a toast notification via the system tray balloon tip.
+    /// Queues notifications until TrayIcon is ready, then flushes them.</summary>
     public void ShowToast(string message, Hardcodet.Wpf.TaskbarNotification.BalloonIcon icon = Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info)
     {
         Dispatcher.Invoke(() =>
         {
-            if (TrayIcon == null || TrayIcon.IsDisposed) return;
+            if (TrayIcon == null || TrayIcon.IsDisposed)
+            {
+                Log.Debug("[ShowToast] TrayIcon not ready, queueing notification: {Message}", message);
+                _pendingToasts.Add((message, icon));
+                return;
+            }
+
+            // TrayIcon is ready — mark it and flush any queued notifications
+            if (!_toastIconReady)
+            {
+                _toastIconReady = true;
+                Log.Information("[ShowToast] TrayIcon ready, flushing {Count} queued notifications", _pendingToasts.Count);
+                foreach (var (queuedMsg, queuedIcon) in _pendingToasts)
+                    TrayIcon.ShowBalloonTip("SVNFileBox", queuedMsg, queuedIcon);
+                _pendingToasts.Clear();
+            }
+
             TrayIcon.ShowBalloonTip("SVNFileBox", message, icon);
         });
     }
