@@ -82,11 +82,10 @@ jobs:
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
-            Write-Host "ERROR: ISCC not found"
-            exit 1
-          }
-          Write-Host "ISCC found: $iscc"
+          $langDir = "C:\Program Files (x86)\Inno Setup 6\Languages"
+          # Copy ChineseSimplified.isl to Languages dir (not included in base install)
+          Copy-Item installer\ChineseSimplified.isl $langDir -Force
+          Write-Host "Copied ISL to: $langDir"
           Write-Host "installer.iss exists: $(Test-Path installer.iss)"
           cmd /c " `"$iscc`" installer.iss"
           $exitCode = $LASTEXITCODE
