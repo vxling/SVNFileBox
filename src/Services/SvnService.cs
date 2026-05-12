@@ -35,6 +35,21 @@ public class SvnService : IDisposable
     /// </summary>
     private const int DefaultTimeoutMs = 120_000;
 
+    /// <summary>
+    /// Creates a SvnClient with SSL certificate auto-accept pre-configured.
+    /// Must be called BEFORE any SVN operation on the client instance.
+    /// </summary>
+    private static SvnClient CreateClient()
+    {
+        var client = new SvnClient(); // raw, not via CreateClient() to avoid recursion
+        client.Authentication.SslServerTrustHandlers += (sender, e) =>
+        {
+            e.AcceptedFailures = e.Failures;
+            e.Save = true;
+        };
+        return client;
+    }
+
     public SvnService()
     {
         // Set default ServicePointManager timeout for all HTTP/Web requests (SVN uses HTTP)
@@ -91,7 +106,7 @@ public class SvnService : IDisposable
 
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 var handler = new EventHandler<SvnStatusEventArgs>(delegate(object? sender, SvnStatusEventArgs item)
                 {
                     var path = item.Path;
@@ -144,7 +159,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 var root = client.GetRepositoryRoot(workingCopyPath);
                 return root?.ToString() ?? "";
             }
@@ -162,7 +177,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
                 client.Info(workingCopyPath, handler);
@@ -182,7 +197,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 var uri = new Uri(repoUrl);
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
@@ -211,7 +226,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 var args = new SvnCommitArgs { LogMessage = message };
                 return client.Commit(workingCopyPath, args);
             }
@@ -229,7 +244,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Update(workingCopyPath);
             }
             catch (Exception ex)
@@ -246,7 +261,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Add(filePath);
             }
             catch (Exception ex)
@@ -263,7 +278,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Add(path);
             }
             catch (Exception ex)
@@ -280,7 +295,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Delete(path);
             }
             catch (Exception ex)
@@ -297,7 +312,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Move(fromPath, toPath);
             }
             catch (Exception ex)
@@ -314,7 +329,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 var args = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
                 return client.Revert(path, args);
             }
@@ -332,7 +347,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.CleanUp(workingCopyPath);
             }
             catch (Exception ex)
@@ -349,7 +364,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
                 int count = 0;
                 foreach (var r in results)
@@ -376,7 +391,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Unlock(new[] { path }, new SvnUnlockArgs());
             }
             catch (Exception ex)
@@ -393,7 +408,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Lock(path, new SvnLockArgs { StealLock = true });
             }
             catch (Exception ex)
@@ -414,7 +429,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
                 SvnUpdateResult? result = null;
@@ -434,7 +449,7 @@ public class SvnService : IDisposable
         // These are fast local-only checks — no need to serialize or timeout
         try
         {
-            using var client = new SvnClient();
+            using var client = CreateClient();
             return client.GetRepositoryRoot(path) != null;
         }
         catch
@@ -472,16 +487,9 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
-
-                // Auto-accept self-signed/insecure SSL certificates
-                client.Authentication.SslServerTrustHandlers += (sender, e) =>
-                {
-                    e.AcceptedFailures = e.Failures;
-                    e.Save = true;
-                };
 
                 SvnListEventArgs? info = null;
                 client.List(new SvnUriTarget(url), new SvnListArgs { Depth = SvnDepth.Empty },
@@ -539,7 +547,7 @@ public class SvnService : IDisposable
         // Fast local-only check — no need to serialize or timeout
         try
         {
-            using var client = new SvnClient();
+            using var client = CreateClient();
             return client.GetRepositoryRoot(path) != null;
         }
         catch
@@ -559,7 +567,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 return client.Resolve(path, accept);
             }
             catch (Exception ex)
@@ -581,7 +589,7 @@ public class SvnService : IDisposable
             var files = new List<string>();
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 client.GetStatus(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = SvnDepth.Infinity,
@@ -608,7 +616,7 @@ public class SvnService : IDisposable
         {
             try
             {
-                using var client = new SvnClient();
+                using var client = CreateClient();
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
                 client.Info(filePath, handler);
