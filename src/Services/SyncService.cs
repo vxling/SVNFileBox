@@ -320,6 +320,28 @@ public class SyncService : IDisposable
                     }
                     break;
                 }
+                case FileSvnStatus.Modified:
+                case FileSvnStatus.Added:
+                case FileSvnStatus.Deleted:
+                case FileSvnStatus.Replaced:
+                {
+                    // Already marked in SVN index (staged), just needs a commit
+                    Log.Information("[FullSync] SvnStatus: {Status}, Path: {Path}", status, path);
+                    anyChange = true;
+                    break;
+                }
+                case FileSvnStatus.Conflicted:
+                {
+                    // Cannot auto-resolve — leave for user to handle
+                    Log.Warning("[FullSync] SvnStatus: Conflicted, Path: {Path} — skipping, requires manual resolution", path);
+                    break;
+                }
+                default:
+                {
+                    // Obstructed, External, Unknown, etc. — skip
+                    Log.Debug("[FullSync] SvnStatus: {Status}, Path: {Path} — skipped", status, path);
+                    break;
+                }
             }
         }
 

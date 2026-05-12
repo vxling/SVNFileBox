@@ -167,7 +167,7 @@ public class FileCopier
 
         // Commit once after all files are copied
         // (directories were added during the dirs loop, files were added per-file above)
-        if (copied > 0 && !token.IsCancellationRequested)
+        if ((copied > 0 || svnAddedPaths.Count > 0) && !token.IsCancellationRequested)
         {
             try
             {
