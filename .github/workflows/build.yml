@@ -56,11 +56,12 @@ jobs:
           Write-Host "Zip size: $size bytes ($([math]::Round($size/1MB, 2)) MB)"
           if ($size -lt 10MB) { Write-Host "WARNING: zip is smaller than 10MB, likely missing runtime" }
 
-      - name: Install Inno Setup via winget
+      - name: Install Inno Setup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
-          winget install JRSoftware.InnoSetup --accept-package-agreements --accept-source-agreements
+          curl -sSL -o is.exe "https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe"
+          Start-Process -Wait -FilePath ./is.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -NoNewWindow
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           $timeout = 120
           $elapsed = 0
@@ -73,6 +74,7 @@ jobs:
             Write-Host "Inno Setup installed: $iscc"
           } else {
             Write-Host "ERROR: Inno Setup installation timed out"
+            Get-ChildItem "C:\Program Files (x86)" -Filter "Inno*" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
             exit 1
           }
 
