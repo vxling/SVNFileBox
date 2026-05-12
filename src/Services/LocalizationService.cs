@@ -155,6 +155,15 @@ public class LocalizationService
             ["CannotCreateDir"] = "无法创建目录: {0}",
             ["CheckoutInProgress"] = "正在 checkout，请稍候...",
 
+            // Connection test errors
+            ["ErrAuthFailed"] = "用户名或密码错误",
+            ["ErrAccessDenied"] = "无权访问该仓库",
+            ["ErrRepoNotFound"] = "仓库不存在或地址错误",
+            ["ErrNetworkError"] = "网络不可达，请检查地址是否正确",
+            ["ErrSslCertError"] = "SSL 证书验证失败，请确认是可信服务器",
+            ["ErrTimeout"] = "连接超时，服务器响应过慢或不可达",
+            ["ErrUnknown"] = "连接失败: {0}",
+
             // Splash
             ["SplashTagline"] = "SVN 文件管理器",
             ["SplashInitializing"] = "正在初始化...",
@@ -355,6 +364,15 @@ public class LocalizationService
             ["DuplicateRepoUrl"] = "This network repository URL already exists and cannot be added again.",
             ["CannotCreateDir"] = "Cannot create directory: {0}",
             ["CheckoutInProgress"] = "Checking out, please wait...",
+
+            // Connection test errors
+            ["ErrAuthFailed"] = "Incorrect username or password",
+            ["ErrAccessDenied"] = "You do not have permission to access this repository",
+            ["ErrRepoNotFound"] = "Repository does not exist or URL is incorrect",
+            ["ErrNetworkError"] = "Network unreachable, please check the address",
+            ["ErrSslCertError"] = "SSL certificate verification failed, please confirm this is a trusted server",
+            ["ErrTimeout"] = "Connection timed out, server is slow or unreachable",
+            ["ErrUnknown"] = "Connection failed: {0}",
 
             // Splash
             ["SplashTagline"] = "SVN File Manager",

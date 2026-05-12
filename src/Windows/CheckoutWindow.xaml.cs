@@ -124,6 +124,28 @@ public partial class CheckoutWindow : Window
 
         SetLoading(true, LocalizationService.Instance.GetString("CheckoutInProgress"));
 
+        // First: lightweight connection test to give specific error feedback
+        var (connectResult, connectError) = await _svnService.TestConnectionAsync(RepoUrl!, Username, Password);
+        if (connectResult != SvnService.SvnConnectResult.Success)
+        {
+            string msgKey = connectResult switch
+            {
+                SvnService.SvnConnectResult.AuthFailed => "ErrAuthFailed",
+                SvnService.SvnConnectResult.AccessDenied => "ErrAccessDenied",
+                SvnService.SvnConnectResult.RepoNotFound => "ErrRepoNotFound",
+                SvnService.SvnConnectResult.NetworkError => "ErrNetworkError",
+                SvnService.SvnConnectResult.SslCertError => "ErrSslCertError",
+                SvnService.SvnConnectResult.Timeout => "ErrTimeout",
+                _ => "ErrUnknown",
+            };
+            var msg = connectResult == SvnService.SvnConnectResult.Unknown && !string.IsNullOrEmpty(connectError)
+                ? string.Format(LocalizationService.Instance.GetString(msgKey), connectError)
+                : LocalizationService.Instance.GetString(msgKey);
+            ShowError(msg);
+            SetLoading(false);
+            return;
+        }
+
         try
         {
             var (output, exitCode, error) = await _svnService.CheckoutAsync(

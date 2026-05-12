@@ -443,6 +443,92 @@ public class SvnService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Categorizes the result of a connection test to a repository URL,
+    /// used to give users specific feedback (auth failure, network issue, etc.).
+    /// </summary>
+    public enum SvnConnectResult
+    {
+        Success,
+        AuthFailed,        // 401 / authentication failed
+        AccessDenied,     // 403 / no read access
+        RepoNotFound,      // 404 / repository does not exist at this URL
+        NetworkError,      // network unreachable / DNS / connection refused
+        SslCertError,      // SSL certificate problem
+        Timeout,           // operation timed out
+        Unknown,           // anything else
+    }
+
+    /// <summary>
+    /// Lightweight connection test — does a single svn list with depth=empty
+    /// to determine reachability and categorize the error if any.
+    /// </summary>
+    public async Task<(SvnConnectResult result, string? errorMessage)> TestConnectionAsync(
+        string url,
+        string? username = null,
+        string? password = null)
+    {
+        return await ExecuteAsync(token =>
+        {
+            try
+            {
+                using var client = new SvnClient();
+                if (!string.IsNullOrEmpty(username))
+                    client.Authentication.ForceCredentials(username, password ?? "");
+
+                // SvnListArgs with Depth=Empty is the cheapest possible remote call
+                var args = new SvnListArgs { Depth = SvnDepth.Empty };
+                SvnListEventArgs? info = null;
+                client.List(new SvnUriTarget(url), args, out info);
+                return (SvnConnectResult.Success, (string?)null);
+            }
+            catch (SvnAuthenticationException)
+            {
+                return (SvnConnectResult.AuthFailed, null);
+            }
+            catch (SvnAccessDeniedException)
+            {
+                return (SvnConnectResult.AccessDenied, null);
+            }
+            catch (SvnRepositoryIOException ex) when (ex.Message.Contains("E175002") || ex.Message.Contains("170013"))
+            {
+                // E175002: PROPFIND of '/svn/xxx': 404 Not Found / repository not found
+                // E170013: Unable to connect to repository (same underlying condition)
+                return (SvnConnectResult.RepoNotFound, null);
+            }
+            catch (SvnRepositoryIOException ex) when (
+                ex.Message.Contains("E175003") ||      // PROPFIND on non-DAV endpoint
+                ex.Message.Contains("E175002") ||      // 405 Method Not Allowed etc.
+                ex.InnerException?.Message.Contains("SSL") == true ||
+                ex.InnerException?.Message.Contains("ssl") == true)
+            {
+                return (SvnConnectResult.SslCertError, null);
+            }
+            catch (SvnIOException ex)
+            {
+                var msg = ex.Message;
+                if (msg.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("could not resolve", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("No route to host", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("network", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (SvnConnectResult.NetworkError, null);
+                }
+                return (SvnConnectResult.Unknown, ex.Message);
+            }
+            catch (TimeoutException)
+            {
+                return (SvnConnectResult.Timeout, null);
+            }
+            catch (Exception ex)
+            {
+                return (SvnConnectResult.Unknown, ex.Message);
+            }
+        });
+    }
+
     public bool IsVersioned(string path)
     {
         // Fast local-only check — no need to serialize or timeout
