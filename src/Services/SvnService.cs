@@ -66,15 +66,8 @@ public class SvnService : IDisposable
     /// All SVN operations must go through this to prevent concurrent access issues.
     /// SharpSvn calls are synchronous; they run on a background thread with timeout enforced.
     /// </summary>
-    private Exception? _lastError;
-
-    /// <summary>Returns the last exception thrown by an SVN operation, useful for diagnosing
-    /// failures where only a bool is returned (e.g. CommitAsync/DeleteAsync).</summary>
-    public Exception? GetLastError() => _lastError;
-
     private async Task<T> ExecuteAsync<T>(Func<CancellationToken, T> operation, CancellationToken cancellationToken = default)
     {
-        _lastError = null;
         // Wait for exclusive access (queue behind any in-flight operation)
         if (!await _semaphore.WaitAsync(TimeSpan.FromMilliseconds(DefaultTimeoutMs), cancellationToken))
         {
@@ -96,7 +89,6 @@ public class SvnService : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _lastError = ex;
             throw;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -244,6 +236,14 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] Commit locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(workingCopyPath);
+                    using var retryClient = CreateClient();
+                    return retryClient.Commit(workingCopyPath, new SvnCommitArgs { LogMessage = message });
+                }
                 Log.Error(ex, "Commit failed for {Path}", workingCopyPath);
                 return false;
             }
@@ -259,44 +259,17 @@ public class SvnService : IDisposable
                 using var client = CreateClient();
                 return client.Update(workingCopyPath);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
-                // Detect SVN lock (WC lock or write lock) and auto-cleanup + retry once
-                if (ex is SharpSvn.SvnWorkingCopyException wce
-                    && (wce.Message.Contains("Previous operation has not finished")
-                        || wce.Message.Contains("write lock")
-                        || wce.Message.Contains("Lock token")))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
                 {
-                    Log.Warning("[SvnService] SVN lock detected on Update for {Path}. Running cleanup...", workingCopyPath);
-                    try
-                    {
-                        using var cleanupClient = CreateClient();
-                        cleanupClient.CleanUp(workingCopyPath);
-                    }
-                    catch (Exception cleanupEx)
-                    {
-                        Log.Error(cleanupEx, "[SvnService] Cleanup failed for {Path}", workingCopyPath);
-                        Log.Error(ex, "[SvnService] Update failed (cleanup failed) for {Path}", workingCopyPath);
-                        _lastError = ex;
-                        return false;
-                    }
-
-                    Log.Warning("[SvnService] Cleanup done, retrying Update for {Path}...", workingCopyPath);
-                    try
-                    {
-                        using var retryClient = CreateClient();
-                        return retryClient.Update(workingCopyPath);
-                    }
-                    catch (Exception retryEx)
-                    {
-                        Log.Error(retryEx, "[SvnService] Update still failing after cleanup for {Path}. Giving up.", workingCopyPath);
-                        _lastError = retryEx;
-                        return false;
-                    }
+                    Log.Warning("[SvnService] Update locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(workingCopyPath);
+                    using var retryClient = CreateClient();
+                    return retryClient.Update(workingCopyPath);
                 }
-
                 Log.Error(ex, "Update failed for {Path}", workingCopyPath);
-                _lastError = ex;
                 return false;
             }
         });
@@ -330,6 +303,14 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] AddPath locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(path);
+                    using var retryClient = CreateClient();
+                    return retryClient.Add(path);
+                }
                 Log.Error(ex, "AddPath failed for {Path}", path);
                 return false;
             }
@@ -347,6 +328,14 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] Delete locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(path);
+                    using var retryClient = CreateClient();
+                    return retryClient.Delete(path);
+                }
                 Log.Error(ex, "Delete failed for {Path}", path);
                 return false;
             }
@@ -364,6 +353,14 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning("[SvnService] Move locked, running cleanup and retrying...");
+                    using var cleanupClient = CreateClient();
+                    cleanupClient.CleanUp(fromPath);
+                    using var retryClient = CreateClient();
+                    return retryClient.Move(fromPath, toPath);
+                }
                 Log.Error(ex, "Move failed: {From} → {To}", fromPath, toPath);
                 return false;
             }

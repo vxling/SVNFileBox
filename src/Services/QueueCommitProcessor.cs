@@ -199,45 +199,11 @@ public class QueueCommitProcessor : IDisposable
             var repoRoot = FindRepoRoot(sorted);
             var committed = await _svnService.CommitAsync(repoRoot, message);
 
-            // If commit failed, check for SVN WC lock and/or write lock.
-            // Auto-cleanup once (with break-write-lock if needed) and retry before giving up.
             if (!committed)
             {
-                var lastError = _svnService.GetLastError();
-                var isWcLock = lastError is SharpSvn.SvnWorkingCopyException wce
-                    && wce.Message.Contains("Previous operation has not finished");
-                var isWriteLock = lastError is SharpSvn.SvnWorkingCopyException wle
-                    && (wle.Message.Contains("write lock") || wle.Message.Contains("Lock token"));
-
-                if (isWcLock || isWriteLock)
-                {
-                    if (isWriteLock)
-                    {
-                        Log.Warning("[QueueCommitProcessor] SVN write lock detected. Running cleanup with break-write-lock on {Path}...", repoRoot);
-                        await _svnService.CleanUpAsync(repoRoot, breakWriteLock: true);
-                    }
-                    else
-                    {
-                        Log.Warning("[QueueCommitProcessor] SVN WC is locked (previous op not finished). Running cleanup on {Path}...", repoRoot);
-                        await _svnService.CleanUpAsync(repoRoot);
-                    }
-
-                    Log.Warning("[QueueCommitProcessor] Cleanup done, retrying commit...");
-                    committed = await _svnService.CommitAsync(repoRoot, message);
-                    if (!committed)
-                    {
-                        result.Success = false;
-                        result.ErrorMessage = "Commit failed after cleanup retry";
-                        Log.Warning("[QueueCommitProcessor] Commit still failing after cleanup. Giving up.");
-                        return result;
-                    }
-                }
-                else
-                {
-                    result.Success = false;
-                    result.ErrorMessage = "Commit failed";
-                    return result;
-                }
+                result.Success = false;
+                result.ErrorMessage = "Commit failed";
+                return result;
             }
 
             if (items.Count == 0)
