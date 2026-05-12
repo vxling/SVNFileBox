@@ -183,7 +183,6 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
-                AcceptSelfSignedCert(client);
                 var uri = new Uri(repoUrl);
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
@@ -416,7 +415,6 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
-                AcceptSelfSignedCert(client);
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
                 SvnUpdateResult? result = null;
@@ -462,19 +460,6 @@ public class SvnService : IDisposable
     }
 
     /// <summary>
-    /// Registers a self-signed certificate acceptance handler on the client so
-    /// --trust-server-cert behavior is consistent across all operations.
-    /// </summary>
-    private static void AcceptSelfSignedCert(SvnClient client)
-    {
-        client.ServersCertificateFailure += (sender, e) =>
-        {
-            Log.Debug("Accepting self-signed SSL certificate for {Host}", e.HostName);
-            e.Accept = true;
-        };
-    }
-
-    /// <summary>
     /// Lightweight connection test — does a single svn list with depth=empty
     /// to determine reachability and categorize the error if any.
     /// </summary>
@@ -488,37 +473,34 @@ public class SvnService : IDisposable
             try
             {
                 using var client = new SvnClient();
-                AcceptSelfSignedCert(client);
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
 
-                // SvnListArgs with Depth=Empty is the cheapest possible remote call
-                var args = new SvnListArgs { Depth = SvnDepth.Empty };
                 SvnListEventArgs? info = null;
-                client.List(new SvnUriTarget(url), args, out info);
+                client.List(new SvnUriTarget(url), new SvnListArgs { Depth = SvnDepth.Empty },
+                    new EventHandler<SvnListEventArgs>((s, e) => info = e));
                 return (SvnConnectResult.Success, (string?)null);
             }
             catch (SvnAuthenticationException)
             {
                 return (SvnConnectResult.AuthFailed, null);
             }
-            catch (SvnAccessDeniedException)
+            catch (SvnAuthorizationException)
             {
                 return (SvnConnectResult.AccessDenied, null);
             }
-            catch (SvnRepositoryIOException ex) when (ex.Message.Contains("E175002") || ex.Message.Contains("170013"))
+            catch (SvnRepositoryIOException ex)
             {
-                // E175002: PROPFIND of '/svn/xxx': 404 Not Found / repository not found
-                // E170013: Unable to connect to repository (same underlying condition)
-                return (SvnConnectResult.RepoNotFound, null);
-            }
-            catch (SvnRepositoryIOException ex) when (
-                ex.Message.Contains("E175003") ||      // PROPFIND on non-DAV endpoint
-                ex.Message.Contains("E175002") ||      // 405 Method Not Allowed etc.
-                ex.InnerException?.Message.Contains("SSL") == true ||
-                ex.InnerException?.Message.Contains("ssl") == true)
-            {
-                return (SvnConnectResult.SslCertError, null);
+                // E230001: Server SSL certificate verification failed (self-signed cert)
+                if (ex.Message.Contains("E230001") || ex.InnerException?.Message.Contains("E230001") == true)
+                    return (SvnConnectResult.SslCertError, null);
+                // E175002/E170013: repository not found or unreachable
+                if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013") || ex.Message.Contains("170013"))
+                    return (SvnConnectResult.RepoNotFound, null);
+                // E175003: PROPFIND on non-DAV endpoint
+                if (ex.Message.Contains("E175003"))
+                    return (SvnConnectResult.SslCertError, null);
+                return (SvnConnectResult.Unknown, ex.Message);
             }
             catch (SvnIOException ex)
             {
