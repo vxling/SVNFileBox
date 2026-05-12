@@ -56,63 +56,19 @@ jobs:
           Write-Host "Zip size: $size bytes ($([math]::Round($size/1MB, 2)) MB)"
           if ($size -lt 10MB) { Write-Host "WARNING: zip is smaller than 10MB, likely missing runtime" }
 
-      - name: Install Inno Setup via winget
+      - name: Download Inno Setup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        shell: pwsh
         run: |
-          Write-Host "Installing Inno Setup via winget..."
-          $output = winget install JRSoftware.InnoSetup --accept-package-agreements --accept-source-agreements 2>&1
-          Write-Host $output
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          $timeout = 120
-          $elapsed = 0
-          while (-not (Test-Path $iscc) -and $elapsed -lt $timeout) {
-            Start-Sleep -Seconds 5
-            $elapsed += 5
-            Write-Host "Waiting for ISCC... ${elapsed}s"
-          }
-          if (Test-Path $iscc) {
-            Write-Host "Inno Setup installed successfully at: $iscc"
-          } else {
-            Write-Host "ERROR: Inno Setup installation timed out"
-            Get-ChildItem "C:\Program Files (x86)" -Filter "Inno*" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
-            exit 1
-          }
+          curl -sSL -o is.exe "https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe"
+          Start-Process -Wait -FilePath ./is.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -NoNewWindow
+          Write-Host "Inno Setup installed"
 
       - name: Build installer
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
-            Write-Host "ERROR: ISCC.exe not found"
-            exit 1
-          }
-          Write-Host "Running: $iscc installer.iss"
-          $psi = New-Object System.Diagnostics.ProcessStartInfo
-          $psi.FileName = $iscc
-          $psi.Arguments = "installer.iss"
-          $psi.WorkingDirectory = (Get-Location).Path
-          $psi.RedirectStandardOutput = $true
-          $psi.RedirectStandardError = $true
-          $psi.UseShellExecute = $false
-          $psi.CreateNoWindow = $true
-          $proc = [System.Diagnostics.Process]::Start($psi)
-          $stdout = $proc.StandardOutput.ReadToEnd()
-          $stderr = $proc.StandardError.ReadToEnd()
-          $proc.WaitForExit()
-          Write-Host "STDOUT: $stdout"
-          Write-Host "STDERR: $stderr"
-          Write-Host "Exit code: $($proc.ExitCode)"
-          if ($proc.ExitCode -ne 0) { exit 1 }
-          if (Test-Path SVNFileBox-Setup.exe) {
-            $size = (Get-Item SVNFileBox-Setup.exe).Length
-            Write-Host "Installer built: $size bytes ($([math]::Round($size/1MB, 2)) MB)"
-          } else {
-            Write-Host "ERROR: SVNFileBox-Setup.exe not created"
-            Get-ChildItem | Select-Object Name, Length
-            exit 1
-          }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          Write-Host "Installer built: $(Get-Item SVNFileBox-Setup.exe).Length bytes"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
