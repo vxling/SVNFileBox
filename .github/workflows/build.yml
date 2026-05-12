@@ -61,7 +61,27 @@ jobs:
         run: |
           curl -sSL -o is.exe "https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe"
           Start-Process -Wait -FilePath ./is.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -NoNewWindow
-          Write-Host "Inno Setup installed"
+          Write-Host "Inno Setup installer finished"
+
+      - name: Wait for ISCC
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          $timeout = 120
+          $elapsed = 0
+          while (-not (Test-Path $iscc) -and $elapsed -lt $timeout) {
+            Start-Sleep -Seconds 3
+            $elapsed += 3
+            Write-Host "Waiting for ISCC... ${elapsed}s"
+          }
+          if (Test-Path $iscc) {
+            Write-Host "ISCC found at: $iscc"
+          } else {
+            Write-Host "ERROR: ISCC not found after ${timeout}s"
+            Get-ChildItem "C:\Program Files (x86)" -Filter "Inno*" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
+            exit 1
+          }
 
       - name: Build installer
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
