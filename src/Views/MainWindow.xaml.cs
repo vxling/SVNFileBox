@@ -393,6 +393,20 @@ public partial class MainWindow : Window
         catch (Exception ex) { Log.Error(ex, "Failed to open explorer"); }
     }
 
+    private void Copy_Click(object sender, RoutedEventArgs e)
+    {
+        var item = GetFileItemFromContextMenu(sender);
+        if (item == null) return;
+        try
+        {
+            var files = new System.Collections.Specialized.StringCollection { item.FullPath };
+            Clipboard.SetFileDropList(files);
+            ShowToast(LocalizationService.Instance.GetString("CopiedToClipboard", item.Name));
+            _viewModel!.StatusText = LocalizationService.Instance.GetString("CopiedToClipboard", item.Name);
+        }
+        catch (Exception ex) { Log.Error(ex, "Copy failed"); }
+    }
+
     private void CopyPath_Click(object sender, RoutedEventArgs e)
     {
         var item = GetFileItemFromContextMenu(sender);

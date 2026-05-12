@@ -53,7 +53,8 @@
 
         <!-- Context Menu for file list -->
         <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
-            <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
+            <MenuItem Header="{DynamicResource Copy}" Click="Copy_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
+            <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="🔗"/>
             <Separator/>
             <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
             <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
