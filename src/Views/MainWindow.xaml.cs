@@ -597,9 +597,9 @@ public partial class MainWindow : Window
                         : Path.GetFileName(file);
 
                     var entry = archive.CreateEntry(relativePath, System.IO.Compression.CompressionLevel.Optimal);
-                    using var entryStream = entry.Open();
-                    using var fileStream = File.OpenRead(file);
-                    fileStream.CopyTo(entryStream);
+                    await using var entryStream = entry.Open();
+                    using var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
+                    await fileStream.CopyToAsync(entryStream);
 
                     var percent = total == 1 ? 100 : (int)((double)current / total * 100);
                     var statusText = $"正在压缩: {relativePath}";
