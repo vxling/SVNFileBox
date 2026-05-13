@@ -607,6 +607,10 @@ public partial class MainWindow : Window
                 }
             }
 
+            // svn add the new zip (svn auto-detects modified existing files)
+            if (!_svnService.IsVersioned(zipPath))
+                await _svnService.AddPathAsync(zipPath);
+
             progressWindow.Close();
             ShowToast(LocalizationService.Instance.GetString("AddToZipSuccess", zipName));
             _viewModel!.StatusText = LocalizationService.Instance.GetString("AddToZipSuccess", zipName);
