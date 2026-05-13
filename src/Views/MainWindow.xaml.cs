@@ -548,7 +548,7 @@ public partial class MainWindow : Window
                 return;
         }
 
-        // Show progress window
+        // Show progress window and run compression on background thread
         var progressWindow = new Windows.ProgressWindow
         {
             Title = LocalizationService.Instance.GetString("AddToZipInProgress"),
@@ -603,9 +603,9 @@ public partial class MainWindow : Window
 
                     var percent = total == 1 ? 100 : (int)((double)current / total * 100);
                     var statusText = $"正在压缩: {relativePath}";
-                    progressWindow.UpdateProgress(percent, statusText);
-                    // Yield UI thread so ProgressWindow can refresh
-                    await Task.Yield();
+                    // Update on UI thread
+                    Dispatcher.Invoke(() => progressWindow.UpdateProgress(percent, statusText));
+                    await Task.Yield(); // Let UI refresh
                 }
             }
 
