@@ -607,6 +607,8 @@ public partial class MainWindow : Window
                     var percent = total == 1 ? 100 : (int)((double)current / total * 100);
                     var statusText = $"正在压缩: {relativePath}";
                     progressWindow.UpdateProgress(percent, statusText);
+                    // Yield UI thread so ProgressWindow can refresh
+                    await Task.Yield();
                 }
             }
 
