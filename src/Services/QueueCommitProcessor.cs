@@ -176,9 +176,18 @@ public class QueueCommitProcessor : IDisposable
                 switch (item.Operation)
                 {
                     case CommitOperation.Delete:
-                        var delOk = await _svnService.DeleteAsync(item.Path);
-                        if (!delOk)
-                            Log.Warning("[QueueCommitProcessor] svn delete failed for {Path}", item.Path);
+                        // File no longer exists on disk → really deleted, proceed with svn delete
+                        // File still exists → user restored it after the delete was queued → skip
+                        if (!File.Exists(item.Path) && !Directory.Exists(item.Path))
+                        {
+                            var delOk = await _svnService.DeleteAsync(item.Path);
+                            if (!delOk)
+                                Log.Warning("[QueueCommitProcessor] svn delete failed for {Path}", item.Path);
+                        }
+                        else
+                        {
+                            Log.Debug("[QueueCommitProcessor] File restored before commit, skipping delete: {Path}", item.Path);
+                        }
                         break;
                     case CommitOperation.Move:
                         var mvOk = await _svnService.MoveAsync(item.FromPath!, item.Path);
@@ -186,9 +195,17 @@ public class QueueCommitProcessor : IDisposable
                             Log.Warning("[QueueCommitProcessor] svn move failed: {From} → {To}", item.FromPath, item.Path);
                         break;
                     case CommitOperation.Add:
-                        var addOk = await _svnService.AddPathAsync(item.Path);
-                        if (!addOk)
-                            Log.Warning("[QueueCommitProcessor] svn add failed for {Path}", item.Path);
+                        // File must exist on disk to be added
+                        if (File.Exists(item.Path) || Directory.Exists(item.Path))
+                        {
+                            var addOk = await _svnService.AddPathAsync(item.Path);
+                            if (!addOk)
+                                Log.Warning("[QueueCommitProcessor] svn add failed for {Path}", item.Path);
+                        }
+                        else
+                        {
+                            Log.Debug("[QueueCommitProcessor] File no longer exists, skipping add: {Path}", item.Path);
+                        }
                         break;
                     // Modify: no pre-command needed, commit auto-detects changes
                 }
