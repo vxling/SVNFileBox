@@ -517,16 +517,15 @@ public partial class MainWindow : Window
         var targetDir = _viewModel.CurrentPath;
         if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return;
 
-        // Default filename: always append .zip to the source name (with extension stripped for non-.zip files).
-        // This avoids self-compression when source is already a .zip (e.g. a.zip → a.zip.zip).
-        var baseName = Path.GetFileNameWithoutExtension(item.Name) + ".zip";
+        // Default filename: strip existing extension if any, then append .zip
+        var baseName = Path.GetFileNameWithoutExtension(item.Name);
         var dialog = new Windows.InputDialog
         {
             Title = LocalizationService.Instance.GetString("AddToZipTitle"),
             Owner = this
         };
         dialog.SetPrompt(LocalizationService.Instance.GetString("AddToZipPrompt"));
-        dialog.SetInput(baseName);
+        dialog.SetInput(baseName + ".zip");
 
         if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.InputText))
             return;
