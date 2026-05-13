@@ -132,8 +132,8 @@ public class LocalizationService
             ["MinimizedToTray"] = "已最小化到托盘，双击恢复",
 
             // AddToZip
-            ["AddToZip"] = "添加到压缩包",
-            ["AddToZipTitle"] = "添加到压缩包",
+            ["AddToZip"] = "创建压缩包",
+            ["AddToZipTitle"] = "创建压缩包",
             ["AddToZipPrompt"] = "压缩包名称:",
             ["AddToZipFileExists"] = "文件 \"{0}\" 已存在，是否覆盖？",
             ["AddToZipSelfCompress"] = "不能将文件压缩到自身。\n\n请选择不同的目标文件名。",
@@ -350,8 +350,8 @@ public class LocalizationService
             ["MinimizedToTray"] = "Minimized to tray. Double-click to restore.",
 
             // AddToZip
-            ["AddToZip"] = "Add to ZIP",
-            ["AddToZipTitle"] = "Add to ZIP",
+            ["AddToZip"] = "Create Archive",
+            ["AddToZipTitle"] = "Create Archive",
             ["AddToZipPrompt"] = "Archive name:",
             ["AddToZipFileExists"] = "File \"{0}\" already exists. Overwrite?",
             ["AddToZipSelfCompress"] = "Cannot compress a file into itself.\n\nPlease choose a different target filename.",
