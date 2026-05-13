@@ -53,6 +53,12 @@ public partial class MainWindow : Window
             {
                 mi2.IsEnabled = GetFileItemFromContextMenu(mi2) != null;
             }
+            else if (item is MenuItem mi3 && mi3.Name == "AddToZipMenuItem")
+            {
+                // Enable when a file/folder is selected (not "..")
+                var fi = GetFileItemFromContextMenu(mi3) as FileItem;
+                mi3.IsEnabled = fi != null && fi.Name != "..";
+            }
         }
 
         // Inject system icons (or emoji fallback) into the "新建" submenu — once
@@ -497,6 +503,134 @@ public partial class MainWindow : Window
                     Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("NewFolderFailed", ex.Message);
             }
+        }
+    }
+
+    // ─── Add to ZIP ─────────────────────────────────────────────────────────────
+
+    private async void AddToZip_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel == null) return;
+        var item = GetFileItemFromContextMenu(sender) as FileItem;
+        if (item == null || item.Name == "..") return;
+
+        var targetDir = _viewModel.CurrentPath;
+        if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return;
+
+        // Default filename: strip existing extension if any, then append .zip
+        var baseName = Path.GetFileNameWithoutExtension(item.Name);
+        var dialog = new Windows.InputDialog
+        {
+            Title = LocalizationService.Instance.GetString("AddToZipTitle"),
+            Owner = this
+        };
+        dialog.SetPrompt(LocalizationService.Instance.GetString("AddToZipPrompt"));
+        dialog.SetInput(baseName + ".zip");
+
+        if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.InputText))
+            return;
+
+        // Ensure .zip extension
+        var zipName = dialog.InputText.Trim();
+        if (!zipName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            zipName += ".zip";
+
+        var zipPath = Path.Combine(targetDir, zipName);
+
+        // Confirm overwrite if exists
+        if (File.Exists(zipPath))
+        {
+            var confirmMsg = LocalizationService.Instance.GetString("AddToZipFileExists", zipName);
+            var confirmTitle = LocalizationService.Instance.GetString("AddToZipConfirmTitle");
+            var result = MsgBox.Show(this, confirmMsg, confirmTitle,
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes)
+                return;
+        }
+
+        // Show progress window
+        var progressWindow = new Windows.ProgressWindow
+        {
+            Title = LocalizationService.Instance.GetString("AddToZipInProgress"),
+            Owner = this,
+            CanCancel = true
+        };
+
+        CancellationTokenSource? cts = null;
+        progressWindow.CancelRequested += (s, ev) =>
+        {
+            cts?.Cancel();
+        };
+
+        progressWindow.Show();
+        progressWindow.UpdateProgress(0, LocalizationService.Instance.GetString("AddToZipInProgress"));
+
+        try
+        {
+            cts = new CancellationTokenSource();
+            var sourcePath = item.FullPath;
+            var isDir = Directory.Exists(sourcePath);
+
+            // Collect files to archive
+            var files = isDir
+                ? Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories)
+                : new[] { sourcePath };
+
+            int total = files.Length;
+            int current = 0;
+
+            using (var zipStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write))
+            using (var archive = new System.IO.Compression.ZipArchive(zipStream, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                foreach (var file in files)
+                {
+                    if (cts.Token.IsCancellationRequested)
+                    {
+                        progressWindow.Close();
+                        ShowToast(LocalizationService.Instance.GetString("AddToZipCancelled"));
+                        return;
+                    }
+
+                    current++;
+                    var relativePath = isDir
+                        ? Path.GetRelativePath(sourcePath, file)
+                        : Path.GetFileName(file);
+
+                    var entry = archive.CreateEntry(relativePath, System.IO.Compression.CompressionLevel.Optimal);
+                    using var entryStream = entry.Open();
+                    using var fileStream = File.OpenRead(file);
+                    fileStream.CopyTo(entryStream);
+
+                    var percent = total == 1 ? 100 : (int)((double)current / total * 100);
+                    var statusText = $"正在压缩: {relativePath}";
+                    progressWindow.UpdateProgress(percent, statusText);
+                }
+            }
+
+            progressWindow.Close();
+            ShowToast(LocalizationService.Instance.GetString("AddToZipSuccess", zipName));
+            _viewModel!.StatusText = LocalizationService.Instance.GetString("AddToZipSuccess", zipName);
+            await _viewModel.RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            progressWindow.Close();
+            // Delete partially created zip
+            if (File.Exists(zipPath)) File.Delete(zipPath);
+            ShowToast(LocalizationService.Instance.GetString("AddToZipCancelled"));
+        }
+        catch (Exception ex)
+        {
+            progressWindow.Close();
+            if (File.Exists(zipPath)) File.Delete(zipPath);
+            Log.Error(ex, "AddToZip failed");
+            ShowToast(LocalizationService.Instance.GetString("AddToZipFailed", ex.Message),
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
+            _viewModel!.StatusText = LocalizationService.Instance.GetString("AddToZipFailed", ex.Message);
+        }
+        finally
+        {
+            cts?.Dispose();
         }
     }
 

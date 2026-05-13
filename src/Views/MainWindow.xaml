@@ -63,6 +63,8 @@
             <Separator/>
             <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
             <MenuItem Header="{DynamicResource Rename}" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
+            <MenuItem Header="{DynamicResource AddToZip}" Click="AddToZip_Click" x:Name="AddToZipMenuItem" IsEnabled="False" Icon="📦"/>
+            <Separator/>
             <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
             <MenuItem Header="{DynamicResource New}" x:Name="NewMenuItem" IsEnabled="{Binding CanOperate}" Icon="✨">
                 <MenuItem Header="{DynamicResource NewTextFile}" Click="NewTextFile_Click" x:Name="NewTextFileMenuItem"/>

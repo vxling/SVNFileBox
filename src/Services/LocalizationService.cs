@@ -131,6 +131,17 @@ public class LocalizationService
             ["RemoveNetworkRepoConfirm"] = "确定要移除网络仓库 \"{0}\"？\n移除后，本地文件也会被删除！",
             ["MinimizedToTray"] = "已最小化到托盘，双击恢复",
 
+            // AddToZip
+            ["AddToZip"] = "添加到压缩包",
+            ["AddToZipTitle"] = "添加到压缩包",
+            ["AddToZipPrompt"] = "压缩包名称:",
+            ["AddToZipFileExists"] = "文件 \"{0}\" 已存在，是否覆盖？",
+            ["AddToZipConfirmTitle"] = "确认覆盖",
+            ["AddToZipInProgress"] = "正在创建压缩包...",
+            ["AddToZipSuccess"] = "已创建压缩包: {0}",
+            ["AddToZipFailed"] = "创建压缩包失败: {0}",
+            ["AddToZipCancelled"] = "已取消压缩",
+
             // Sync Records columns
             ["ColTime"] = "时间",
             ["ColRepo"] = "仓库",
@@ -336,6 +347,18 @@ public class LocalizationService
             ["RemoveRepoConfirm"] = "Remove repository \"{0}\"?\nLocal files will not be deleted.",
             ["RemoveNetworkRepoConfirm"] = "Remove network repository \"{0}\"?\nAfter removal, local files will also be deleted!",
             ["MinimizedToTray"] = "Minimized to tray. Double-click to restore.",
+
+            // AddToZip
+            ["AddToZip"] = "Add to ZIP",
+            ["AddToZipTitle"] = "Add to ZIP",
+            ["AddToZipPrompt"] = "Archive name:",
+            ["AddToZipFileExists"] = "File \"{0}\" already exists. Overwrite?",
+            ["AddToZipConfirmTitle"] = "Confirm Overwrite",
+            ["AddToZipInProgress"] = "Creating archive...",
+            ["AddToZipSuccess"] = "Archive created: {0}",
+            ["AddToZipFailed"] = "Archive creation failed: {0}",
+            ["AddToZipCancelled"] = "Archive creation cancelled",
+
             ["RenamePrompt"] = "New name:",
             ["RenameSuccess"] = "Renamed: {0}",
             ["RenameFailed"] = "Rename failed: {0}",
