@@ -314,8 +314,9 @@ public class SvnService : IDisposable
                 if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] AddPath locked, running cleanup and retrying...");
+                    var wcRoot = GetWorkingCopyRoot(path);
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(path);
+                    cleanupClient.CleanUp(wcRoot);
                     using var retryClient = CreateClient();
                     return retryClient.Add(path);
                 }
@@ -339,8 +340,9 @@ public class SvnService : IDisposable
                 if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Delete locked, running cleanup and retrying...");
+                    var wcRoot = GetWorkingCopyRoot(path);
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(path);
+                    cleanupClient.CleanUp(wcRoot);
                     using var retryClient = CreateClient();
                     return retryClient.Delete(path);
                 }
@@ -348,6 +350,16 @@ public class SvnService : IDisposable
                 return false;
             }
         });
+    }
+
+    /// <summary>
+    /// Returns the working copy root directory (the directory containing .svn)
+    /// for any path within the working copy.
+    /// </summary>
+    private string GetWorkingCopyRoot(string path)
+    {
+        using var client = CreateClient();
+        return client.GetWorkingCopyRoot(path);
     }
 
     public async Task<bool> MoveAsync(string fromPath, string toPath)
