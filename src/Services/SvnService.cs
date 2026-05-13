@@ -290,7 +290,7 @@ public class SvnService : IDisposable
                 {
                     Log.Warning("[SvnService] Add locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(filePath);
+                    cleanupClient.CleanUp(GetWorkingCopyRoot(filePath));
                     using var retryClient = CreateClient();
                     return retryClient.Add(filePath);
                 }
@@ -377,7 +377,7 @@ public class SvnService : IDisposable
                 {
                     Log.Warning("[SvnService] Move locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(fromPath);
+                    cleanupClient.CleanUp(GetWorkingCopyRoot(fromPath));
                     using var retryClient = CreateClient();
                     return retryClient.Move(fromPath, toPath);
                 }
@@ -403,7 +403,7 @@ public class SvnService : IDisposable
                 {
                     Log.Warning("[SvnService] Revert locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(path);
+                    cleanupClient.CleanUp(GetWorkingCopyRoot(path));
                     using var retryClient = CreateClient();
                     var retryArgs = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
                     return retryClient.Revert(path, retryArgs);
@@ -456,7 +456,7 @@ public class SvnService : IDisposable
                 {
                     Log.Warning("[SvnService] SvnAddRecursive locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(directoryPath);
+                    cleanupClient.CleanUp(GetWorkingCopyRoot(directoryPath));
 
                     using var retryClient = CreateClient();
                     retryClient.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
@@ -534,7 +534,7 @@ public class SvnService : IDisposable
                 {
                     Log.Warning("[SvnService] Checkout locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(localPath);
+                    cleanupClient.CleanUp(GetWorkingCopyRoot(localPath));
                     using var retryClient = CreateClient();
                     if (!string.IsNullOrEmpty(username))
                         retryClient.Authentication.ForceCredentials(username, password ?? "");
@@ -680,7 +680,7 @@ public class SvnService : IDisposable
                 {
                     Log.Warning("[SvnService] Resolve locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(path);
+                    cleanupClient.CleanUp(GetWorkingCopyRoot(path));
                     using var retryClient = CreateClient();
                     return retryClient.Resolve(path, accept);
                 }
