@@ -528,7 +528,7 @@ public partial class MainWindow : Window
             Owner = this
         };
         dialog.SetPrompt(LocalizationService.Instance.GetString("AddToZipPrompt"));
-        dialog.SetInput(baseName + ".zip");
+        dialog.SetInput(baseName);
 
         if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.InputText))
             return;
