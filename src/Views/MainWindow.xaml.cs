@@ -536,6 +536,18 @@ public partial class MainWindow : Window
             zipName += ".zip";
 
         var zipPath = Path.Combine(targetDir, zipName);
+        var sourcePath = item.FullPath;
+        var isDir = Directory.Exists(sourcePath);
+
+        // Cannot compress a file into itself
+        if (!isDir && sourcePath.Equals(zipPath, StringComparison.OrdinalIgnoreCase))
+        {
+            MsgBox.Show(this,
+                LocalizationService.Instance.GetString("AddToZipSelfCompress"),
+                LocalizationService.Instance.GetString("AddToZipConfirmTitle"),
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         // Confirm overwrite if exists
         if (File.Exists(zipPath))
@@ -568,8 +580,6 @@ public partial class MainWindow : Window
         try
         {
             cts = new CancellationTokenSource();
-            var sourcePath = item.FullPath;
-            var isDir = Directory.Exists(sourcePath);
 
             // Collect files to archive
             var files = isDir
