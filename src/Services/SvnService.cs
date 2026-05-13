@@ -236,7 +236,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Commit locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
@@ -261,7 +262,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Update locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
@@ -286,7 +288,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Add locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
@@ -311,7 +314,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] AddPath locked, running cleanup and retrying...");
                     var wcRoot = GetWorkingCopyRoot(path);
@@ -337,7 +341,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Delete locked, running cleanup and retrying...");
                     var wcRoot = GetWorkingCopyRoot(path);
@@ -373,7 +378,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Move locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
@@ -399,7 +405,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Revert locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
@@ -452,7 +459,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] SvnAddRecursive locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
@@ -530,7 +538,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Checkout locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
@@ -676,7 +685,8 @@ public class SvnService : IDisposable
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Warning("[SvnService] Resolve locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
