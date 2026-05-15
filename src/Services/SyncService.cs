@@ -193,9 +193,8 @@ public class SyncService : IDisposable
     {
         if (files.Length == 0) return;
         if (Interlocked.CompareExchange(ref _isCommitting, 1, 0) == 1) return;
-        // Also skip if a full sync or poll is in progress, or FileWatcher is paused
+        // Also skip if a full sync is in progress or FileWatcher is paused
         if (Interlocked.CompareExchange(ref _isSyncing, 0, 0) != 0) return;
-        if (Interlocked.CompareExchange(ref _isPolling, 0, 0) != 0) return;
         if (Interlocked.CompareExchange(ref _disableCount, 0, 0) != 0) return;
 
         try
@@ -338,11 +337,6 @@ public class SyncService : IDisposable
             Interlocked.Exchange(ref _isPolling, 0);
             Log.Debug("[PollCore] Skipping, full sync in progress");
             return;
-        }
-        // Wait for any in-flight file-change commit to finish before update
-        while (Interlocked.CompareExchange(ref _isCommitting, 0, 0) != 0)
-        {
-            await Task.Delay(100);
         }
 
         try
