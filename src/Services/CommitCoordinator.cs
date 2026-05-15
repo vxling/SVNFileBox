@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
@@ -28,6 +29,7 @@ public class CommitCoordinator : IDisposable
 
     private readonly SvnService _svnService = new();
     private readonly QueueCommitProcessor _queueProcessor;
+    private int _isLocked; // >0: SVN write operation in progress (Update/Commit), skip all enqueue attempts
 
     public QueueCommitProcessor Processor => _queueProcessor;
 
@@ -50,12 +52,23 @@ public class CommitCoordinator : IDisposable
     }
 
     /// <summary>
+    /// Acquires the SVN write lock. While held, all Enqueue* calls are silently skipped.
+    /// </summary>
+    public void Lock() => Interlocked.Exchange(ref _isLocked, 1);
+
+    /// <summary>
+    /// Releases the SVN write lock.
+    /// </summary>
+    public void Unlock() => Interlocked.Exchange(ref _isLocked, 0);
+
+    /// <summary>
     /// Enqueues a newly created file or directory for svn add.
     /// Called by UI actions (e.g. user creates a new folder via UI).
     /// </summary>
     public async Task EnqueueAddAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return;
+        if (Interlocked.CompareExchange(ref _isLocked, 0, 0) != 0) return;
 
         // Pre-check: svn add to ensure the path is tracked before enqueueing.
         // This runs under the semaphore in SvnService.
@@ -77,6 +90,7 @@ public class CommitCoordinator : IDisposable
     public async Task EnqueueDeleteAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return;
+        if (Interlocked.CompareExchange(ref _isLocked, 0, 0) != 0) return;
 
         // Pre-check: mark as deleted in SVN before enqueueing.
         var deleted = await _svnService.DeleteAsync(path);
@@ -118,6 +132,7 @@ public class CommitCoordinator : IDisposable
     public async Task EnqueueFileChangeAsync(string path)
     {
         if (string.IsNullOrEmpty(Path.GetDirectoryName(path))) return;
+        if (Interlocked.CompareExchange(ref _isLocked, 0, 0) != 0) return;
 
         bool fileExists = File.Exists(path) || Directory.Exists(path);
 

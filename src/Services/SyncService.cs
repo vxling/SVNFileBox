@@ -193,8 +193,9 @@ public class SyncService : IDisposable
     {
         if (files.Length == 0) return;
         if (Interlocked.CompareExchange(ref _isCommitting, 1, 0) == 1) return;
-        // Also skip if a full sync is in progress or FileWatcher is paused (e.g., during file copy)
+        // Also skip if a full sync or poll is in progress, or FileWatcher is paused
         if (Interlocked.CompareExchange(ref _isSyncing, 0, 0) != 0) return;
+        if (Interlocked.CompareExchange(ref _isPolling, 0, 0) != 0) return;
         if (Interlocked.CompareExchange(ref _disableCount, 0, 0) != 0) return;
 
         try
@@ -338,6 +339,11 @@ public class SyncService : IDisposable
             Log.Debug("[PollCore] Skipping, full sync in progress");
             return;
         }
+        // Wait for any in-flight file-change commit to finish before update
+        while (Interlocked.CompareExchange(ref _isCommitting, 0, 0) != 0)
+        {
+            await Task.Delay(100);
+        }
 
         try
         {
@@ -357,7 +363,9 @@ public class SyncService : IDisposable
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
             _currentRepoName.Value = _currentRepo?.Name;
+            CommitCoordinator.Instance.Lock();
             var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
+            CommitCoordinator.Instance.Unlock();
             if (updateSuccess)
             {
                 var conflictInfo = await BuildConflictInfoListAsync(_currentRepo.Path);
