@@ -377,28 +377,12 @@ public class SvnService : IDisposable
     {
         return await ExecuteWithProgressTimeoutAsync((token, progressCts) =>
         {
-            try
+            TryCleanStaleLocks(workingCopyPath); // Ensure no stale lock from a previously interrupted operation
+            return ExecuteSvnWithNotify(client =>
             {
-                return ExecuteSvnWithNotify(client =>
-                {
-                    var args = new SvnCommitArgs { LogMessage = message };
-                    return client.Commit(workingCopyPath, args);
-                }, token, progressCts);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Commit locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(workingCopyPath);
-                    using var retryClient = CreateClient();
-                    return retryClient.Commit(workingCopyPath, new SvnCommitArgs { LogMessage = message });
-                }
-                Log.Error(ex, "Commit failed for {Path}", workingCopyPath);
-                return false;
-            }
+                var args = new SvnCommitArgs { LogMessage = message };
+                return client.Commit(workingCopyPath, args);
+            }, token, progressCts);
         });
     }
 
@@ -406,27 +390,11 @@ public class SvnService : IDisposable
     {
         return await ExecuteWithProgressTimeoutAsync((token, progressCts) =>
         {
-            try
+            TryCleanStaleLocks(workingCopyPath);
+            return ExecuteSvnWithNotify(client =>
             {
-                return ExecuteSvnWithNotify(client =>
-                {
-                    return client.Update(workingCopyPath);
-                }, token, progressCts);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Update locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(workingCopyPath);
-                    using var retryClient = CreateClient();
-                    return retryClient.Update(workingCopyPath);
-                }
-                Log.Error(ex, "Update failed for {Path}", workingCopyPath);
-                return false;
-            }
+                return client.Update(workingCopyPath);
+            }, token, progressCts);
         });
     }
 
@@ -434,25 +402,9 @@ public class SvnService : IDisposable
     {
         return await ExecuteAsync(token =>
         {
-            try
-            {
-                using var client = CreateClient();
-                return client.Add(filePath);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Add locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(GetWorkingCopyRoot(filePath));
-                    using var retryClient = CreateClient();
-                    return retryClient.Add(filePath);
-                }
-                Log.Error(ex, "Add failed for {Path}", filePath);
-                return false;
-            }
+            TryCleanStaleLocks(GetWorkingCopyRoot(filePath));
+            using var client = CreateClient();
+            return client.Add(filePath);
         });
     }
 
@@ -460,26 +412,9 @@ public class SvnService : IDisposable
     {
         return await ExecuteAsync(token =>
         {
-            try
-            {
-                using var client = CreateClient();
-                return client.Add(path);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] AddPath locked, running cleanup and retrying...");
-                    var wcRoot = GetWorkingCopyRoot(path);
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(wcRoot);
-                    using var retryClient = CreateClient();
-                    return retryClient.Add(path);
-                }
-                Log.Error(ex, "AddPath failed for {Path}", path);
-                return false;
-            }
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            return client.Add(path);
         });
     }
 
@@ -487,26 +422,9 @@ public class SvnService : IDisposable
     {
         return await ExecuteAsync(token =>
         {
-            try
-            {
-                using var client = CreateClient();
-                return client.Delete(path);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Delete locked, running cleanup and retrying...");
-                    var wcRoot = GetWorkingCopyRoot(path);
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(wcRoot);
-                    using var retryClient = CreateClient();
-                    return retryClient.Delete(path);
-                }
-                Log.Error(ex, "Delete failed for {Path}", path);
-                return false;
-            }
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            return client.Delete(path);
         });
     }
 
@@ -524,25 +442,9 @@ public class SvnService : IDisposable
     {
         return await ExecuteAsync(token =>
         {
-            try
-            {
-                using var client = CreateClient();
-                return client.Move(fromPath, toPath);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Move locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(GetWorkingCopyRoot(fromPath));
-                    using var retryClient = CreateClient();
-                    return retryClient.Move(fromPath, toPath);
-                }
-                Log.Error(ex, "Move failed: {From} → {To}", fromPath, toPath);
-                return false;
-            }
+            TryCleanStaleLocks(GetWorkingCopyRoot(fromPath));
+            using var client = CreateClient();
+            return client.Move(fromPath, toPath);
         });
     }
 
@@ -550,27 +452,10 @@ public class SvnService : IDisposable
     {
         return await ExecuteAsync(token =>
         {
-            try
-            {
-                using var client = CreateClient();
-                var args = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
-                return client.Revert(path, args);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Revert locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(GetWorkingCopyRoot(path));
-                    using var retryClient = CreateClient();
-                    var retryArgs = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
-                    return retryClient.Revert(path, retryArgs);
-                }
-                Log.Error(ex, "Revert failed for {Path}", path);
-                return false;
-            }
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            var args = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
+            return client.Revert(path, args);
         });
     }
 
@@ -591,50 +476,45 @@ public class SvnService : IDisposable
         });
     }
 
+    /// <summary>
+    /// Attempts to clean any stale working-copy locks left by a previously interrupted operation.
+    /// This is always called at the start of a write operation to ensure no residual lock blocks
+    /// the new operation, even if the previous one was cancelled mid-flight.
+    /// Never throws — cleanup failures are logged but do not prevent the operation from proceeding.
+    /// </summary>
+    private void TryCleanStaleLocks(string workingCopyPath)
+    {
+        try
+        {
+            using var client = CreateClient();
+            client.CleanUp(workingCopyPath);
+            Log.Debug("[SvnService] Stale lock cleaned for {Path}", workingCopyPath);
+        }
+        catch (Exception ex)
+        {
+            // If cleanup fails (e.g. no lock present, or already cleaned by another process),
+            // just log and continue — the subsequent SVN operation will handle its own errors.
+            Log.Debug(ex, "[SvnService] Cleanup attempt had no stale lock to remove for {Path}", workingCopyPath);
+        }
+    }
+
     public async Task<(string output, int exitCode)> SvnAddRecursiveAsync(string directoryPath)
     {
         return await ExecuteAsync(token =>
         {
-            try
+            TryCleanStaleLocks(GetWorkingCopyRoot(directoryPath));
+            using var client = CreateClient();
+            client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
+            int count = 0;
+            foreach (var r in results)
             {
-                using var client = CreateClient();
-                client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
-                int count = 0;
-                foreach (var r in results)
+                if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
                 {
-                    if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
-                    {
-                        if (client.Add(r.Path))
-                            count++;
-                    }
+                    if (client.Add(r.Path))
+                        count++;
                 }
-                return (count.ToString(), 0);
             }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] SvnAddRecursive locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(GetWorkingCopyRoot(directoryPath));
-
-                    using var retryClient = CreateClient();
-                    retryClient.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
-                    int count = 0;
-                    foreach (var r in results)
-                    {
-                        if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
-                        {
-                            if (retryClient.Add(r.Path))
-                                count++;
-                        }
-                    }
-                    return (count.ToString(), 0);
-                }
-                Log.Error(ex, "Add recursive failed for {Path}", directoryPath);
-                return ("", 1);
-            }
+            return (count.ToString(), 0);
         });
     }
 
@@ -673,34 +553,14 @@ public class SvnService : IDisposable
     {
         return await ExecuteAsync(token =>
         {
-            try
-            {
-                using var client = CreateClient();
-                if (!string.IsNullOrEmpty(username))
-                    client.Authentication.ForceCredentials(username, password ?? "");
+            TryCleanStaleLocks(GetWorkingCopyRoot(workingCopyPath));
+            using var client = CreateClient();
+            if (!string.IsNullOrEmpty(username))
+                client.Authentication.ForceCredentials(username, password ?? "");
 
-                SvnUpdateResult? result = null;
-                client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
-                return (result?.Revision.ToString() ?? "", 0, "");
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Checkout locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(GetWorkingCopyRoot(workingCopyPath));
-                    using var retryClient = CreateClient();
-                    if (!string.IsNullOrEmpty(username))
-                        retryClient.Authentication.ForceCredentials(username, password ?? "");
-                    SvnUpdateResult? result2 = null;
-                    retryClient.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result2);
-                    return (result2?.Revision.ToString() ?? "", 0, "");
-                }
-                Log.Error(ex, "Checkout failed for {Url} to {Path}", repoUrl, workingCopyPath);
-                return ("", 1, ex.Message);
-            }
+            SvnUpdateResult? result = null;
+            client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
+            return (result?.Revision.ToString() ?? "", 0, "");
         });
     }
 
@@ -822,25 +682,9 @@ public class SvnService : IDisposable
     {
         return await ExecuteAsync(token =>
         {
-            try
-            {
-                using var client = CreateClient();
-                return client.Resolve(path, accept);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("cleanup", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning("[SvnService] Resolve locked, running cleanup and retrying...");
-                    using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(GetWorkingCopyRoot(path));
-                    using var retryClient = CreateClient();
-                    return retryClient.Resolve(path, accept);
-                }
-                Log.Error(ex, "Resolve failed for {Path}", path);
-                return false;
-            }
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            return client.Resolve(path, accept);
         });
     }
 
