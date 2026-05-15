@@ -87,6 +87,10 @@ public partial class MainWindow : Window
         _configService = _viewModel.ConfigService;
         DataContext = _viewModel;
 
+        // Sync FileTransferTimeout from config to SvnService static cache
+        if (_configService.Config.FileTransferTimeoutSeconds > 0)
+            SvnService.FileTransferTimeoutMs = _configService.Config.FileTransferTimeoutSeconds * 1000;
+
         _viewModel.SyncNotification += (_, msg) => ShowToast(msg);
 
         _viewModel.PropertyChanged += (s, ev) =>

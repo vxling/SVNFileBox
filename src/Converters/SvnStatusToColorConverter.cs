@@ -19,7 +19,7 @@ public class SvnStatusToColorConverter : IValueConverter
             FileSvnStatus.Deleted    => new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35)), // Red
             FileSvnStatus.Conflicted => new SolidColorBrush(Color.FromRgb(0xFB, 0x8C, 0x00)), // Orange
             FileSvnStatus.Unversioned => new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E)), // Gray
-            FileSvnStatus.Missing    => new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0xAA)), // Purple
+            FileSvnStatus.Missing    => new SolidColorBrush(Color.FromRgb(0xF4, 0x43, 0x36)), // Red
             FileSvnStatus.Normal      => new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x53)), // Green check
             FileSvnStatus.Hidden        => Brushes.Transparent, // No badge for parent directory row
             _ => Brushes.Transparent

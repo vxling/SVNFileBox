@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource SettingsTitle}"
-        Height="440" Width="450"
+        Height="500" Width="450"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
@@ -130,6 +130,19 @@
                         </StackPanel>
                         <CheckBox x:Name="MinimizeToTrayCheckBox" Grid.Column="1" IsChecked="True" VerticalAlignment="Center"/>
                     </Grid>
+                </Border>
+
+                <!-- File Transfer Timeout -->
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource FileTransferTimeout}" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Text="{DynamicResource FileTransferTimeoutTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,6"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Slider x:Name="FileTransferTimeoutSlider" Minimum="30" Maximum="600" Width="200" Value="120"
+                                    TickFrequency="30" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="FileTransferTimeoutText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
                 </Border>
             </StackPanel>
         </ScrollViewer>

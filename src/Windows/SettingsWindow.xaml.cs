@@ -20,7 +20,13 @@ public partial class SettingsWindow : Window
 
         SyncIntervalSlider.ValueChanged += (s, e) =>
         {
-            SyncIntervalText.Text = $"{(int)SyncIntervalSlider.Value} {LocalizationService.Instance.GetString("Minutes")}";
+            SyncIntervalText.Text = $"{ (int)SyncIntervalSlider.Value} {LocalizationService.Instance.GetString("Minutes")}";
+        };
+
+        FileTransferTimeoutSlider.ValueChanged += (s, e) =>
+        {
+            var seconds = (int)FileTransferTimeoutSlider.Value;
+            FileTransferTimeoutText.Text = $"{seconds} {LocalizationService.Instance.GetString("Seconds")}";
         };
 
         // 监听语言切换，动态刷新界面文本
@@ -31,6 +37,7 @@ public partial class SettingsWindow : Window
     {
         // 语言切换后刷新 SyncIntervalText（因为它是代码动态设置的）
         SyncIntervalText.Text = $"{(int)SyncIntervalSlider.Value} {LocalizationService.Instance.GetString("Minutes")}";
+        FileTransferTimeoutText.Text = $"{(int)FileTransferTimeoutSlider.Value} {LocalizationService.Instance.GetString("Seconds")}";
     }
 
     private void LoadSettings()
@@ -43,6 +50,11 @@ public partial class SettingsWindow : Window
         MinimizeToTrayCheckBox.IsChecked = _configService.Config.MinimizeToTray;
         AutoStartMinimizeCheckBox.IsChecked = _configService.Config.AutoStartMinimize;
         AutoStartMinimizeCheckBox.IsEnabled = _configService.Config.AutoStart;
+
+        // File Transfer Timeout — default to 120 if not set (0)
+        var ftTimeout = _configService.Config.FileTransferTimeoutSeconds;
+        FileTransferTimeoutSlider.Value = ftTimeout > 0 ? ftTimeout : 120;
+        FileTransferTimeoutText.Text = $"{(int)FileTransferTimeoutSlider.Value} {LocalizationService.Instance.GetString("Seconds")}";
 
         // Language combo — 用 SelectedIndex 直接对应配置值
         LanguageComboBox.SelectedIndex = _configService.Config.Language switch
@@ -65,6 +77,9 @@ public partial class SettingsWindow : Window
         _configService.Config.AutoStart = AutoStartCheckBox.IsChecked == true;
         _configService.Config.MinimizeToTray = MinimizeToTrayCheckBox.IsChecked == true;
         _configService.Config.AutoStartMinimize = AutoStartMinimizeCheckBox.IsChecked == true;
+        _configService.Config.FileTransferTimeoutSeconds = (int)FileTransferTimeoutSlider.Value;
+        SvnService.FileTransferTimeoutMs = _configService.Config.FileTransferTimeoutSeconds * 1000;
+        SvnService.NotifyFileTransferTimeoutChanged();
 
         // Language
         _configService.Config.Language = LanguageComboBox.SelectedIndex switch

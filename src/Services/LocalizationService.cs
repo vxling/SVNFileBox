@@ -46,6 +46,8 @@ public class LocalizationService
             ["AutoStartMinimizeTip"] = "开机启动后自动最小化到系统托盘",
             ["MinimizeToTray"] = "最小化到托盘",
             ["MinimizeToTrayTip"] = "关闭窗口时最小化到系统托盘",
+            ["FileTransferTimeout"] = "文件传输超时",
+            ["FileTransferTimeoutTip"] = "单个文件传输无活动超过此时间判定超时（30-600秒）",
             ["OK"] = "确定",
             ["Cancel"] = "取消",
             ["Yes"] = "是",
@@ -53,6 +55,7 @@ public class LocalizationService
             ["Exit"] = "退出",
             ["OpenSVNFileBox"] = "打开 SVNFileBox",
             ["Minutes"] = "分钟",
+            ["Seconds"] = "秒",
 
             // MainWindow
             ["Repositories"] = "仓库列表",
@@ -272,12 +275,15 @@ public class LocalizationService
             ["AutoStartMinimize"] = "Minimize after Auto Start",
             ["AutoStartMinimizeTip"] = "Automatically minimize to tray after auto start",
             ["MinimizeToTray"] = "Minimize to Tray",
-            ["MinimizeToTrayTip"] = "Minimize to system tray when window is closed",
+            ["MinimizeToTrayTip"] = "Close window minimizes to system tray",
+            ["FileTransferTimeout"] = "File Transfer Timeout",
+            ["FileTransferTimeoutTip"] = "Timeout if no file transfer activity exceeds this (30-600 seconds)",
             ["OK"] = "OK",
             ["Cancel"] = "Cancel",
             ["Yes"] = "Yes",
             ["No"] = "No",
             ["Minutes"] = "minutes",
+            ["Seconds"] = "seconds",
 
             // MainWindow
             ["Repositories"] = "Repositories",

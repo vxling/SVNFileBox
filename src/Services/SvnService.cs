@@ -31,9 +31,50 @@ public class SvnService : IDisposable
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     /// <summary>
-    /// Default network timeout in milliseconds for each SvnClient operation.
+    /// Max time to wait for the semaphore lock (30s). If another operation holds the lock
+    /// longer than this, we give up — that operation is likely stuck.
     /// </summary>
-    private const int DefaultTimeoutMs = 120_000;
+    private const int LockWaitTimeoutMs = 30_000;
+
+    /// <summary>
+    /// Safety-net hard timeout: even if progress events keep firing, the operation will be
+    /// cancelled after this long (600s). Prevents infinite hangs in extreme cases.
+    /// </summary>
+    private const int SafetyNetTimeoutMs = 600_000;
+
+    /// <summary>
+    /// Network-level HTTP timeout. Applied via ServicePointManager for all HTTP requests.
+    /// </summary>
+    private const int HttpTimeoutMs = 60_000;
+
+    /// <summary>
+    /// Default idle activity timeout for file transfer operations (Update/Commit), in milliseconds.
+    /// Read from ConfigService at startup and updated via FileTransferTimeoutChanged event.
+    /// </summary>
+    private static int _fileTransferTimeoutMs = 120_000;
+
+    public static int FileTransferTimeoutMs
+    {
+        get => _fileTransferTimeoutMs;
+        set => _fileTransferTimeoutMs = Math.Clamp(value, 30_000, 600_000);
+    }
+
+    /// <summary>
+    /// Raised when SettingsWindow saves a new FileTransferTimeoutSeconds value.
+    /// Subscribing SvnService instances update their cached timeout from this event.
+    /// </summary>
+    public static event Action? FileTransferTimeoutChanged;
+
+    /// <summary>
+    /// Raised whenever a file is transferred during an Update or Commit operation.
+    /// The event carries the file path and the SharpSvn Notify action (e.g., update, commit).
+    /// </summary>
+    public static event Action<string, string>? FileTransferActivity;
+
+    /// <summary>
+    /// Call this after updating FileTransferTimeoutMs to notify all SvnService instances.
+    /// </summary>
+    public static void NotifyFileTransferTimeoutChanged() => FileTransferTimeoutChanged?.Invoke();
 
     /// <summary>
     /// Creates a SvnClient with SSL certificate auto-accept pre-configured.
@@ -52,37 +93,37 @@ public class SvnService : IDisposable
 
     public SvnService()
     {
-        // Set default ServicePointManager timeout for all HTTP/Web requests (SVN uses HTTP)
+        // Set HTTP-level timeouts for all WebRequest/WebResponse operations
         ServicePointManager.DefaultConnectionLimit = 4;
         ServicePointManager.Expect100Continue = false;
+        ServicePointManager.FindServicePoint(new Uri("https://dummy")).ConnectionLeaseTimeout = HttpTimeoutMs;
 
-        Log.Information("SvnService initialized — SharpSvn {Version}, operation timeout {Timeout}s",
+        Log.Information("SvnService initialized — SharpSvn {Version}, lock timeout {LockTimeout}s, HTTP timeout {HttpTimeout}s",
             typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown",
-            DefaultTimeoutMs / 1000);
+            LockWaitTimeoutMs / 1000,
+            HttpTimeoutMs / 1000);
     }
 
     /// <summary>
-    /// Runs an SVN operation with exclusive access (serialized) and timeout.
-    /// All SVN operations must go through this to prevent concurrent access issues.
-    /// SharpSvn calls are synchronous; they run on a background thread with timeout enforced.
+    /// Runs a short SVN operation (status, info, revert, etc.) with exclusive lock + timeout.
+    /// Does NOT use activity-based timeout — wall clock timeout is appropriate for these.
     /// </summary>
     private async Task<T> ExecuteAsync<T>(Func<CancellationToken, T> operation, CancellationToken cancellationToken = default)
     {
-        // Wait for exclusive access (queue behind any in-flight operation)
-        if (!await _semaphore.WaitAsync(TimeSpan.FromMilliseconds(DefaultTimeoutMs), cancellationToken))
+        // Wait max 30s for the semaphore — if another operation holds it longer, it's stuck
+        if (!await _semaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
         {
             throw new TimeoutException(
-                $"SVN operation timed out waiting for lock after {DefaultTimeoutMs / 1000}s. " +
+                $"SVN operation timed out waiting for lock after {LockWaitTimeoutMs / 1000}s. " +
                 "Another SVN operation may be stuck. Try again or restart the application.");
         }
 
         try
         {
-            // Wrap the operation in Task.Run so it runs on a background thread.
-            // The linked CTS enforces an overall operation timeout (not just the semaphore wait).
-            using var timeoutCts = new CancellationTokenSource();
-            timeoutCts.CancelAfter(DefaultTimeoutMs);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            // Hard safety-net timeout (600s) — covers even the slowest operations
+            using var safetyNetCts = new CancellationTokenSource();
+            safetyNetCts.CancelAfter(SafetyNetTimeoutMs);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyNetCts.Token);
 
             var result = await Task.Run(() => operation(linkedCts.Token), linkedCts.Token);
             return result;
@@ -93,12 +134,120 @@ public class SvnService : IDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // Our internal timeout was the cause — 转化成 TimeoutException
-            throw new TimeoutException($"SVN operation timed out after {DefaultTimeoutMs / 1000}s. Server may be unreachable.");
+            throw new TimeoutException($"SVN operation timed out after {SafetyNetTimeoutMs / 1000}s. Server may be unreachable.");
         }
         finally
         {
             _semaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Runs an SVN file-transfer operation (Update/Commit) with activity-based idle timeout.
+    /// As long as SharpSvn.Notify events keep firing (files being transferred), the operation
+    /// is considered alive and will not time out. Only when the idle period exceeds
+    /// FileTransferTimeoutMs will it be cancelled.
+    /// SharpSvn calls are synchronous so they run on a background thread with cancellation support.
+    /// </summary>
+    private async Task<T> ExecuteWithProgressTimeoutAsync<T>(
+        Func<CancellationToken, CancellationTokenSource, T> operation,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await _semaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
+        {
+            throw new TimeoutException(
+                $"SVN operation timed out waiting for lock after {LockWaitTimeoutMs / 1000}s. " +
+                "Another SVN operation may be stuck. Try again or restart the application.");
+        }
+
+        try
+        {
+            var idleTimeoutMs = FileTransferTimeoutMs;
+            using var progressCts = new CancellationTokenSource();
+            using var safetyNetCts = new CancellationTokenSource();
+
+            // Safety net: absolute ceiling, even if progress events keep firing
+            safetyNetCts.CancelAfter(SafetyNetTimeoutMs);
+
+            // Progress idle timeout: will fire if no file-transfer activity is detected
+            progressCts.CancelAfter(idleTimeoutMs);
+
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, progressCts.Token, safetyNetCts.Token);
+
+            // Run on background thread with cancellation support
+            // progressCts is captured by the closure so ExecuteSvnWithNotify can cancel it
+            // when the activity watchdog fires, triggering linkedCTS → interrupting SharpSvn
+            var result = await Task.Run(() => operation(linkedCts.Token, progressCts), linkedCts.Token);
+            return result;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"文件传输超时（{FileTransferTimeoutMs / 1000}s 无活动）。服务器可能已断开，请检查网络后重试。");
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Wraps a synchronous SharpSvn operation (Update/Commit) with a Notify-based activity watchdog.
+    /// The watchdog resets on each file-transfer Notify event. If no activity is seen for
+    /// FileTransferTimeoutMs, it fires the provided progressCts to trigger cancellation through
+    /// the linked CTS chain, interrupting the SharpSvn operation mid-flight.
+    /// Runs the operation on a background thread so it can be cancelled mid-execution.
+    /// </summary>
+    private T ExecuteSvnWithNotify<T>(
+        Func<SvnClient, T> svnOperation,
+        CancellationToken token,
+        CancellationTokenSource progressCts)
+    {
+        using var client = CreateClient();
+        var lastActivity = DateTime.UtcNow;
+        var timeoutMs = FileTransferTimeoutMs;
+
+        client.Notify += (sender, e) =>
+        {
+            lastActivity = DateTime.UtcNow;
+            var action = e.Action.ToString();
+            var path = e.Path ?? "";
+            Log.Debug("[SvnService] Transfer: {Action} {Path}", action, path);
+            FileTransferActivity?.Invoke(path, action);
+        };
+
+        // Watchdog: if no Notify fires within FileTransferTimeoutMs, cancel progressCTS
+        // which propagates through linkedCTS → Task.Run → SharpSvn operation interrupted
+        using var watchdogCts = new CancellationTokenSource();
+        var watchdog = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested && !watchdogCts.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(2_000, CancellationTokenSource.CreateLinkedTokenSource(token, watchdogCts.Token).Token);
+                }
+                catch { break; }
+
+                if ((DateTime.UtcNow - lastActivity).TotalMilliseconds > timeoutMs)
+                {
+                    Log.Warning("[SvnService] No file transfer activity for {Seconds}s, cancelling",
+                        timeoutMs / 1000);
+                    progressCts.Cancel();  // fires linkedCTS → interrupts SharpSvn
+                    break;
+                }
+            }
+        }, token);
+
+        try
+        {
+            return svnOperation(client);
+        }
+        finally
+        {
+            watchdogCts.Cancel();
+            try { watchdog.Wait(500); } catch { }
         }
     }
 
@@ -226,13 +375,15 @@ public class SvnService : IDisposable
 
     public async Task<bool> CommitAsync(string workingCopyPath, string message, string? username = null, string? password = null)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteWithProgressTimeoutAsync((token, progressCts) =>
         {
             try
             {
-                using var client = CreateClient();
-                var args = new SvnCommitArgs { LogMessage = message };
-                return client.Commit(workingCopyPath, args);
+                return ExecuteSvnWithNotify(client =>
+                {
+                    var args = new SvnCommitArgs { LogMessage = message };
+                    return client.Commit(workingCopyPath, args);
+                }, token, progressCts);
             }
             catch (Exception ex)
             {
@@ -253,12 +404,14 @@ public class SvnService : IDisposable
 
     public async Task<bool> UpdateAsync(string workingCopyPath, string? username = null, string? password = null)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteWithProgressTimeoutAsync((token, progressCts) =>
         {
             try
             {
-                using var client = CreateClient();
-                return client.Update(workingCopyPath);
+                return ExecuteSvnWithNotify(client =>
+                {
+                    return client.Update(workingCopyPath);
+                }, token, progressCts);
             }
             catch (Exception ex)
             {
@@ -502,26 +655,19 @@ public class SvnService : IDisposable
         });
     }
 
-    public async Task<bool> BreakWriteLockAsync(string path)
+    public async Task<bool> RevertRecursiveAsync(string path)
     {
-        return await ExecuteAsync(token =>
-        {
-            try
-            {
-                using var client = CreateClient();
-                return client.Lock(path, new SvnLockArgs { StealLock = true });
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Break lock failed for {Path}", path);
-                return false;
-            }
-        });
+        return await RevertAsync(path, recursive: true);
+    }
+
+    public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync2(string workingCopyPath)
+    {
+        return await GetStatusAsync(workingCopyPath, SvnDepth.Infinity);
     }
 
     public async Task<(string output, int exitCode, string error)> CheckoutAsync(
-        string url,
-        string localPath,
+        string repoUrl,
+        string workingCopyPath,
         string? username = null,
         string? password = null)
     {
@@ -532,8 +678,9 @@ public class SvnService : IDisposable
                 using var client = CreateClient();
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
+
                 SvnUpdateResult? result = null;
-                client.CheckOut(new SvnUriTarget(url), localPath, new SvnCheckOutArgs(), out result);
+                client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
                 return (result?.Revision.ToString() ?? "", 0, "");
             }
             catch (Exception ex)
@@ -543,32 +690,18 @@ public class SvnService : IDisposable
                 {
                     Log.Warning("[SvnService] Checkout locked, running cleanup and retrying...");
                     using var cleanupClient = CreateClient();
-                    cleanupClient.CleanUp(GetWorkingCopyRoot(localPath));
+                    cleanupClient.CleanUp(GetWorkingCopyRoot(workingCopyPath));
                     using var retryClient = CreateClient();
                     if (!string.IsNullOrEmpty(username))
                         retryClient.Authentication.ForceCredentials(username, password ?? "");
                     SvnUpdateResult? result2 = null;
-                    retryClient.CheckOut(new SvnUriTarget(url), localPath, new SvnCheckOutArgs(), out result2);
+                    retryClient.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result2);
                     return (result2?.Revision.ToString() ?? "", 0, "");
                 }
-                Log.Error(ex, "Checkout failed for {Url} to {Path}", url, localPath);
+                Log.Error(ex, "Checkout failed for {Url} to {Path}", repoUrl, workingCopyPath);
                 return ("", 1, ex.Message);
             }
         });
-    }
-
-    public bool IsValidWorkingCopy(string path)
-    {
-        // These are fast local-only checks — no need to serialize or timeout
-        try
-        {
-            using var client = CreateClient();
-            return client.GetRepositoryRoot(path) != null;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     /// <summary>
@@ -583,7 +716,7 @@ public class SvnService : IDisposable
         RepoNotFound,      // 404 / repository does not exist at this URL
         NetworkError,      // network unreachable / DNS / connection refused
         SslCertError,      // SSL certificate problem
-        Timeout,           // operation timed out
+        Timeout,          // operation timed out
         Unknown,           // anything else
     }
 
@@ -619,13 +752,10 @@ public class SvnService : IDisposable
             }
             catch (SvnRepositoryIOException ex)
             {
-                // E230001: Server SSL certificate verification failed (self-signed cert)
                 if (ex.Message.Contains("E230001") || ex.InnerException?.Message.Contains("E230001") == true)
                     return (SvnConnectResult.SslCertError, null);
-                // E175002/E170013: repository not found or unreachable
                 if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013") || ex.Message.Contains("170013"))
                     return (SvnConnectResult.RepoNotFound, null);
-                // E175003: PROPFIND on non-DAV endpoint
                 if (ex.Message.Contains("E175003"))
                     return (SvnConnectResult.SslCertError, null);
                 return (SvnConnectResult.Unknown, ex.Message);
@@ -656,6 +786,20 @@ public class SvnService : IDisposable
     }
 
     public bool IsVersioned(string path)
+    {
+        // Fast local-only check — no need to serialize or timeout
+        try
+        {
+            using var client = CreateClient();
+            return client.GetRepositoryRoot(path) != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public bool IsValidWorkingCopy(string path)
     {
         // Fast local-only check — no need to serialize or timeout
         try
@@ -749,6 +893,23 @@ public class SvnService : IDisposable
                 Log.Error(ex, "Error getting last changed time for {Path}", filePath);
             }
             return DateTime.MinValue;
+        });
+    }
+
+    public async Task<bool> BreakWriteLockAsync(string path)
+    {
+        return await ExecuteAsync(token =>
+        {
+            try
+            {
+                using var client = CreateClient();
+                return client.Lock(path, new SvnLockArgs { StealLock = true });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Break lock failed for {Path}", path);
+                return false;
+            }
         });
     }
 

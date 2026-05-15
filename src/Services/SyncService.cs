@@ -34,6 +34,13 @@ public class SyncService : IDisposable
     private int _pollIntervalMs = 60000;
     private int _maxRetries = 3;
 
+    /// <summary>
+    /// Async-local storage for the current repo name during Update/Commit operations.
+    /// Used to record individual file transfer activity to SyncRecordService from
+    /// the SvnService.FileTransferActivity event.
+    /// </summary>
+    private static readonly AsyncLocal<string> _currentRepoName = new();
+
     public event EventHandler<string>? SyncNotification;
     public event EventHandler? FilesChanged;
     /// <summary>
@@ -61,6 +68,14 @@ public class SyncService : IDisposable
         {
             foreach (var item in failedItems)
                 AddPendingUpdate(item.Path);
+        };
+
+        // Subscribe to per-file transfer activity from SvnService and record each file
+        SvnService.FileTransferActivity += (path, action) =>
+        {
+            var repoName = _currentRepoName.Value;
+            if (string.IsNullOrEmpty(repoName) || string.IsNullOrEmpty(path)) return;
+            _recordService.AddRecord(repoName, path, action, "Success");
         };
         _pollTimer = new System.Timers.Timer(_pollIntervalMs);
         _pollTimer.Elapsed += OnPollTimerElapsed;
@@ -144,12 +159,14 @@ public class SyncService : IDisposable
         }
         try
         {
+            _currentRepoName.Value = _currentRepo.Name;
             await _queueProcessor.SyncNowAsync(); // flush pending queue (上行)
             await PollCoreAsync();                  // download server changes (下行)
             await FullSyncAsync();                  // safety net: scan & commit unversioned/missing
         }
         finally
         {
+            _currentRepoName.Value = null;
             Interlocked.Exchange(ref _isSyncing, 0);
         }
     }
@@ -397,6 +414,7 @@ public class SyncService : IDisposable
             }
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
+            _currentRepoName.Value = _currentRepo?.Name;
             var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
             if (updateSuccess)
             {
