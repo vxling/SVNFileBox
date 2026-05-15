@@ -48,6 +48,7 @@ public class FileCopier
     public async Task<CopyResult> CopyAsync(
         FileCopyPlan plan,
         IProgress<CopyProgress>? progress,
+        SyncService? syncService = null,
         CancellationToken cancellationToken = default)
     {
         Cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -165,18 +166,12 @@ public class FileCopier
             Cts = null;
         }
 
-        // Commit once after all files are copied
+        // Enqueue copied files for async SVN commit via background processor.
+        // This avoids blocking the copy operation with a slow network commit.
         // (directories were added during the dirs loop, files were added per-file above)
-        if ((copied > 0 || svnAddedPaths.Count > 0) && !token.IsCancellationRequested)
+        if ((copied > 0 || svnAddedPaths.Count > 0) && !token.IsCancellationRequested && syncService != null)
         {
-            try
-            {
-                await _svnService.CommitAsync(plan.DestRoot, $"Auto-sync: [Add] {copied} item(s)");
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "SVN commit after copy failed — files were added but not committed");
-            }
+            syncService.EnqueueCommitAsync(plan.DestRoot);
         }
 
         return new CopyResult

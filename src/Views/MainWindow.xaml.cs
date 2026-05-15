@@ -928,7 +928,7 @@ public partial class MainWindow : Window
             progressWindow.StartCopy();
             var copyProgress = new Progress<CopyProgress>(p => progressWindow.UpdateProgress(p));
 
-            var result = await Task.Run(() => _fileCopier.CopyAsync(plan, copyProgress));
+            var result = await Task.Run(() => _fileCopier.CopyAsync(plan, copyProgress, syncService));
 
             progressWindow.Stop();
 

@@ -206,6 +206,16 @@ public class SyncService : IDisposable
     }
 
     /// <summary>
+    /// Called by FileCopier after a copy completes, to enqueue the newly added files
+    /// for async background commit instead of blocking on a synchronous SVN commit.
+    /// </summary>
+    public async Task EnqueueCommitAsync(string workingCopyPath)
+    {
+        var queue = PendingCommitQueue.Instance;
+        await EnqueueFileChange(workingCopyPath, queue);
+    }
+
+    /// <summary>
     /// Analyzes a single file path and determines the appropriate queue operation,
     /// then enqueues it. This replaces the old CommitFileAsync logic.
     ///
@@ -216,7 +226,6 @@ public class SyncService : IDisposable
     /// </summary>
     private async Task EnqueueFileChange(string filePath, PendingCommitQueue queue)
     {
-        if (_currentRepo == null) return;
         if (string.IsNullOrEmpty(Path.GetDirectoryName(filePath))) return;
 
         bool fileExists = File.Exists(filePath) || Directory.Exists(filePath);
