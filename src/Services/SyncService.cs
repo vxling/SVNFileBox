@@ -53,7 +53,8 @@ public class SyncService : IDisposable
     {
         _configService = configService;
         _recordService = recordService;
-        _queueProcessor = new QueueCommitProcessor(_svnService);
+        // Use the shared QueueCommitProcessor from CommitCoordinator instead of creating our own
+        _queueProcessor = CommitCoordinator.Instance.Processor;
         _queueProcessor.BatchCompleted += (_, result) =>
         {
             // Only notify for actual changes — skip if queue was empty (ItemsCount == 0)
@@ -183,13 +184,11 @@ public class SyncService : IDisposable
         {
             Log.Information("File changes detected: {Count} files", files.Length);
 
-            var queue = PendingCommitQueue.Instance;
-
             foreach (var file in files)
             {
                 try
                 {
-                    await EnqueueFileChange(file, queue);
+                    await CommitCoordinator.Instance.EnqueueFileChangeAsync(file);
                 }
                 catch (Exception ex)
                 {
@@ -204,77 +203,6 @@ public class SyncService : IDisposable
             Interlocked.Exchange(ref _isCommitting, 0);
         }
     }
-
-    /// <summary>
-    /// Called by FileCopier after a copy completes, to enqueue the newly added files
-    /// for async background commit instead of blocking on a synchronous SVN commit.
-    /// </summary>
-    public async Task EnqueueCommitAsync(string workingCopyPath)
-    {
-        var queue = PendingCommitQueue.Instance;
-        await EnqueueFileChange(workingCopyPath, queue);
-    }
-
-    /// <summary>
-    /// Analyzes a single file path and determines the appropriate queue operation,
-    /// then enqueues it. This replaces the old CommitFileAsync logic.
-    ///
-    /// For OS-level renames, both old and new paths are in the `files` array, so
-    /// the Delete will be queued for the old path and Add for the new path;
-    /// QueueCommitProcessor.Resolve() collapses this to a Move when it sees
-    /// a Delete+Add on logically the same rename.
-    /// </summary>
-    private async Task EnqueueFileChange(string filePath, PendingCommitQueue queue)
-    {
-        if (string.IsNullOrEmpty(Path.GetDirectoryName(filePath))) return;
-
-        bool fileExists = File.Exists(filePath) || Directory.Exists(filePath);
-
-        if (!fileExists)
-        {
-            // Physical file/folder is gone — either deleted externally or part of a rename
-            if (!_svnService.IsVersioned(filePath))
-            {
-                // Was never tracked — nothing to sync
-                Log.Debug("Skipping untracked missing file: {File}", filePath);
-                return;
-            }
-            // svn delete marks it as deleted; later commit will finalize
-            await _svnService.DeleteAsync(filePath);
-            queue.Enqueue(filePath, CommitOperation.Delete);
-            Log.Information("[FileWatcher] SvnStatus: Deleted, Path: {File}", filePath);
-            return;
-        }
-
-        // File/folder exists — could be a new create, a modify, or the destination of a rename
-        if (!IsSvnManaged(filePath))
-        {
-            // Unversioned → svn add marks it for addition; later commit will finalize
-            await _svnService.AddPathAsync(filePath);
-            queue.Enqueue(filePath, CommitOperation.Add);
-            Log.Information("[FileWatcher] SvnStatus: Added, Path: {File}", filePath);
-        }
-        else
-        {
-            // Already versioned — svn commit will auto-detect content changes
-            queue.Enqueue(filePath, CommitOperation.Modify);
-            Log.Information("[FileWatcher] SvnStatus: Modified, Path: {File}", filePath);
-        }
-    }
-
-    private bool IsSvnManaged(string path)
-    {
-        var dir = Path.GetDirectoryName(path);
-        while (!string.IsNullOrEmpty(dir))
-        {
-            if (Directory.Exists(Path.Combine(dir, ".svn")))
-                return true;
-            if (dir == Path.GetPathRoot(dir)) break;
-            dir = Path.GetDirectoryName(dir);
-        }
-        return false;
-    }
-
 
     private async void OnFullSyncTimerElapsed(object? sender, ElapsedEventArgs e)
     {

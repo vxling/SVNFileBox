@@ -48,7 +48,6 @@ public class FileCopier
     public async Task<CopyResult> CopyAsync(
         FileCopyPlan plan,
         IProgress<CopyProgress>? progress,
-        SyncService? syncService = null,
         CancellationToken cancellationToken = default)
     {
         Cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -169,9 +168,9 @@ public class FileCopier
         // Enqueue copied files for async SVN commit via background processor.
         // This avoids blocking the copy operation with a slow network commit.
         // (directories were added during the dirs loop, files were added per-file above)
-        if ((copied > 0 || svnAddedPaths.Count > 0) && !token.IsCancellationRequested && syncService != null)
+        if ((copied > 0 || svnAddedPaths.Count > 0) && !token.IsCancellationRequested)
         {
-            syncService.EnqueueCommitAsync(plan.DestRoot);
+            CommitCoordinator.Instance.EnqueueCommitAsync(plan.DestRoot);
         }
 
         return new CopyResult

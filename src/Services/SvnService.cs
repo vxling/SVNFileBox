@@ -18,7 +18,7 @@ namespace SVNFileBox.Services;
 /// SharpSvn is lightweight and this avoids all threading/reentrancy concerns
 /// that come from sharing a single instance across concurrent calls.
 ///
-/// All operations are serialized via a SemaphoreSlim(1,1) to prevent concurrent
+/// All operations are serialized via a static SemaphoreSlim(1,1) to prevent concurrent
 /// SVN operations on the same working copy, regardless of trigger source
 /// (manual, timer, or FileWatcher).
 /// </summary>
@@ -26,9 +26,10 @@ public class SvnService : IDisposable
 {
     /// <summary>
     /// Serializes all SVN operations — manual, timer-triggered, and FileWatcher-triggered.
+    /// Static so all SvnService instances share the same lock.
     /// Only one operation runs at a time; others queue behind it.
     /// </summary>
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private static readonly SemaphoreSlim _semaphore = new(1, 1);
 
     /// <summary>
     /// Max time to wait for the semaphore lock (30s). If another operation holds the lock
@@ -759,6 +760,8 @@ public class SvnService : IDisposable
 
     public void Dispose()
     {
-        _semaphore.Dispose();
+        // Note: _semaphore is static and is NOT disposed here, since other
+        // SvnService instances may still be using it. Static resources
+        // are intentionally left to the process to clean up.
     }
 }

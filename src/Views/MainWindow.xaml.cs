@@ -755,7 +755,7 @@ public partial class MainWindow : Window
                 await _svnService.AddFileAsync(newPath);
 
                 // Enqueue as Move so QueueCommitProcessor resolves it correctly
-                PendingCommitQueue.Instance.EnqueueMove(item.FullPath, newPath);
+                CommitCoordinator.Instance.EnqueueMove(item.FullPath, newPath);
 
                 ShowToast(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}");
@@ -798,10 +798,8 @@ public partial class MainWindow : Window
                     File.Delete(item.FullPath);
 
                 // svn delete marks the deletion in the working copy (after physical file is gone)
-                await _svnService.DeleteAsync(item.FullPath);
-
-                // Enqueue the delete so QueueCommitProcessor can batch-commit it
-                PendingCommitQueue.Instance.Enqueue(item.FullPath, CommitOperation.Delete);
+                // Enqueue via CommitCoordinator so the delete is batch-committed
+                await CommitCoordinator.Instance.EnqueueDeleteAsync(item.FullPath);
 
                 ShowToast(LocalizationService.Instance.GetString("DeleteSuccess", item.Name));
                 _viewModel!.StatusText = LocalizationService.Instance.GetString("DeleteSuccess", item.Name);
@@ -928,7 +926,7 @@ public partial class MainWindow : Window
             progressWindow.StartCopy();
             var copyProgress = new Progress<CopyProgress>(p => progressWindow.UpdateProgress(p));
 
-            var result = await Task.Run(() => _fileCopier.CopyAsync(plan, copyProgress, syncService));
+            var result = await Task.Run(() => _fileCopier.CopyAsync(plan, copyProgress));
 
             progressWindow.Stop();
 
