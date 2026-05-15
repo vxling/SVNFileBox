@@ -52,14 +52,6 @@ public partial class SettingsWindow : Window
             _ => 0  // auto
         };
 
-        // Theme combo
-        ThemeComboBox.SelectedIndex = _configService.Config.Theme switch
-        {
-            "light" => 1,
-            "dark" => 2,
-            _ => 0  // system
-        };
-
         // AutoStart toggle enables/disables AutoStartMinimize
         AutoStartCheckBox.Checked += (s, e) => AutoStartMinimizeCheckBox.IsEnabled = true;
         AutoStartCheckBox.Unchecked += (s, e) => AutoStartMinimizeCheckBox.IsEnabled = false;
@@ -67,7 +59,6 @@ public partial class SettingsWindow : Window
 
     private void OK_Click(object sender, RoutedEventArgs e)
     {
-        var oldTheme = _configService.Config.Theme;
         _configService.Config.AutoSyncEnabled = AutoSyncCheckBox.IsChecked == true;
         _configService.Config.SyncIntervalMinutes = (int)SyncIntervalSlider.Value;
         _configService.Config.ProxyUrl = ProxyUrlBox.Text?.Trim() ?? "";
@@ -83,14 +74,6 @@ public partial class SettingsWindow : Window
             _ => "auto"
         };
 
-        // Theme
-        _configService.Config.Theme = ThemeComboBox.SelectedIndex switch
-        {
-            1 => "light",
-            2 => "dark",
-            _ => "system"
-        };
-
         // Apply language
         LocalizationService.Instance.SetLanguage(_configService.Config.Language);
 
@@ -99,15 +82,6 @@ public partial class SettingsWindow : Window
 
         _ = _configService.SaveAsync();
         Log.Information("Settings saved");
-
-        // Warn if theme changed
-        if (_configService.Config.Theme != oldTheme)
-        {
-            MsgBox.Show(this,
-                LocalizationService.Instance.GetString("ThemeChangedTip"),
-                LocalizationService.Instance.GetString("Theme"),
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
 
         DialogResult = true;
         Close();
