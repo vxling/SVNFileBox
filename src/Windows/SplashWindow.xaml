@@ -21,9 +21,8 @@
                        FontSize="32" FontWeight="Bold" Foreground="White"
                        HorizontalAlignment="Center"/>
             <TextBlock x:Name="TaglineText"
-                       Text="SVN File Manager"
                        FontSize="14" Foreground="#BBDEFB"
-                       HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                       HorizontalAlignment="Center" Margin="0,6,0,0"><Run Language="zh-cn" Text="SVN Based Sync"/></TextBlock>
         </StackPanel>
 
         <!-- Status messages -->
