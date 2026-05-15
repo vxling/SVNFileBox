@@ -148,7 +148,19 @@ public class SyncService : IDisposable
     }
 
     /// <summary>
-    /// 手工同步：等待 poll 完成 → FullSyncAsync（全量 scan 入队）→ 立即 flush 队列。
+    /// 等待 poll 完成。poll 和 sync 并发运行同一工作副本有冲突风险，
+    /// 因此这里无限等待，确保 poll 完全结束后才执行 sync。
+    /// </summary>
+    private async Task WaitForPollAsync()
+    {
+        while (Interlocked.CompareExchange(ref _isPolling, 0, 0) != 0)
+        {
+            await Task.Delay(200);
+        }
+    }
+
+    /// <summary>
+    /// 手工同步：等待 poll 完成 → FullScanAndEnqueueAsync（全量 scan 入队）→ 立即 flush 队列。
     /// 与 15 分钟定时器复用同一个流程。
     /// </summary>
     public async Task SyncNowAsync()
@@ -157,10 +169,7 @@ public class SyncService : IDisposable
         try
         {
             // Wait for any in-flight poll to finish, then take the sync lock
-            while (Interlocked.CompareExchange(ref _isPolling, 0, 0) != 0)
-            {
-                await Task.Delay(200);
-            }
+            await WaitForPollAsync();
             if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) != 0)
             {
                 Log.Information("Sync already in progress, skipping");
@@ -168,8 +177,10 @@ public class SyncService : IDisposable
             }
 
             _currentRepoName.Value = _currentRepo.Name;
+            Log.Information("[Sync] Starting full sync");
             await FullScanAndEnqueueAsync();
             await _queueProcessor.SyncNowAsync();
+            Notify("全量同步完成");
         }
         finally
         {
@@ -216,19 +227,17 @@ public class SyncService : IDisposable
         try
         {
             // Wait for any in-flight poll to finish, then take the sync lock
-            while (Interlocked.CompareExchange(ref _isPolling, 0, 0) != 0)
-            {
-                await Task.Delay(200);
-            }
+            await WaitForPollAsync();
             if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) != 0)
             {
                 Log.Debug("[FullSync] Sync already in progress, skipping timer tick");
                 return;
             }
 
-            Log.Information("[FullSync] Starting full sync scan for {Name}", _currentRepo.Name);
+            Log.Information("[FullSync] Starting full sync for {Name}", _currentRepo.Name);
             await FullScanAndEnqueueAsync();
             await _queueProcessor.SyncNowAsync();
+            Notify("定时全量同步完成");
         }
         catch (Exception ex)
         {
