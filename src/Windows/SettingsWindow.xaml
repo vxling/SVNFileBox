@@ -53,8 +53,10 @@
                             <TextBlock Text="{DynamicResource Theme}" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{DynamicResource ThemeTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center" IsEnabled="False" SelectedIndex="0">
+                        <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center" SelectedIndex="1">
                             <ComboBoxItem Content="{DynamicResource ThemeSystem}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeLight}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeDark}"/>
                         </ComboBox>
                     </Grid>
                 </Border>
