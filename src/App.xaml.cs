@@ -114,7 +114,7 @@ public partial class App : Application
             // Only minimize if launched with --autostart (i.e., from Windows startup),
             // NOT when the user manually launches the app from Explorer/Start Menu.
             bool isAutoStart = e.Args.Contains("--autostart", StringComparer.OrdinalIgnoreCase);
-            if (configService.Config.AutoStart && isAutoStart)
+            if (isAutoStart && configService.Config.AutoStart && configService.Config.AutoStartMinimize)
             {
                 mainWindow.WindowState = WindowState.Minimized;
                 mainWindow.Hide();

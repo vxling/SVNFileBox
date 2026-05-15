@@ -14,6 +14,7 @@ public class AppConfig
     public bool MinimizeToTray { get; set; } = true;
     public string Language { get; set; } = "auto";
     public string Theme { get; set; } = "system";
+    public bool AutoStartMinimize { get; set; } = true;
     public string? ActiveRepositoryName { get; set; }
     public List<Repository> Repositories { get; set; } = new();
 }

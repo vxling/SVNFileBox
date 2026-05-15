@@ -28,7 +28,8 @@
         <!-- Current item index -->
         <TextBlock x:Name="ItemIndexText"
                    Grid.Row="1"
-                   FontSize="12" Foreground="#666"
+                   FontSize="12"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                    Margin="0,0,0,10"/>
 
         <!-- Progress bar -->
@@ -47,10 +48,12 @@
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="BytesText"
                        Grid.Column="0"
-                       FontSize="12" Foreground="#555"/>
+                       FontSize="12"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
             <TextBlock x:Name="TimeText"
                        Grid.Column="2"
-                       FontSize="12" Foreground="#888"/>
+                       FontSize="12"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
         </Grid>
 
         <!-- Cancel button -->

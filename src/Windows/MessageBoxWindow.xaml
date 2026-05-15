@@ -32,7 +32,7 @@
                    Text="{Binding Message}"
                    TextWrapping="Wrap"
                    FontSize="13"
-                   Foreground="#444"/>
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
 
         <!-- Buttons -->
         <StackPanel x:Name="ButtonsPanel" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"

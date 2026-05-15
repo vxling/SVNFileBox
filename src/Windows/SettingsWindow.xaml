@@ -15,7 +15,7 @@
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <!-- Auto Sync -->
-                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -23,17 +23,17 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{DynamicResource AutoSync}" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="{DynamicResource AutoSyncTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource AutoSyncTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="AutoSyncCheckBox" Grid.Column="1" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
 
                 <!-- Sync Interval -->
-                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource SyncInterval}" FontWeight="SemiBold" FontSize="13"/>
-                        <TextBlock Text="{DynamicResource SyncIntervalTip}" FontSize="11" Foreground="#666" Margin="0,2,0,6"/>
+                        <TextBlock Text="{DynamicResource SyncIntervalTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,6"/>
                         <StackPanel Orientation="Horizontal">
                             <Slider x:Name="SyncIntervalSlider" Minimum="1" Maximum="10" Width="200" Value="1"
                                     TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
@@ -43,7 +43,7 @@
                 </Border>
 
                 <!-- Theme -->
-                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -51,7 +51,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{DynamicResource Theme}" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="{DynamicResource ThemeTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource ThemeTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
                         <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center" SelectedIndex="1">
                             <ComboBoxItem Content="{DynamicResource ThemeSystem}"/>
@@ -62,7 +62,7 @@
                 </Border>
 
                 <!-- Language -->
-                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -70,7 +70,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{DynamicResource Language}" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="{DynamicResource LanguageTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource LanguageTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
                         <ComboBox x:Name="LanguageComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center">
                             <ComboBoxItem Content="{DynamicResource LangSystem}"/>
@@ -81,16 +81,16 @@
                 </Border>
 
                 <!-- Proxy -->
-                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource ProxyUrl}" FontWeight="SemiBold" FontSize="13"/>
-                        <TextBlock Text="{DynamicResource ProxyUrlTip}" FontSize="11" Foreground="#666" Margin="0,2,0,6"/>
+                        <TextBlock Text="{DynamicResource ProxyUrlTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,6"/>
                         <TextBox x:Name="ProxyUrlBox" Padding="4,3" FontSize="12"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Auto Start -->
-                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -98,14 +98,29 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{DynamicResource AutoStart}" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="{DynamicResource AutoStartTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource AutoStartTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="AutoStartCheckBox" Grid.Column="1" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
 
+                <!-- Auto Start Minimize -->
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{DynamicResource AutoStartMinimize}" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{DynamicResource AutoStartMinimizeTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <CheckBox x:Name="AutoStartMinimizeCheckBox" Grid.Column="1" VerticalAlignment="Center" IsEnabled="False"/>
+                    </Grid>
+                </Border>
+
                 <!-- Minimize to Tray -->
-                <Border Background="#F5F5F5" Padding="12" Margin="0,0,0,10" CornerRadius="4">
+                <Border Background="{DynamicResource ThemeBackgroundFillColorDefaultBrush}" Padding="12" Margin="0,0,0,10" CornerRadius="4">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -113,7 +128,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{DynamicResource MinimizeToTray}" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Text="{DynamicResource MinimizeToTrayTip}" FontSize="11" Foreground="#666" Margin="0,2,0,0"/>
+                            <TextBlock Text="{DynamicResource MinimizeToTrayTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="MinimizeToTrayCheckBox" Grid.Column="1" IsChecked="True" VerticalAlignment="Center"/>
                     </Grid>
