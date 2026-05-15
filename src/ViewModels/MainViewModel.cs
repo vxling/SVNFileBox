@@ -14,11 +14,15 @@ using Serilog;
 
 namespace SVNFileBox.ViewModels;
 
+public enum SyncStatusType { Idle, Syncing, Success, Failed }
+
 public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly ConfigService _configService;
     private readonly SvnService _svnService = new();
     private SyncService? _syncService;
+    private System.Timers.Timer? _statusClearTimer;
+    private string _lastPersistentStatus = "Ready";
 
     [ObservableProperty]
     private ObservableCollection<Repository> _repositories = new();
@@ -37,6 +41,40 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _statusText = "Ready";
+
+    // Separate transient (auto-clear) vs persistent status
+    // Transient: success operations → 3s timer → restore Ready
+    // Persistent: errors/loading → stays until next operation
+    public void SetStatus(string message, bool isTransient = false)
+    {
+        if (isTransient)
+        {
+            _statusClearTimer?.Stop();
+            _statusClearTimer?.Dispose();
+            _statusClearTimer = new System.Timers.Timer(3000);
+            _statusClearTimer.Elapsed += (_, _) =>
+            {
+                _statusClearTimer?.Stop();
+                StatusText = _lastPersistentStatus;
+            };
+            _statusClearTimer.AutoReset = false;
+            _statusClearTimer.Start();
+        }
+        else
+        {
+            _statusClearTimer?.Stop();
+            _lastPersistentStatus = message;
+        }
+        StatusText = message;
+    }
+
+    public void SetTransientStatus(string message) => SetStatus(message, isTransient: true);
+
+    [ObservableProperty]
+    private string _itemCountText = "";
+
+    [ObservableProperty]
+    private SyncStatusType _syncStatus = SyncStatusType.Idle;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -89,7 +127,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         _configService = new ConfigService();
         _syncService = new SyncService(_configService, SyncRecordService.Instance);
-        _syncService.SyncNotification += (_, msg) => { StatusText = msg; SyncNotification?.Invoke(this, msg); };
+        _syncService.SyncNotification += (_, msg) => { SetStatus(msg); SyncNotification?.Invoke(this, msg); };
         _syncService.FilesChanged += async (_, _) => await RefreshAsync();
         _syncService.ConflictDetected += (_, conflicts) => ConflictDetected?.Invoke(this, conflicts);
 
@@ -124,7 +162,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public async Task InitializeAsync()
     {
         IsLoading = true;
-        StatusText = "Loading...";
+        SetStatus("Loading...");
         try
         {
             await _configService.LoadAsync();
@@ -150,11 +188,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 await LoadDirectoryAsync(SelectedRepository.Path);
             }
-            StatusText = "Ready";
         }
         catch (Exception ex)
         {
-            StatusText = $"Error: {ex.Message}";
+            SetStatus($"Error: {ex.Message}");
             Log.Error(ex, "InitializeAsync failed");
         }
         finally
@@ -200,7 +237,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         IsLoading = true;
-        StatusText = $"Loading {path}...";
+        SetStatus($"Loading {path}...");
         try
         {
             CurrentPath = path;
@@ -267,7 +304,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // Marshal to UI thread
                 disp.Invoke(() => Files = new ObservableCollection<FileItem>(items));
             }
-            StatusText = $"{path} - {items.Count} items";
+            var itemCount = items.Count;
+            ItemCountText = itemCount == 0 ? "" : $"{itemCount} items";
+            StatusText = $"Ready - {itemCount} items";
 
             // Load real SVN statuses for all items (with 30s timeout)
             if (SelectedRepository != null && Directory.Exists(SelectedRepository.Path))
@@ -286,7 +325,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                             if (item.Name == "..") continue;
                             item.SvnStatus = FileSvnStatus.Unversioned;
                         }
-                        StatusText = $"{path} - {items.Count} items (unversioned dir)";
+                        ItemCountText = itemCount == 0 ? "" : $"{itemCount} items";
+                        StatusText = $"Ready - {itemCount} items (unversioned dir)";
                         return;
                     }
 
@@ -308,18 +348,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         if (statuses.TryGetValue(item.FullPath, out var svnStatus))
                             item.SvnStatus = svnStatus;
                     }
-                    StatusText = $"{path} - {items.Count} items (loaded)";
+                    ItemCountText = itemCount == 0 ? "" : $"{itemCount} items";
+                    StatusText = $"Ready - {itemCount} items";
                 }
                 catch (OperationCanceledException)
                 {
                     Log.Warning("GetStatusAsync timed out after 30s, showing files without SVN status");
-                    StatusText = $"{path} - {items.Count} items (SVN status timeout)";
+                    ItemCountText = itemCount == 0 ? "" : $"{itemCount} items";
+                    StatusText = $"Ready - {itemCount} items (SVN status timeout)";
                 }
             }
         }
         catch (Exception ex)
         {
-            StatusText = $"Error: {ex.Message}";
+            SetStatus($"Error: {ex.Message}");
             Log.Error(ex, "LoadDirectoryAsync failed for {Path}", path);
         }
         finally

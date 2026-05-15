@@ -102,9 +102,11 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="CurrentPathText" Grid.Column="0" Text="" FontSize="12" VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Grid.Column="1" Text="" FontSize="12" VerticalAlignment="Center" MaxWidth="500" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Text="" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="ItemCountText" Grid.Column="1" Text="" FontSize="12" VerticalAlignment="Center" Margin="16,0,8,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                <Ellipse x:Name="SyncIndicator" Grid.Column="2" Width="10" Height="10" VerticalAlignment="Center" Fill="{DynamicResource TextFillColorSecondaryBrush}"/>
             </Grid>
         </Border>
 
