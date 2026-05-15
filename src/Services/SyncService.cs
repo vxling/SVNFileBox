@@ -148,22 +148,28 @@ public class SyncService : IDisposable
     }
 
     /// <summary>
-    /// 手工同步：先提交本地变更（上行），再从服务器更新（下行）。
+    /// 手工同步：等待 poll 完成 → FullSyncAsync（全量 scan 入队）→ 立即 flush 队列。
+    /// 与 15 分钟定时器复用同一个流程。
     /// </summary>
     public async Task SyncNowAsync()
     {
         if (_currentRepo == null) return;
-        if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) == 1)
-        {
-            Log.Information("Sync already in progress, skipping");
-            return;
-        }
         try
         {
+            // Wait for any in-flight poll to finish, then take the sync lock
+            while (Interlocked.CompareExchange(ref _isPolling, 0, 0) != 0)
+            {
+                await Task.Delay(200);
+            }
+            if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) != 0)
+            {
+                Log.Information("Sync already in progress, skipping");
+                return;
+            }
+
             _currentRepoName.Value = _currentRepo.Name;
-            await _queueProcessor.SyncNowAsync(); // flush pending queue (上行)
-            await PollCoreAsync();                  // download server changes (下行)
-            await FullSyncAsync();                  // safety net: scan & commit unversioned/missing
+            await FullScanAndEnqueueAsync();
+            await _queueProcessor.SyncNowAsync();
         }
         finally
         {
@@ -207,15 +213,22 @@ public class SyncService : IDisposable
     private async void OnFullSyncTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (_currentRepo == null) return;
-        if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) == 1)
-        {
-            Log.Debug("[FullSync] Sync already in progress, skipping timer tick");
-            return;
-        }
         try
         {
+            // Wait for any in-flight poll to finish, then take the sync lock
+            while (Interlocked.CompareExchange(ref _isPolling, 0, 0) != 0)
+            {
+                await Task.Delay(200);
+            }
+            if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) != 0)
+            {
+                Log.Debug("[FullSync] Sync already in progress, skipping timer tick");
+                return;
+            }
+
             Log.Information("[FullSync] Starting full sync scan for {Name}", _currentRepo.Name);
-            await FullSyncAsync();
+            await FullScanAndEnqueueAsync();
+            await _queueProcessor.SyncNowAsync();
         }
         catch (Exception ex)
         {
@@ -228,10 +241,11 @@ public class SyncService : IDisposable
     }
 
     /// <summary>
-    /// Full sync: scan all changes via svn status and commit everything in one shot.
-    /// This acts as a safety net for changes that FileWatcher may have missed.
+    /// Scans the entire working copy (svn status --depth infinity), enqueues every
+    /// changed item into PendingCommitQueue, then commits in one batch.
+    /// Acts as a safety net for changes that FileWatcher may have missed.
     /// </summary>
-    private async Task FullSyncAsync()
+    private async Task FullScanAndEnqueueAsync()
     {
         if (_currentRepo == null) return;
 
@@ -250,30 +264,16 @@ public class SyncService : IDisposable
             {
                 case FileSvnStatus.Unversioned:
                 {
-                    var addSuccess = await _svnService.AddFileAsync(path);
-                    if (addSuccess)
-                    {
-                        Log.Information("[FullSync] SvnStatus: Added, Path: {Path}", path);
-                        anyChange = true;
-                    }
-                    else
-                    {
-                        Log.Warning("[FullSync] SvnStatus: AddFailed, Path: {Path}", path);
-                    }
+                    // svn add is idempotent — safe to call on already-added files
+                    await CommitCoordinator.Instance.EnqueueAddAsync(path);
+                    anyChange = true;
                     break;
                 }
                 case FileSvnStatus.Missing:
                 {
-                    var delSuccess = await _svnService.DeleteAsync(path);
-                    if (delSuccess)
-                    {
-                        Log.Information("[FullSync] SvnStatus: Deleted, Path: {Path}", path);
-                        anyChange = true;
-                    }
-                    else
-                    {
-                        Log.Warning("[FullSync] SvnStatus: DeleteFailed, Path: {Path}", path);
-                    }
+                    // svn delete is idempotent — safe to call on already-deleted files
+                    await CommitCoordinator.Instance.EnqueueDeleteAsync(path);
+                    anyChange = true;
                     break;
                 }
                 case FileSvnStatus.Modified:
@@ -281,21 +281,22 @@ public class SyncService : IDisposable
                 case FileSvnStatus.Deleted:
                 case FileSvnStatus.Replaced:
                 {
-                    // Already marked in SVN index (staged), just needs a commit
-                    Log.Information("[FullSync] SvnStatus: {Status}, Path: {Path}", status, path);
+                    // Already staged in SVN index, just needs a commit — enqueue as Modify
+                    CommitCoordinator.Instance.EnqueueModify(path);
+                    Log.Information("[FullScan] SvnStatus: {Status}, Path: {Path}", status, path);
                     anyChange = true;
                     break;
                 }
                 case FileSvnStatus.Conflicted:
                 {
                     // Cannot auto-resolve — leave for user to handle
-                    Log.Warning("[FullSync] SvnStatus: Conflicted, Path: {Path} — skipping, requires manual resolution", path);
+                    Log.Warning("[FullScan] SvnStatus: Conflicted, Path: {Path} — skipping, requires manual resolution", path);
                     break;
                 }
                 default:
                 {
                     // Obstructed, External, Unknown, etc. — skip
-                    Log.Debug("[FullSync] SvnStatus: {Status}, Path: {Path} — skipped", status, path);
+                    Log.Debug("[FullScan] SvnStatus: {Status}, Path: {Path} — skipped", status, path);
                     break;
                 }
             }
@@ -303,19 +304,7 @@ public class SyncService : IDisposable
 
         if (anyChange)
         {
-            var msg = $"Auto-sync: [Full Scan] {statuses.Count} item(s) changed";
-            var success = await _svnService.CommitAsync(_currentRepo.Path, msg, _currentRepo.Username, _currentRepo.Password);
-            if (success)
-            {
-                Log.Information("[FullSync] Committed {Count} changes", statuses.Count);
-                _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "FullScan", "Success", $"Committed {statuses.Count} item(s)");
-                Notify($"全量同步完成: {statuses.Count} 项已提交");
-            }
-            else
-            {
-                Log.Warning("[FullSync] Commit failed");
-                _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "FullScan", "Failed", "Commit returned non-zero");
-            }
+            Log.Information("[FullScan] Enqueued {Count} changes, caller will flush queue", statuses.Count);
         }
         else
         {
@@ -333,6 +322,13 @@ public class SyncService : IDisposable
     {
         if (_currentRepo == null) return;
         if (Interlocked.CompareExchange(ref _isPolling, 1, 0) == 1) return;
+        // Bail if a full sync (SyncNow or timer FullSync) is in progress
+        if (Interlocked.CompareExchange(ref _isSyncing, 0, 0) != 0)
+        {
+            Interlocked.Exchange(ref _isPolling, 0);
+            Log.Debug("[PollCore] Skipping, full sync in progress");
+            return;
+        }
 
         try
         {
