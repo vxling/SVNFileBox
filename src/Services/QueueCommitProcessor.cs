@@ -107,7 +107,6 @@ public class QueueCommitProcessor : IDisposable
 
         try
         {
-            CommitCoordinator.Instance.Lock();
             var queue = PendingCommitQueue.Instance;
             if (queue.Count == 0)
             {
@@ -155,7 +154,6 @@ public class QueueCommitProcessor : IDisposable
         }
         finally
         {
-            CommitCoordinator.Instance.Unlock();
             Interlocked.Exchange(ref _isRunning, 0);
         }
     }

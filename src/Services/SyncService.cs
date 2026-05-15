@@ -363,9 +363,7 @@ public class SyncService : IDisposable
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
             _currentRepoName.Value = _currentRepo?.Name;
-            CommitCoordinator.Instance.Lock();
             var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
-            CommitCoordinator.Instance.Unlock();
             if (updateSuccess)
             {
                 var conflictInfo = await BuildConflictInfoListAsync(_currentRepo.Path);
