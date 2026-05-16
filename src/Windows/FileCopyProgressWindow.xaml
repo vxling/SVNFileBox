@@ -62,6 +62,7 @@
                 Content="取消"
                 HorizontalAlignment="Right"
                 MinWidth="90" Padding="16,7"
+                Style="{StaticResource Win11NormalButtonStyle}"
                 Click="Cancel_Click"/>
     </Grid>
 </Window>

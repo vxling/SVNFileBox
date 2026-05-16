@@ -126,6 +126,15 @@
         <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
     </Style>
 
+    <!-- ===================== 信息/警告状态刷子 ===================== -->
+    <!-- 信息色（蓝色提示背景/文字） -->
+    <SolidColorBrush x:Key="InfoBackgroundBrush" Color="#1A3B5C"/>
+    <SolidColorBrush x:Key="InfoForegroundBrush" Color="#60CDFF"/>
+
+    <!-- 警告色（橙色提示背景/文字） -->
+    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#3D2A0A"/>
+    <SolidColorBrush x:Key="WarningForegroundBrush" Color="#FFB900"/>
+
     <!-- ===================== 下拉框 ComboBox ===================== -->
     <Style x:Key="Win11ComboBoxStyle" TargetType="ComboBox">
         <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>

@@ -28,12 +28,12 @@
         <TextBlock Grid.Row="1" Text="{DynamicResource ConflictDesc}" TextWrapping="Wrap" Foreground="#666" FontSize="12" Margin="0,0,0,12"/>
 
         <!-- Conflict list -->
-        <Border Grid.Row="2" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Margin="0,0,0,12">
+        <Border Grid.Row="2" BorderBrush="{DynamicResource ControlBorderNormalBrush}" BorderThickness="1" CornerRadius="4" Margin="0,0,0,12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding ConflictFiles}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:ConflictedFileInfo}">
-                            <Border BorderBrush="#F0F0F0" BorderThickness="0,0,0,1" Padding="12,10">
+                            <Border BorderBrush="{DynamicResource ControlBorderNormalBrush}" BorderThickness="0,0,0,1" Padding="12,10">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -45,12 +45,12 @@
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" FontSize="13"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{DynamicResource Local}" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="{DynamicResource Local}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11"/>
                                             <TextBlock Text="{Binding LocalModifiedTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
-                                                       Foreground="#555" FontSize="11" Margin="4,0,16,0"/>
-                                            <TextBlock Text="{DynamicResource Server}" Foreground="#888" FontSize="11"/>
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" FontSize="11" Margin="4,0,16,0"/>
+                                            <TextBlock Text="{DynamicResource Server}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11"/>
                                             <TextBlock Text="{Binding ServerModifiedTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
-                                                       Foreground="#555" FontSize="11" Margin="4,0,0,0"/>
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" FontSize="11" Margin="4,0,0,0"/>
                                         </StackPanel>
                                     </StackPanel>
 
@@ -58,10 +58,10 @@
                                     <Border Grid.Column="1" CornerRadius="3" Padding="8,2" VerticalAlignment="Top" Margin="8,0,0,0">
                                         <Border.Style>
                                             <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#E3F2FD"/>
+                                                <Setter Property="Background" Value="{DynamicResource InfoBackgroundBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding LocalIsNewer}" Value="True">
-                                                        <Setter Property="Background" Value="#FFF3E0"/>
+                                                        <Setter Property="Background" Value="{DynamicResource WarningBackgroundBrush}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -70,10 +70,10 @@
                                                    FontSize="11">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#1565C0"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource InfoForegroundBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding LocalIsNewer}" Value="True">
-                                                            <Setter Property="Foreground" Value="#E65100"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource WarningForegroundBrush}"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -85,7 +85,7 @@
                                     <ComboBox Grid.Column="2" VerticalAlignment="Center"
                                               SelectedValue="{Binding SelectedResolution}"
                                               SelectedValuePath="Tag"
-                                              Width="140">
+                                              Width="140" Style="{StaticResource Win11ComboBoxStyle}">
                                         <ComboBoxItem Content="{DynamicResource KeepLocal}" Tag="{x:Static local:ConflictResolution.KeepLocal}"/>
                                         <ComboBoxItem Content="{DynamicResource AcceptServer}" Tag="{x:Static local:ConflictResolution.AcceptServer}"/>
                                         <ComboBoxItem Content="{DynamicResource KeepBoth}" Tag="{x:Static local:ConflictResolution.KeepBoth}"/>
@@ -101,13 +101,13 @@
         <!-- Buttons -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="{DynamicResource KeepAllLocal}" Click="KeepAllLocal_Click"
-                    Padding="12,6" MinWidth="100" Margin="0,0,8,0"/>
+                    Padding="12,6" MinWidth="100" Margin="0,0,8,0" Style="{StaticResource Win11NormalButtonStyle}"/>
             <Button Content="{DynamicResource AcceptAllServer}" Click="AcceptAllServer_Click"
-                    Padding="12,6" MinWidth="100" Margin="0,0,8,0"/>
+                    Padding="12,6" MinWidth="100" Margin="0,0,8,0" Style="{StaticResource Win11NormalButtonStyle}"/>
             <Button Content="{DynamicResource ConflictConfirm}" Click="OK_Click"
-                    Padding="16,6" MinWidth="80" Margin="0,0,8,0"/>
+                    Padding="16,6" MinWidth="80" Margin="0,0,8,0" Style="{StaticResource Win11AccentButtonStyle}"/>
             <Button Content="{DynamicResource Cancel}" Click="Cancel_Click"
-                    Padding="16,6" MinWidth="80"/>
+                    Padding="16,6" MinWidth="80" Style="{StaticResource Win11NormalButtonStyle}"/>
         </StackPanel>
     </Grid>
 </Window>

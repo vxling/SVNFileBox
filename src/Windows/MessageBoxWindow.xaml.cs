@@ -116,6 +116,7 @@ public partial class MsgBox : Window
     {
         ButtonsPanel.Children.Clear();
         var ls = LocalizationService.Instance;
+        var btnIndex = 0;
 
         var btnDefs = buttonType switch
         {
@@ -129,16 +130,21 @@ public partial class MsgBox : Window
         foreach (var (key, result) in btnDefs)
         {
             var localizedText = ls.GetString(key);
+            var isFirst = btnIndex == 0;
+            var styleKey = isFirst ? "Win11AccentButtonStyle" : "Win11NormalButtonStyle";
+            var style = (Style)FindResource(styleKey);
             var btn = new Button
             {
                 Content = localizedText,
                 MinWidth = 80,
                 Padding = new Thickness(12, 6, 12, 6),
                 Margin = new Thickness(6, 0, 0, 0),
-                Tag = result
+                Tag = result,
+                Style = style
             };
             btn.Click += Button_Click;
             ButtonsPanel.Children.Add(btn);
+            btnIndex++;
         }
 
         if (ButtonsPanel.Children.Count > 0)
