@@ -316,12 +316,15 @@ public class SvnService : IDisposable
                         SharpSvnStatus.Replaced => FileSvnStatus.Replaced,
                         SharpSvnStatus.Obstructed => FileSvnStatus.Obstructed,
                         SharpSvnStatus.External => FileSvnStatus.External,
-                        SharpSvnStatus.Incomplete => FileSvnStatus.Unknown,
+                        SharpSvnStatus.Incomplete => FileSvnStatus.Missing, // Incomplete = missing/inaccessible locally → 显示 "!"
                         _ => FileSvnStatus.Normal
                     };
 
                     if (svnStatus != FileSvnStatus.Normal)
+                    {
+                        Log.Debug("[GetStatusAsync] path={Path} sharpStatus={SharpStatus} -> svnStatus={SvnStatus}", path, item.LocalNodeStatus, svnStatus);
                         statuses[path] = svnStatus;
+                    }
                 });
 
                 client.Status(workingCopyPath, new SvnStatusArgs
