@@ -125,7 +125,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public MainViewModel()
     {
-        _configService = new ConfigService();
+        _configService = ConfigService.Instance;
         _syncService = new SyncService(_configService, SyncRecordService.Instance);
         _syncService.SyncNotification += (_, msg) => { SetStatus(msg); SyncNotification?.Invoke(this, msg); };
         _syncService.FilesChanged += async (_, _) => await RefreshAsync();
@@ -202,6 +202,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedRepositoryChanged(Repository? value)
     {
+        ConfigService.Instance.CurrentRepository = value;
         _syncService?.StopSync();
         if (value != null && Directory.Exists(value.Path))
         {

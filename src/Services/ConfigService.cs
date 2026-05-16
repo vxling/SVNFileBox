@@ -11,12 +11,18 @@ namespace SVNFileBox.Services;
 
 public class ConfigService
 {
+    public static ConfigService Instance { get; } = new();
+    public static ConfigService? TryInstance => _instance;
+    private static ConfigService? _instance;
+
     public AppConfig Config { get; private set; } = new();
     public string ConfigDir { get; }
+    public Repository? CurrentRepository { get; set; }
     private readonly string _configPath;
 
     public ConfigService()
     {
+        _instance = this;
         ConfigDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SVNFileBox");
