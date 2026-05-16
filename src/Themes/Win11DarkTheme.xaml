@@ -20,10 +20,6 @@
     <SolidColorBrush x:Key="DarkRowSelectedBorderBrush" Color="{StaticResource DarkRowSelectedBorder}"/>
     <SolidColorBrush x:Key="DarkFocusWhiteBorderBrush" Color="{StaticResource DarkFocusWhiteBorder}"/>
     <SolidColorBrush x:Key="DarkWindowBackBrush" Color="{StaticResource DarkWindowBack}"/>
-
-    <!-- Override system selection highlight for dark mode -->
-    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{StaticResource DarkRowSelectedBack}"/>
-    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{StaticResource DarkTextPrimary}"/>
     <SolidColorBrush x:Key="DarkTextPrimaryBrush" Color="{StaticResource DarkTextPrimary}"/>
     <SolidColorBrush x:Key="DarkTextBlackBrush" Color="{StaticResource DarkTextBlack}"/>
     <SolidColorBrush x:Key="DarkControlBorderNormalBrush" Color="{StaticResource DarkControlBorderNormal}"/>
