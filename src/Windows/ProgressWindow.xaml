@@ -36,7 +36,6 @@
                 HorizontalAlignment="Right"
                 MinWidth="90" Padding="16,7"
                 Visibility="Collapsed"
-                Style="{StaticResource Win11NormalButtonStyle}"
                 Click="Cancel_Click"/>
     </Grid>
 </Window>

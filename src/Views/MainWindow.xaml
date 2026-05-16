@@ -99,18 +99,18 @@
         <!-- Main Content: Left = Sidebar (buttons + repo list), Right = FileList + StatusBar stacked -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="200"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- Left Sidebar: buttons + repo list, full height -->
-            <Border Grid.Column="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="8" Padding="12"
+            <Border Grid.Column="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="8,8,8,10" Padding="12"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                 <DockPanel>
                     <!-- Top: repo list -->
                     <DockPanel DockPanel.Dock="Top">
                         <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Repositories}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                        <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged">
+                        <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged" d:ItemsSource="{d:SampleData ItemCount=5}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <DockPanel>
@@ -193,7 +193,7 @@
                         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                     <DockPanel>
                         <!-- Path Bar -->
-                        <Border DockPanel.Dock="Top" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" Padding="12,10" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                        <Border DockPanel.Dock="Top" Background="{DynamicResource ControlFillColorDefaultBrush}" Padding="12,5,12,5" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -213,7 +213,7 @@
 
                         <!-- File List with columns -->
                         <ListView x:Name="FileList"
-                                  BorderThickness="0"
+                                  BorderThickness="0,0,0,0"
                                   SelectedItem="{Binding SelectedFile}"
                                   ContextMenu="{StaticResource FileContextMenu}"
                                   MouseDoubleClick="FileList_MouseDoubleClick"
@@ -221,11 +221,10 @@
                                   Drop="FileList_Drop"
                                   DragOver="FileList_DragOver"
                                   GridViewColumnHeader.Click="GridViewColumnHeader_Click"
-                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}"
-                                  ItemContainerStyle="{StaticResource Win11ExplorerListRowStyle}">
+                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" d:ItemsSource="{d:SampleData ItemCount=5}" >
                             <ListView.View>
                                 <GridView>
-                                    <GridViewColumn Header="{DynamicResource ColumnType}" Width="50">
+                                    <GridViewColumn Header="{DynamicResource ColumnType}" Width="60">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}"
@@ -275,7 +274,7 @@
                 </Border>
 
                 <!-- Status Bar (bottom of right column) -->
-                <Border Grid.Row="1" Margin="0,0,8,8" Padding="12,6">
+                <Border Grid.Row="1" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="0,0,8,8" Padding="12,6">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
