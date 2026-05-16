@@ -28,7 +28,7 @@
     <!-- 字体统一原生 Segoe UI -->
     <FontFamily x:Key="SystemDefaultFont">Segoe UI</FontFamily>
 
-    <!-- ===================== ListView/ListBox 文件列表行样式（完美复刻资源管理器） ===================== -->
+    <!-- 资源管理器列表行样式 浅色版（key 统一为 Win11ExplorerListRowStyle，浅深共用 key） -->
     <Style x:Key="Win11ExplorerListRowStyle" TargetType="ListBoxItem">
         <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -36,6 +36,12 @@
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding" Value="4,2"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+
+        <Style.Resources>
+            <!-- Override system selection colors to use our custom brushes -->
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{StaticResource SystemRowSelectedBackColor}"/>
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{StaticResource SystemTextPrimaryColor}"/>
+        </Style.Resources>
 
         <Style.Triggers>
             <!-- 鼠标悬浮 -->

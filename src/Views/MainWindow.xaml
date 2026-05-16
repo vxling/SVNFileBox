@@ -223,7 +223,7 @@
                                   DragOver="FileList_DragOver"
                                   GridViewColumnHeader.Click="GridViewColumnHeader_Click"
                                   Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" d:ItemsSource="{d:SampleData ItemCount=5}" >
-                            <ListView.View>
+<ListView.View>
                                 <GridView>
                                     <GridViewColumn Header="{DynamicResource ColumnType}" Width="60">
                                         <GridViewColumn.CellTemplate>

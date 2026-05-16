@@ -37,6 +37,12 @@
         <Setter Property="Padding" Value="4,2"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
 
+        <Style.Resources>
+            <!-- Override system selection colors to use our custom brushes -->
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{StaticResource DarkRowSelectedBack}"/>
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{StaticResource DarkTextPrimary}"/>
+        </Style.Resources>
+
         <Style.Triggers>
             <!-- 鼠标悬浮 -->
             <Trigger Property="IsMouseOver" Value="True">
