@@ -37,12 +37,6 @@
         <Setter Property="Padding" Value="4,2"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
 
-        <Style.Resources>
-            <!-- Override system selection colors to use our custom brushes -->
-            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{StaticResource DarkRowSelectedBack}"/>
-            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{StaticResource DarkTextPrimary}"/>
-        </Style.Resources>
-
         <Style.Triggers>
             <!-- 鼠标悬浮 -->
             <Trigger Property="IsMouseOver" Value="True">
@@ -52,10 +46,8 @@
 
             <!-- 选中无焦点 -->
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{StaticResource DarkRowSelectedBackBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource DarkRowSelectedBorderBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+                <Setter Property="Background" Value="{x:Null}"/>
+                <Setter Property="BorderThickness" Value="0"/>
             </Trigger>
 
             <!-- 选中+键盘焦点 -->
@@ -65,8 +57,7 @@
                     <Condition Property="IsKeyboardFocusWithin" Value="True"/>
                 </MultiTrigger.Conditions>
                 <MultiTrigger.Setters>
-                    <Setter Property="BorderBrush" Value="{StaticResource DarkFocusWhiteBorderBrush}"/>
-                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="BorderThickness" Value="0"/>
                 </MultiTrigger.Setters>
             </MultiTrigger>
         </Style.Triggers>
