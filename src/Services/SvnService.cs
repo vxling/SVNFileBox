@@ -321,10 +321,7 @@ public class SvnService : IDisposable
                     };
 
                     if (svnStatus != FileSvnStatus.Normal)
-                    {
-                        Log.Debug("[GetStatusAsync] path={Path} sharpStatus={SharpStatus} -> svnStatus={SvnStatus}", path, item.LocalNodeStatus, svnStatus);
                         statuses[path] = svnStatus;
-                    }
                 });
 
                 client.Status(workingCopyPath, new SvnStatusArgs
