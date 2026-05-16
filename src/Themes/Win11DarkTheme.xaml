@@ -1,0 +1,156 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 深色模式核心色值 Win11 原生 -->
+    <Color x:Key="DarkAccentPrimary">#FF60CDFF</Color>
+    <Color x:Key="DarkAccentDark">#FF3A9BD8</Color>
+    <Color x:Key="DarkRowSelectedBack">#FF2B3B54</Color>
+    <Color x:Key="DarkRowSelectedBorder">#FF425573</Color>
+    <Color x:Key="DarkFocusWhiteBorder">#FFFFFFFF</Color>
+    <Color x:Key="DarkWindowBack">#FF202124</Color>
+    <Color x:Key="DarkTextPrimary">#FFF3F4F6</Color>
+    <Color x:Key="DarkTextBlack">#FF000000</Color>
+    <Color x:Key="DarkControlBorderNormal">#FF444444</Color>
+    <Color x:Key="DarkControlHoverGray">#FF2C2D30</Color>
+
+    <!-- 画刷绑定 -->
+    <SolidColorBrush x:Key="DarkAccentPrimaryBrush" Color="{StaticResource DarkAccentPrimary}"/>
+    <SolidColorBrush x:Key="DarkAccentDarkBrush" Color="{StaticResource DarkAccentDark}"/>
+    <SolidColorBrush x:Key="DarkRowSelectedBackBrush" Color="{StaticResource DarkRowSelectedBack}"/>
+    <SolidColorBrush x:Key="DarkRowSelectedBorderBrush" Color="{StaticResource DarkRowSelectedBorder}"/>
+    <SolidColorBrush x:Key="DarkFocusWhiteBorderBrush" Color="{StaticResource DarkFocusWhiteBorder}"/>
+    <SolidColorBrush x:Key="DarkWindowBackBrush" Color="{StaticResource DarkWindowBack}"/>
+    <SolidColorBrush x:Key="DarkTextPrimaryBrush" Color="{StaticResource DarkTextPrimary}"/>
+    <SolidColorBrush x:Key="DarkTextBlackBrush" Color="{StaticResource DarkTextBlack}"/>
+    <SolidColorBrush x:Key="DarkControlBorderNormalBrush" Color="{StaticResource DarkControlBorderNormal}"/>
+    <SolidColorBrush x:Key="DarkControlHoverGrayBrush" Color="{StaticResource DarkControlHoverGray}"/>
+
+    <!-- 系统默认字体 -->
+    <FontFamily x:Key="SystemDefaultFont">Segoe UI</FontFamily>
+
+    <!-- 资源管理器列表行样式 深色版（key 统一为 Win11ExplorerListRowStyle，MainWindow.xaml 静态引用此 key） -->
+    <Style x:Key="Win11ExplorerListRowStyle" TargetType="ListBoxItem">
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+        <Setter Property="Background" Value="{StaticResource DarkWindowBackBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="4,2"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+
+        <Style.Triggers>
+            <!-- 鼠标悬浮 -->
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkControlHoverGrayBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+            </Trigger>
+
+            <!-- 选中无焦点 -->
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkRowSelectedBackBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource DarkRowSelectedBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+            </Trigger>
+
+            <!-- 选中+键盘焦点 白色粗边框 -->
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsSelected" Value="True"/>
+                    <Condition Property="IsKeyboardFocusWithin" Value="True"/>
+                </MultiTrigger.Conditions>
+                <MultiTrigger.Setters>
+                    <Setter Property="BorderBrush" Value="{StaticResource DarkFocusWhiteBorderBrush}"/>
+                    <Setter Property="BorderThickness" Value="2"/>
+                </MultiTrigger.Setters>
+            </MultiTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- 深色普通按钮（key 统一为 Win11NormalButtonStyle） -->
+    <Style x:Key="Win11NormalButtonStyle" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="Background" Value="#FF38393C"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DarkControlBorderNormalBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+        <Setter Property="Padding" Value="10,3"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkRowSelectedBackBrush}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkAccentPrimaryBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource DarkTextBlackBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- 深色强调主按钮（key 统一为 Win11AccentButtonStyle） -->
+    <Style x:Key="Win11AccentButtonStyle" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="Background" Value="{StaticResource DarkAccentPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextBlackBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="10,3"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkAccentDarkBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- 深色文本框 焦点高亮边框（key 统一为 Win11TextBoxStyle） -->
+    <Style x:Key="Win11TextBoxStyle" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="Background" Value="#FF2C2D30"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DarkControlBorderNormalBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource DarkAccentPrimaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- 深色窗口全局样式（key 统一为 Win11WindowStyle） -->
+    <Style x:Key="Win11WindowStyle" TargetType="Window">
+        <Setter Property="Background" Value="{StaticResource DarkWindowBackBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+    </Style>
+
+    <!-- ===================== 下拉框 ComboBox ===================== -->
+    <Style x:Key="Win11ComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="Background" Value="#FF2C2D30"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DarkControlBorderNormalBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource DarkAccentPrimaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ===================== 复选框 CheckBox ===================== -->
+    <Style x:Key="Win11CheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+    </Style>
+
+    <!-- ===================== 单选框 RadioButton ===================== -->
+    <Style x:Key="Win11RadioButtonStyle" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+    </Style>
+
+</ResourceDictionary>

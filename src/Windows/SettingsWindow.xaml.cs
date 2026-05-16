@@ -64,6 +64,14 @@ public partial class SettingsWindow : Window
             _ => 0  // auto
         };
 
+        // Theme combo — 0=system, 1=light, 2=dark
+        ThemeComboBox.SelectedIndex = _configService.Config.Theme switch
+        {
+            "light" => 1,
+            "dark" => 2,
+            _ => 0  // system
+        };
+
         // AutoStart toggle enables/disables AutoStartMinimize
         AutoStartCheckBox.Checked += (s, e) => AutoStartMinimizeCheckBox.IsEnabled = true;
         AutoStartCheckBox.Unchecked += (s, e) => AutoStartMinimizeCheckBox.IsEnabled = false;
@@ -91,6 +99,15 @@ public partial class SettingsWindow : Window
 
         // Apply language
         LocalizationService.Instance.SetLanguage(_configService.Config.Language);
+
+        // Theme
+        _configService.Config.Theme = ThemeComboBox.SelectedIndex switch
+        {
+            1 => "light",
+            2 => "dark",
+            _ => "system"
+        };
+        ThemeService.Instance.ApplyTheme(_configService.Config.Theme);
 
         // Auto start registration
         UpdateAutoStart(_configService.Config.AutoStart);

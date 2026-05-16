@@ -4,7 +4,8 @@
         Title="{DynamicResource CheckoutTitle}" Height="280" Width="450"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Style="{StaticResource Win11WindowStyle}">
     <Grid Margin="15">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -21,13 +22,13 @@
         </Grid.ColumnDefinitions>
 
         <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource RepoName}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
-        <TextBox x:Name="RepoNameBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
+        <TextBox x:Name="RepoNameBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13" Style="{StaticResource Win11TextBoxStyle}"/>
 
         <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource RepoUrl}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
-        <TextBox x:Name="RepoUrlBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
+        <TextBox x:Name="RepoUrlBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13" Style="{StaticResource Win11TextBoxStyle}"/>
 
         <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Username}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
-        <TextBox x:Name="UsernameBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
+        <TextBox x:Name="UsernameBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13" Style="{StaticResource Win11TextBoxStyle}"/>
 
         <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Password}" VerticalAlignment="Center" FontSize="13" Margin="0,0,10,8"/>
         <PasswordBox x:Name="PasswordBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Padding="4,3" FontSize="13"/>
@@ -38,8 +39,8 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="LocalPathBox" Grid.Column="0" IsReadOnly="True" Padding="4,3" FontSize="13"/>
-            <Button Content="{DynamicResource Browse}" Grid.Column="1" Margin="5,0,0,0" Click="Browse_Click" MinWidth="80" Padding="12,6"/>
+            <TextBox x:Name="LocalPathBox" Grid.Column="0" IsReadOnly="True" Padding="4,3" FontSize="13" Style="{StaticResource Win11TextBoxStyle}"/>
+            <Button Content="{DynamicResource Browse}" Grid.Column="1" Margin="5,0,0,0" Click="Browse_Click" MinWidth="80" Padding="12,6" Style="{StaticResource Win11NormalButtonStyle}"/>
         </Grid>
 
         <TextBlock x:Name="ErrorText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
@@ -50,8 +51,8 @@
 
         <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button x:Name="OkButton" Content="{DynamicResource Confirm}" Margin="0,0,10,0" Click="OK_Click" MinWidth="80" Padding="12,6"/>
-            <Button x:Name="CancelButton" Content="{DynamicResource Cancel}" Click="Cancel_Click" MinWidth="80" Padding="12,6"/>
+            <Button x:Name="OkButton" Content="{DynamicResource Confirm}" Margin="0,0,10,0" Click="OK_Click" MinWidth="80" Padding="12,6" Style="{StaticResource Win11AccentButtonStyle}"/>
+            <Button x:Name="CancelButton" Content="{DynamicResource Cancel}" Click="Cancel_Click" MinWidth="80" Padding="12,6" Style="{StaticResource Win11NormalButtonStyle}"/>
         </StackPanel>
     </Grid>
 </Window>

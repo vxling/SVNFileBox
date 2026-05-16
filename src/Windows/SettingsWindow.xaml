@@ -55,6 +55,8 @@
                         </StackPanel>
                         <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center" SelectedIndex="0">
                             <ComboBoxItem Content="{DynamicResource ThemeSystem}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeLight}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeDark}"/>
                         </ComboBox>
                     </Grid>
                 </Border>

@@ -1,0 +1,31 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 文件列表深色主题 - 对应 Windows 11 深色模式 -->
+
+    <!-- 普通行 -->
+    <SolidColorBrush x:Key="FileRowBg" Color="#202124"/>
+    <SolidColorBrush x:Key="FileRowHoverBg" Color="#2B3B54"/>
+    <SolidColorBrush x:Key="FileRowHoverBorder" Color="#425573"/>
+
+    <!-- 选中行（无焦点） -->
+    <SolidColorBrush x:Key="FileRowSelectedBg" Color="#2B3B54"/>
+    <SolidColorBrush x:Key="FileRowSelectedBorder" Color="#425573"/>
+    <SolidColorBrush x:Key="FileRowSelectedText" Color="#FFFFFF"/>
+
+    <!-- 选中行（有焦点） -->
+    <SolidColorBrush x:Key="FileRowSelectedFocusedBorder" Color="#FFFFFF"/>
+
+    <!-- 表头 -->
+    <SolidColorBrush x:Key="FileListHeaderBg" Color="#2D2D2D"/>
+    <SolidColorBrush x:Key="FileListHeaderBorder" Color="#3D3D3D"/>
+    <SolidColorBrush x:Key="FileListHeaderText" Color="#F3F4F6"/>
+
+    <!-- 普通文本 -->
+    <SolidColorBrush x:Key="FileRowText" Color="#F3F4F6"/>
+    <SolidColorBrush x:Key="FileRowSecondaryText" Color="#A0A0A0"/>
+
+    <!-- 分隔线 -->
+    <SolidColorBrush x:Key="FileRowSeparator" Color="#3D3D3D"/>
+
+</ResourceDictionary>

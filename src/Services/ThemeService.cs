@@ -1,17 +1,16 @@
 #nullable enable
 
 using System;
+using System.Windows;
 using Microsoft.Win32;
 using Serilog;
 
 namespace SVNFileBox.Services;
 
 /// <summary>
-/// 管理 SVNFileBox 的主题偏好设置。
+/// 管理 SVNFileBox 的主题偏好设置和 Win11 主题资源动态切换。
 ///
-/// 注意：本类只负责读写 app 自己的配置，不操作 OS 注册表。
-/// 主题的实际呈现由 PresentationFramework.Fluent 决定（跟随 OS 主题）。
-/// 若需要 app 自己的浅色/深色主题切换而不影响 OS，需自定义资源字典替换。
+/// 主题资源（Win11LightTheme.xaml / Win11DarkTheme.xaml）动态替换 App.Current.Resources.MergedDictionaries。
 /// </summary>
 public class ThemeService
 {
@@ -21,16 +20,62 @@ public class ThemeService
     /// <summary>当前 app 偏好的主题（light / dark / system）</summary>
     private string _currentTheme = "system";
 
+    /// <summary>当前已加载的主题文件名</summary>
+    private string _loadedThemeFile = "";
+
     public event EventHandler<string>? ThemeChanged;
 
     /// <summary>
-    /// 应用主题偏好（仅记录到内存，不写 OS 注册表）
+    /// 应用主题偏好，动态替换 Win11 主题资源字典
     /// </summary>
     public void ApplyTheme(string theme)
     {
         _currentTheme = theme;
         Log.Information("[Theme] Preference set to: {Theme}", theme);
         ThemeChanged?.Invoke(this, theme);
+        LoadWin11Theme(theme);
+    }
+
+    /// <summary>
+    /// 动态加载 Win11 主题 ResourceDictionary 到 App.Current.Resources
+    /// </summary>
+    private void LoadWin11Theme(string configTheme)
+    {
+        try
+        {
+            var resolved = ResolveTheme(configTheme);
+            var fileName = resolved == "dark" ? "Win11DarkTheme.xaml" : "Win11LightTheme.xaml";
+
+            if (_loadedThemeFile == fileName) return;
+
+            var dict = new ResourceDictionary
+            {
+                Source = new Uri($"pack://application:,,,/SVNFileBox;component/Themes/{fileName}")
+            };
+
+            // 移除旧的 Win11 主题字典
+            ResourceDictionary? toRemove = null;
+            foreach (var d in Application.Current.Resources.MergedDictionaries)
+            {
+                if (d.Source?.OriginalString.Contains("Win11") == true)
+                {
+                    toRemove = d;
+                    break;
+                }
+            }
+            if (toRemove != null)
+                Application.Current.Resources.MergedDictionaries.Remove(toRemove);
+
+            // 添加新主题字典（插入到最前面，让它优先于 Fluent 主题）
+            Application.Current.Resources.MergedDictionaries.Insert(0, dict);
+            _loadedThemeFile = fileName;
+
+            Log.Information("[Theme] Win11 theme loaded: {FileName}", fileName);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[Theme] Failed to load Win11 theme");
+        }
     }
 
     /// <summary>

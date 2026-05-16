@@ -18,18 +18,49 @@ namespace SVNFileBox.Services;
 /// SharpSvn is lightweight and this avoids all threading/reentrancy concerns
 /// that come from sharing a single instance across concurrent calls.
 ///
-/// All operations are serialized via a static SemaphoreSlim(1,1) to prevent concurrent
-/// SVN operations on the same working copy, regardless of trigger source
-/// (manual, timer, or FileWatcher).
-/// </summary>
+/// Concurrency model (read-write separation):
+///   - Read operations (status/info/revision queries) take _readSemaphore.
+///     Multiple reads can run concurrently; they never block writes.
+///   - Write operations (update/commit/add/delete/move/revert) take _writeSemaphore.
+///     Only one write runs at a time; they are fully serialized.
+///   - This separation means a long-running update does NOT block svn status
+///     from completing, and vice versa.
+///
+/// Static semaphores are shared across all SvnService instances.
 public class SvnService : IDisposable
 {
     /// <summary>
-    /// Serializes all SVN operations — manual, timer-triggered, and FileWatcher-triggered.
+    /// Serializes all write SVN operations (update/commit/add/delete/move/revert).
     /// Static so all SvnService instances share the same lock.
-    /// Only one operation runs at a time; others queue behind it.
+    /// Only one write operation runs at a time.
     /// </summary>
-    private static readonly SemaphoreSlim _semaphore = new(1, 1);
+    private static readonly SemaphoreSlim _writeSemaphore = new(1, 1);
+
+    /// <summary>
+    /// Allows concurrent read SVN operations (status/info/revision queries).
+    /// Static so all SvnService instances share the same pool.
+    /// Up to 10 reads can run simultaneously without blocking each other.
+    /// </summary>
+    private static readonly SemaphoreSlim _readSemaphore = new(10, 10);
+
+    /// <summary>
+    /// Deduplicates concurrent GetHeadRevisionAsync calls for the same repoUrl.
+    /// Key = repoUrl, Value = in-flight Task{revision}.
+    /// If two callers request the same repoUrl simultaneously, the second reuses
+    /// the first caller's in-flight HTTP request instead of firing a duplicate.
+    /// </summary>
+    private static readonly Dictionary<string, Task<int>> _headRevisionCache = new();
+
+    /// <summary>
+    /// Lock protecting _headRevisionCache (not the data inside — the dict keys/values).
+    /// Very short hold: only while reading/writing the dict entry itself.
+    /// </summary>
+    private static readonly SemaphoreSlim _headRevisionLock = new(1, 1);
+
+    /// <summary>
+    /// How long a GetHeadRevision result is considered fresh before a new server call is made.
+    /// </summary>
+    private static readonly TimeSpan HeadRevisionCacheTtl = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Max time to wait for the semaphore lock (30s). If another operation holds the lock
@@ -106,22 +137,23 @@ public class SvnService : IDisposable
     }
 
     /// <summary>
-    /// Runs a short SVN operation (status, info, revert, etc.) with exclusive lock + timeout.
-    /// Does NOT use activity-based timeout — wall clock timeout is appropriate for these.
+    /// Runs a read SVN operation (status/info/revision) with shared read lock + timeout.
+    /// Multiple reads can run concurrently; they never block writes.
+    /// Does NOT use activity-based timeout — wall clock timeout is appropriate for reads.
     /// </summary>
     private async Task<T> ExecuteAsync<T>(Func<CancellationToken, T> operation, CancellationToken cancellationToken = default)
     {
-        // Wait max 30s for the semaphore — if another operation holds it longer, it's stuck
-        if (!await _semaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
+        // Wait max 30s for a read slot — reads are concurrent so wait is usually brief
+        if (!await _readSemaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
         {
             throw new TimeoutException(
-                $"SVN operation timed out waiting for lock after {LockWaitTimeoutMs / 1000}s. " +
-                "Another SVN operation may be stuck. Try again or restart the application.");
+                $"SVN read operation timed out waiting for a read slot after {LockWaitTimeoutMs / 1000}s. " +
+                "Too many concurrent reads may be blocking. Try again or restart the application.");
         }
 
         try
         {
-            // Hard safety-net timeout (600s) — covers even the slowest operations
+            // Hard safety-net timeout (600s) — covers even the slowest read operations
             using var safetyNetCts = new CancellationTokenSource();
             safetyNetCts.CancelAfter(SafetyNetTimeoutMs);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyNetCts.Token);
@@ -135,29 +167,29 @@ public class SvnService : IDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new TimeoutException($"SVN operation timed out after {SafetyNetTimeoutMs / 1000}s. Server may be unreachable.");
+            throw new TimeoutException($"SVN read operation timed out after {SafetyNetTimeoutMs / 1000}s. Server may be unreachable.");
         }
         finally
         {
-            _semaphore.Release();
+            _readSemaphore.Release();
         }
     }
 
     /// <summary>
-    /// Runs an SVN file-transfer operation (Update/Commit) with activity-based idle timeout.
-    /// As long as SharpSvn.Notify events keep firing (files being transferred), the operation
-    /// is considered alive and will not time out. Only when the idle period exceeds
-    /// FileTransferTimeoutMs will it be cancelled.
+    /// Runs an SVN file-transfer write operation (Update/Commit) with exclusive write lock
+    /// + activity-based idle timeout. As long as SharpSvn.Notify events keep firing
+    /// (files being transferred), the operation is considered alive and will not time out.
+    /// Only when the idle period exceeds FileTransferTimeoutMs will it be cancelled.
     /// SharpSvn calls are synchronous so they run on a background thread with cancellation support.
     /// </summary>
     private async Task<T> ExecuteWithProgressTimeoutAsync<T>(
         Func<CancellationToken, CancellationTokenSource, T> operation,
         CancellationToken cancellationToken = default)
     {
-        if (!await _semaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
+        if (!await _writeSemaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
         {
             throw new TimeoutException(
-                $"SVN operation timed out waiting for lock after {LockWaitTimeoutMs / 1000}s. " +
+                $"SVN operation timed out waiting for write lock after {LockWaitTimeoutMs / 1000}s. " +
                 "Another SVN operation may be stuck. Try again or restart the application.");
         }
 
@@ -189,7 +221,7 @@ public class SvnService : IDisposable
         }
         finally
         {
-            _semaphore.Release();
+            _writeSemaphore.Release();
         }
     }
 
@@ -347,6 +379,52 @@ public class SvnService : IDisposable
 
     public async Task<int> GetHeadRevisionAsync(string repoUrl, string? username = null, string? password = null)
     {
+        // Deduplicate in-flight requests for the same repoUrl.
+        // The cache holds the Task directly so concurrent callers all await the same HTTP call.
+        var newTask = DoGetHeadRevisionAsync(repoUrl);
+        Task<int>? inFlightTask;
+
+        lock (_headRevisionLock)
+        {
+            if (_headRevisionCache.TryGetValue(repoUrl, out inFlightTask))
+            {
+                // Another call for the same URL is already in flight — reuse it
+                Log.Debug("[GetHeadRevisionAsync] Reusing in-flight request for {Url}", repoUrl);
+            }
+            else
+            {
+                // First call for this URL — store our task; concurrent callers will find it
+                inFlightTask = newTask;
+                _headRevisionCache[repoUrl] = newTask;
+            }
+        }
+
+        // If there was a racing in-flight task, await that instead of ours
+        if (inFlightTask != newTask)
+            return await inFlightTask;
+
+        try
+        {
+            var result = await newTask;
+            return result;
+        }
+        finally
+        {
+            // Evict after TTL so stale entries don't accumulate
+            var taskToEvict = newTask;
+            _ = Task.Delay(HeadRevisionCacheTtl).ContinueWith(_ =>
+            {
+                lock (_headRevisionLock)
+                {
+                    if (_headRevisionCache.TryGetValue(repoUrl, out var cached) && cached == taskToEvict)
+                        _headRevisionCache.Remove(repoUrl);
+                }
+            });
+        }
+    }
+
+    private async Task<int> DoGetHeadRevisionAsync(string repoUrl)
+    {
         return await ExecuteAsync(token =>
         {
             try
@@ -356,13 +434,15 @@ public class SvnService : IDisposable
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
                 client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
-                return infoResult != null ? (int)infoResult.Revision : -1;
+                var rev = infoResult != null ? (int)infoResult.Revision : -1;
+                Log.Debug("[GetHeadRevisionAsync] Result for {Url} = {Revision}", repoUrl, rev);
+                return rev;
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error getting HEAD revision for {Url}", repoUrl);
+                Log.Error(ex, "[GetHeadRevisionAsync] Failed for {Url}", repoUrl);
+                return -1;
             }
-            return -1;
         });
     }
 

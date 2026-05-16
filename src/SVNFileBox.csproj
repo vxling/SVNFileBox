@@ -26,6 +26,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Themes\Win11LightTheme.xaml" />
+    <Resource Include="Themes\Win11DarkTheme.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <AvaloniaResource Include="**\*.axaml" Condition="'$(UseWPF)' != 'true'" />
   </ItemGroup>
 
