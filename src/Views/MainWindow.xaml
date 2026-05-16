@@ -228,7 +228,9 @@
                                     <GridViewColumn Header="{DynamicResource ColumnType}" Width="50">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}" Width="24" Height="24"/>
+                                                <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}"
+                                                       Width="24" Height="24"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"/>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>

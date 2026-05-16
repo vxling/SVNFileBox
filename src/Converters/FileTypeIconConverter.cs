@@ -143,8 +143,8 @@ public class FileTypeIconConverter : IValueConverter
         {
             bitmap.BeginInit();
             bitmap.UriSource = uri;
-            bitmap.DecodePixelWidth = 24;
-            bitmap.DecodePixelHeight = 24;
+bitmap.DecodePixelWidth = 19;
+            bitmap.DecodePixelHeight = 19;
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.EndInit();
             bitmap.Freeze();
