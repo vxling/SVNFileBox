@@ -4,8 +4,8 @@
     <!-- 深色模式核心色值 Win11 原生 -->
     <Color x:Key="DarkAccentPrimary">#FF60CDFF</Color>
     <Color x:Key="DarkAccentDark">#FF3A9BD8</Color>
-    <Color x:Key="DarkRowSelectedBack">#FF2B3B54</Color>
-    <Color x:Key="DarkRowSelectedBorder">#FF425573</Color>
+    <Color x:Key="DarkRowSelectedBack">#FF626262</Color>
+    <Color x:Key="DarkRowSelectedBorder">#FF93BCCE</Color>
     <Color x:Key="DarkFocusWhiteBorder">#FFFFFFFF</Color>
     <Color x:Key="DarkWindowBack">#FF202124</Color>
     <Color x:Key="DarkTextPrimary">#FFF3F4F6</Color>

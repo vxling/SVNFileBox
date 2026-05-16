@@ -4,8 +4,8 @@
     <!-- ===================== 系统基础色值（Win11 浅色默认强调蓝） ===================== -->
     <Color x:Key="SystemAccentPrimaryColor">#FF0078D4</Color>
     <Color x:Key="SystemAccentDarkColor">#FF005A9E</Color>
-    <Color x:Key="SystemRowSelectedBackColor">#FFE5EFFB</Color>
-    <Color x:Key="SystemRowSelectedBorderColor">#FFC6D8F0</Color>
+    <Color x:Key="SystemRowSelectedBackColor">#FFCCE8FF</Color>
+    <Color x:Key="SystemRowSelectedBorderColor">#FF0078D4</Color>
     <Color x:Key="SystemFocusBlackBorderColor">#FF000000</Color>
     <Color x:Key="SystemWindowBackColor">#FFFFFFFF</Color>
     <Color x:Key="SystemTextPrimaryColor">#FF000000</Color>
