@@ -52,7 +52,7 @@
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             </Trigger>
 
-            <!-- 选中+键盘焦点（黑色粗边框 原生无障碍样式） -->
+            <!-- 选中+键盘焦点 -->
             <MultiTrigger>
                 <MultiTrigger.Conditions>
                     <Condition Property="IsSelected" Value="True"/>
@@ -60,7 +60,7 @@
                 </MultiTrigger.Conditions>
                 <MultiTrigger.Setters>
                     <Setter Property="BorderBrush" Value="{StaticResource FocusBlackBorderBrush}"/>
-                    <Setter Property="BorderThickness" Value="2"/>
+                    <Setter Property="BorderThickness" Value="1"/>
                 </MultiTrigger.Setters>
             </MultiTrigger>
         </Style.Triggers>
