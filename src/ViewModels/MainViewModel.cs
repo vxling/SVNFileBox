@@ -256,7 +256,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     FullPath = parentPath,
                     IsDirectory = true,
                     SvnStatus = FileSvnStatus.Hidden,
-                    LastModified = DateTime.MinValue
+                    LastModified = DateTime.MinValue,
+                    IsParentDirectory = true
                 });
             }
 

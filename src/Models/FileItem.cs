@@ -29,7 +29,11 @@ public partial class FileItem : ObservableObject
 
     public string LastModifiedDisplay => LastModified == DateTime.MinValue ? "" : LastModified.ToString("yyyy-MM-dd HH:mm");
 
-    public string TypeDisplay => Name == "返回上级目录" ? "↗" : (IsDirectory ? "📁" : GetFileIcon(Name));
+    public string TypeDisplay => IsParentDirectory ? "↗" : (IsDirectory ? "📁" : GetFileIcon(Name));
+
+    public bool IsParentDirectory { get; set; }
+
+    public int SortGroup => IsParentDirectory ? 0 : 1;
 
     private static string GetFileIcon(string fileName)
     {

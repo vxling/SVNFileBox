@@ -406,6 +406,8 @@ public partial class MainWindow : Window
             : ListSortDirection.Ascending;
 
         dataView.SortDescriptions.Clear();
+        // SortGroup=0 (parent dir row) always on top, then user-selected sort within each group
+        dataView.SortDescriptions.Add(new SortDescription("SortGroup", ListSortDirection.Ascending));
         dataView.SortDescriptions.Add(new SortDescription(sortProperty, direction));
     }
 
