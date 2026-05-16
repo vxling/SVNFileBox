@@ -25,7 +25,6 @@ public class SyncService : IDisposable
     private readonly ConcurrentDictionary<string, int> _failedFileAttempts = new();
     private readonly object _pendingLock = new();
     private readonly List<string> _pendingUpdates = new();
-    private Repository? _currentRepo;
     private int _isPolling;
     private int _isCommitting;
     private int _isSyncing;
@@ -97,7 +96,6 @@ public class SyncService : IDisposable
 
     public void StartSync(Repository repo)
     {
-        _currentRepo = repo;
         _fileWatcher.StartWatching(repo.Path);
         _pollTimer.Start();
         _fullSyncTimer.Start();
@@ -139,9 +137,9 @@ public class SyncService : IDisposable
         // Only re-enable when fully unwound
         if (c == 0 && _watcherEnabledBeforeDisable)
         {
-            if (_currentRepo != null)
+            if (ConfigService.Instance.CurrentRepository != null)
             {
-                _fileWatcher.StartWatching(_currentRepo.Path);
+                _fileWatcher.StartWatching(ConfigService.Instance.CurrentRepository.Path);
                 Log.Debug("[SyncService] FileWatcher resumed");
             }
         }
@@ -165,7 +163,7 @@ public class SyncService : IDisposable
     /// </summary>
     public async Task SyncNowAsync()
     {
-        if (_currentRepo == null) return;
+        if (ConfigService.Instance.CurrentRepository == null) return;
         try
         {
             // Wait for any in-flight poll to finish, then take the sync lock
@@ -176,7 +174,7 @@ public class SyncService : IDisposable
                 return;
             }
 
-            _currentRepoName.Value = _currentRepo.Name;
+            _currentRepoName.Value = ConfigService.Instance.CurrentRepository.Name;
             Log.Information("[Sync] Starting full sync");
             await FullScanAndEnqueueAsync();
             await _queueProcessor.SyncNowAsync();
@@ -223,7 +221,7 @@ public class SyncService : IDisposable
 
     private async void OnFullSyncTimerElapsed(object? sender, ElapsedEventArgs e)
     {
-        if (_currentRepo == null) return;
+        if (ConfigService.Instance.CurrentRepository == null) return;
         try
         {
             // Wait for any in-flight poll to finish, then take the sync lock
@@ -234,7 +232,7 @@ public class SyncService : IDisposable
                 return;
             }
 
-            Log.Information("[FullSync] Starting full sync for {Name}", _currentRepo.Name);
+            Log.Information("[FullSync] Starting full sync for {Name}", ConfigService.Instance.CurrentRepository.Name);
             await FullScanAndEnqueueAsync();
             await _queueProcessor.SyncNowAsync();
             Notify("定时全量同步完成");
@@ -256,9 +254,9 @@ public class SyncService : IDisposable
     /// </summary>
     private async Task FullScanAndEnqueueAsync()
     {
-        if (_currentRepo == null) return;
+        if (ConfigService.Instance.CurrentRepository == null) return;
 
-        var statuses = await _svnService.GetStatusAsync(_currentRepo.Path, SvnDepth.Infinity);
+        var statuses = await _svnService.GetStatusAsync(ConfigService.Instance.CurrentRepository.Path, SvnDepth.Infinity);
         if (statuses.Count == 0)
         {
             Log.Debug("[FullSync] No changes detected");
@@ -329,7 +327,7 @@ public class SyncService : IDisposable
 
     private async Task PollCoreAsync()
     {
-        if (_currentRepo == null) return;
+        if (ConfigService.Instance.CurrentRepository == null) return;
         if (Interlocked.CompareExchange(ref _isPolling, 1, 0) == 1) return;
         // Bail if a full sync (SyncNow or timer FullSync) is in progress
         if (Interlocked.CompareExchange(ref _isSyncing, 0, 0) != 0)
@@ -345,8 +343,8 @@ public class SyncService : IDisposable
             await RetryPendingUpdatesAsync();
 
             // Then: check for new server changes
-            var localRev = await _svnService.GetWorkingCopyRevisionAsync(_currentRepo.Path);
-            var serverRev = await _svnService.GetHeadRevisionAsync(_currentRepo.Url, _currentRepo.Username, _currentRepo.Password);
+            var localRev = await _svnService.GetWorkingCopyRevisionAsync(ConfigService.Instance.CurrentRepository.Path);
+            var serverRev = await _svnService.GetHeadRevisionAsync(ConfigService.Instance.CurrentRepository.Url, ConfigService.Instance.CurrentRepository.Username, ConfigService.Instance.CurrentRepository.Password);
 
             Log.Debug("PollCheck: local={Local}, server={Server}", localRev, serverRev);
             if (serverRev <= localRev)
@@ -356,11 +354,11 @@ public class SyncService : IDisposable
             }
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
-            _currentRepoName.Value = _currentRepo?.Name;
-            var updateSuccess = await _svnService.UpdateAsync(_currentRepo.Path);
+            _currentRepoName.Value = ConfigService.Instance.CurrentRepository?.Name;
+            var updateSuccess = await _svnService.UpdateAsync(ConfigService.Instance.CurrentRepository.Path);
             if (updateSuccess)
             {
-                var conflictInfo = await BuildConflictInfoListAsync(_currentRepo.Path);
+                var conflictInfo = await BuildConflictInfoListAsync(ConfigService.Instance.CurrentRepository.Path);
                 if (conflictInfo.Count > 0)
                 {
                     // Raise event — MainWindow shows ConflictWindow as a modal dialog,
@@ -371,15 +369,15 @@ public class SyncService : IDisposable
                 }
                 else
                 {
-                    _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Success", $"Updated {serverRev - localRev} revision(s)");
+                    _recordService.AddRecord(ConfigService.Instance.CurrentRepository.Name, ConfigService.Instance.CurrentRepository.Path, "Update", "Success", $"Updated {serverRev - localRev} revision(s)");
                     Notify($"已从服务器更新 {serverRev - localRev} 个版本");
                     FilesChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
             else
             {
-                Log.Warning("Update failed for {Path}", _currentRepo.Path);
-                _recordService.AddRecord(_currentRepo.Name, _currentRepo.Path, "Update", "Failed", "Update returned false");
+                Log.Warning("Update failed for {Path}", ConfigService.Instance.CurrentRepository.Path);
+                _recordService.AddRecord(ConfigService.Instance.CurrentRepository.Name, ConfigService.Instance.CurrentRepository.Path, "Update", "Failed", "Update returned false");
                 Notify($"更新失败");
             }
         }
@@ -415,7 +413,7 @@ public class SyncService : IDisposable
                     continue;
                 }
 
-                var parentDir = Path.GetDirectoryName(file) ?? _currentRepo?.Path ?? "";
+                var parentDir = Path.GetDirectoryName(file) ?? ConfigService.Instance.CurrentRepository?.Path ?? "";
                 var updateSuccess = await _svnService.UpdateAsync(file);
 
                 if (updateSuccess)
@@ -514,14 +512,14 @@ public class SyncService : IDisposable
     /// </summary>
     internal async Task<int> ApplyConflictResolutionsAsync(List<ConflictedFileInfo> conflictInfo)
     {
-        if (_currentRepo == null) return 0;
+        if (ConfigService.Instance.CurrentRepository == null) return 0;
         int handled = 0;
 
         foreach (var info in conflictInfo)
         {
             try
             {
-                var parentDir = Path.GetDirectoryName(info.FilePath) ?? _currentRepo.Path;
+                var parentDir = Path.GetDirectoryName(info.FilePath) ?? ConfigService.Instance.CurrentRepository.Path;
                 var fileName = Path.GetFileName(info.FilePath);
 
                 switch (info.SelectedResolution)
@@ -556,13 +554,13 @@ public class SyncService : IDisposable
                 }
 
                 handled++;
-                _recordService.AddRecord(_currentRepo.Name, fileName, "ConflictResolved", "Success",
+                _recordService.AddRecord(ConfigService.Instance.CurrentRepository.Name, fileName, "ConflictResolved", "Success",
                     $"User chose: {info.SelectedResolution}");
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to apply conflict resolution for {File}", info.FilePath);
-                _recordService.AddRecord(_currentRepo.Name, Path.GetFileName(info.FilePath), "ConflictResolved", "Failed", ex.Message);
+                _recordService.AddRecord(ConfigService.Instance.CurrentRepository.Name, Path.GetFileName(info.FilePath), "ConflictResolved", "Failed", ex.Message);
             }
         }
 
