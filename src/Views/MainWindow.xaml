@@ -215,6 +215,7 @@
                         <ListView x:Name="FileList"
                                   BorderThickness="0,0,0,0"
                                   SelectedItem="{Binding SelectedFile}"
+                                  ItemContainerStyle="{StaticResource Win11ExplorerListRowStyle}"
                                   ContextMenu="{StaticResource FileContextMenu}"
                                   MouseDoubleClick="FileList_MouseDoubleClick"
                                   AllowDrop="True"
