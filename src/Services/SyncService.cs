@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Timers;
 using System.Threading;
 using System.Threading.Tasks;
@@ -355,7 +356,8 @@ public class SyncService : IDisposable
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
             _currentRepoName.Value = ConfigService.Instance.CurrentRepository?.Name ?? string.Empty;
-            var updateSuccess = await _svnService.UpdateAsync(ConfigService.Instance.CurrentRepository!.Path);
+
+            var updateSuccess = await UpdateInChunksAsync();
             if (updateSuccess)
             {
                 var conflictInfo = await BuildConflictInfoListAsync(ConfigService.Instance.CurrentRepository.Path);
@@ -389,6 +391,69 @@ public class SyncService : IDisposable
         {
             Interlocked.Exchange(ref _isPolling, 0);
         }
+    }
+
+    /// <summary>
+    /// Gets server-update paths and updates by directory groups (parent dirs for files, self for dirs),
+    /// sorted shallow-to-deep to ensure parents exist before children.
+    /// </summary>
+    private async Task<bool> UpdateInChunksAsync()
+    {
+        var workingCopyPath = ConfigService.Instance.CurrentRepository!.Path;
+
+        // Step 1: get the list of paths that have updates on the server (read-only, no lock)
+        var paths = await _svnService.GetServerUpdatePathsAsync(workingCopyPath);
+        if (paths.Count == 0)
+            return true;
+
+        Log.Information("[UpdateInChunks] {Count} server update paths discovered", paths.Count);
+
+        // Step 2: deduplicate to directories
+        // File → parent dir; Directory → itself
+        var dirSet = new HashSet<string>();
+        foreach (var p in paths)
+        {
+            if (Directory.Exists(p))
+                dirSet.Add(p);
+            else
+            {
+                var dir = Path.GetDirectoryName(p);
+                if (!string.IsNullOrEmpty(dir))
+                    dirSet.Add(dir);
+            }
+        }
+
+        // Step 3: sort by depth (shallow first = parents before children)
+        var sorted = dirSet.OrderBy(d => d.Count(c => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar)).ToList();
+
+        // Step 4: update directory by directory
+        var failedDirs = new List<string>();
+        foreach (var dir in sorted)
+        {
+            try
+            {
+                var ok = await _svnService.UpdateAsync(dir);
+                if (!ok)
+                {
+                    Log.Warning("[UpdateInChunks] Update failed for dir: {Dir}", dir);
+                    failedDirs.Add(dir);
+                }
+                else
+                {
+                    Log.Debug("[UpdateInChunks] Updated: {Dir}", dir);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[UpdateInChunks] Exception updating dir: {Dir}", dir);
+                failedDirs.Add(dir);
+            }
+        }
+
+        if (failedDirs.Count > 0)
+            Log.Warning("[UpdateInChunks] {Failed} directories failed to update", failedDirs.Count);
+
+        return failedDirs.Count == 0;
     }
 
     private async Task RetryPendingUpdatesAsync()

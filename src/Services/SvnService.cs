@@ -342,6 +342,43 @@ public class SvnService : IDisposable
         });
     }
 
+    /// <summary>
+    /// Returns the list of paths that have pending updates on the server.
+    /// Uses svn status --show-updates (no lock, read-only).
+    /// </summary>
+    public async Task<List<string>> GetServerUpdatePathsAsync(string workingCopyPath)
+    {
+        return await ExecuteAsync(token =>
+        {
+            var paths = new List<string>();
+            try
+            {
+                using var client = CreateClient();
+                var handler = new EventHandler<SvnStatusEventArgs>(delegate (object? sender, SvnStatusEventArgs item)
+                {
+                    // RemoteNodeStatus != None means the file has changes on the server
+                    if (item.RemoteNodeStatus != SharpSvn.SvnStatus.None &&
+                        item.RemoteNodeStatus != SharpSvn.SvnStatus.NotVersioned &&
+                        !string.IsNullOrEmpty(item.Path))
+                    {
+                        paths.Add(item.Path);
+                    }
+                });
+
+                client.Status(workingCopyPath, new SvnStatusArgs
+                {
+                    Depth = SvnDepth.Infinity,
+                    RetrieveAllEntries = true,
+                }, handler);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error getting server update paths for {Path}", workingCopyPath);
+            }
+            return paths;
+        });
+    }
+
     public async Task<string> GetRepoUrlAsync(string workingCopyPath)
     {
         return await ExecuteAsync(token =>
