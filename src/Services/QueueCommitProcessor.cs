@@ -158,81 +158,59 @@ public class QueueCommitProcessor : IDisposable
         }
     }
 
-    private async Task<BatchCommitResult> ExecuteBatchCommitAsync(List<PendingCommitItem> items)
+    private async Task<BatchCommitResult> ExecuteBatchCommitAsync(List<PendingCommitItem> allItems)
     {
         var result = new BatchCommitResult();
 
         try
         {
-            // Commit all items together from the repo root so cross-directory moves
-            // (e.g. /src/a.txt → /dst/b.txt) are handled atomically in one commit.
-            // Topological sort ensures parent dirs are deleted before children,
-            // and added before their descendants.
-            var sorted = TopologicalSort(items);
+            var sorted = TopologicalSort(allItems);
 
-            // Execute pre-commit commands in topological order
-            foreach (var item in sorted)
+            // If only 1 item, commit it individually (per user request)
+            if (sorted.Count == 1)
             {
-                switch (item.Operation)
+                var itemResult = await CommitSingleItemAsync(sorted[0]);
+                result.Success = itemResult;
+                result.ErrorMessage = itemResult ? null : "Single item commit failed";
+                result.Revision = itemResult ? "ok" : null;
+                result.ItemsCount = 1;
+                return result;
+            }
+
+            // Partition into chunks of 5; each chunk is committed independently
+            const int chunkSize = 5;
+            var chunks = sorted
+                .Select((item, index) => new { item, index })
+                .GroupBy(x => x.index / chunkSize)
+                .Select(g => g.Select(x => x.item).ToList())
+                .ToList();
+
+            var failedChunks = new List<string>();
+            var totalCommitted = 0;
+
+            foreach (var chunk in chunks)
+            {
+                try
                 {
-                    case CommitOperation.Delete:
-                        // File no longer exists on disk → really deleted, proceed with svn delete
-                        // File still exists → user restored it after the delete was queued → skip
-                        if (!File.Exists(item.Path) && !Directory.Exists(item.Path))
-                        {
-                            var delOk = await _svnService.DeleteAsync(item.Path);
-                            if (!delOk)
-                                Log.Warning("[QueueCommitProcessor] svn delete failed for {Path}", item.Path);
-                        }
-                        else
-                        {
-                            Log.Debug("[QueueCommitProcessor] File restored before commit, skipping delete: {Path}", item.Path);
-                        }
-                        break;
-                    case CommitOperation.Move:
-                        var mvOk = await _svnService.MoveAsync(item.FromPath!, item.Path);
-                        if (!mvOk)
-                            Log.Warning("[QueueCommitProcessor] svn move failed: {From} → {To}", item.FromPath, item.Path);
-                        break;
-                    case CommitOperation.Add:
-                        // File must exist on disk to be added
-                        if (File.Exists(item.Path) || Directory.Exists(item.Path))
-                        {
-                            var addOk = await _svnService.AddPathAsync(item.Path);
-                            if (!addOk)
-                                Log.Warning("[QueueCommitProcessor] svn add failed for {Path}", item.Path);
-                        }
-                        else
-                        {
-                            Log.Debug("[QueueCommitProcessor] File no longer exists, skipping add: {Path}", item.Path);
-                        }
-                        break;
-                    // Modify: no pre-command needed, commit auto-detects changes
+                    var chunkResult = await ExecuteChunkAsync(chunk);
+                    if (chunkResult.Success)
+                        totalCommitted += chunk.Count;
+                    else
+                        failedChunks.Add(chunkResult.ErrorMessage ?? "unknown error");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "[QueueCommitProcessor] Chunk commit threw exception, continuing with next chunk");
+                    failedChunks.Add(ex.Message);
                 }
             }
 
-            // Single commit for all items from the repo root
-            var message = BuildCommitMessage(items);
-            var repoRoot = FindRepoRoot(sorted);
-            var committed = await _svnService.CommitAsync(repoRoot, message);
-
-            if (!committed)
-            {
-                result.Success = false;
-                result.ErrorMessage = "Commit failed";
-                return result;
-            }
-
-            if (items.Count == 0)
-            {
-                result.Success = false;
-                result.ErrorMessage = "Nothing to commit";
-                return result;
-            }
-
-            result.Success = true;
+            result.Success = failedChunks.Count == 0;
+            result.ErrorMessage = failedChunks.Count > 0
+                ? $"Chunks failed: {string.Join("; ", failedChunks)}"
+                : null;
             result.Revision = "ok";
-            result.ItemsCount = items.Count;
+            result.ItemsCount = totalCommitted;
         }
         catch (TimeoutException ex)
         {
@@ -248,6 +226,157 @@ public class QueueCommitProcessor : IDisposable
         }
 
         return result;
+    }
+
+    /// <summary>Executes pre-commit operations + svn commit for a single chunk of items.</summary>
+    private async Task<BatchCommitResult> ExecuteChunkAsync(List<PendingCommitItem> chunk)
+    {
+        var result = new BatchCommitResult();
+
+        // Execute pre-commit commands in topological order
+        foreach (var item in chunk)
+        {
+            switch (item.Operation)
+            {
+                case CommitOperation.Delete:
+                    if (!File.Exists(item.Path) && !Directory.Exists(item.Path))
+                    {
+                        var delOk = await _svnService.DeleteAsync(item.Path);
+                        if (!delOk)
+                            Log.Warning("[QueueCommitProcessor] svn delete failed for {Path}", item.Path);
+                    }
+                    else
+                    {
+                        Log.Debug("[QueueCommitProcessor] File restored before commit, skipping delete: {Path}", item.Path);
+                    }
+                    break;
+                case CommitOperation.Move:
+                    var mvOk = await _svnService.MoveAsync(item.FromPath!, item.Path);
+                    if (!mvOk)
+                        Log.Warning("[QueueCommitProcessor] svn move failed: {From} → {To}", item.FromPath, item.Path);
+                    break;
+                case CommitOperation.Add:
+                    if (File.Exists(item.Path) || Directory.Exists(item.Path))
+                    {
+                        var addOk = await _svnService.AddPathAsync(item.Path);
+                        if (!addOk)
+                            Log.Warning("[QueueCommitProcessor] svn add failed for {Path}", item.Path);
+                    }
+                    else
+                    {
+                        Log.Debug("[QueueCommitProcessor] File no longer exists, skipping add: {Path}", item.Path);
+                    }
+                    break;
+            }
+        }
+
+        // Find common ancestor within the repo root for this chunk
+        var repoRoot = FindRepoRoot(chunk);
+        var commitRoot = FindChunkCommitRoot(chunk, repoRoot);
+
+        var message = BuildCommitMessage(chunk);
+        var committed = await _svnService.CommitAsync(commitRoot, message);
+
+        result.Success = committed;
+        result.Revision = committed ? "ok" : null;
+        result.ErrorMessage = committed ? null : "Commit failed";
+        result.ItemsCount = committed ? chunk.Count : 0;
+        return result;
+    }
+
+    /// <summary>Commits a single item individually (used when count==1).</summary>
+    private async Task<bool> CommitSingleItemAsync(PendingCommitItem item)
+    {
+        switch (item.Operation)
+        {
+            case CommitOperation.Delete:
+                if (File.Exists(item.Path) || Directory.Exists(item.Path))
+                {
+                    Log.Debug("[QueueCommitProcessor] File restored before commit, skipping delete: {Path}", item.Path);
+                    return true;
+                }
+                return await _svnService.DeleteAsync(item.Path);
+            case CommitOperation.Move:
+                return await _svnService.MoveAsync(item.FromPath!, item.Path);
+            case CommitOperation.Add:
+                if (!File.Exists(item.Path) && !Directory.Exists(item.Path))
+                {
+                    Log.Debug("[QueueCommitProcessor] File no longer exists, skipping add: {Path}", item.Path);
+                    return true;
+                }
+                return await _svnService.AddPathAsync(item.Path);
+            default:
+                // Modify: just commit the file's parent dir
+                var root = FindRepoRoot(new List<PendingCommitItem> { item });
+                return await _svnService.CommitAsync(Path.GetDirectoryName(item.Path) ?? root, "Auto-sync: Modify single file");
+        }
+    }
+
+    private static string FindChunkCommitRoot(List<PendingCommitItem> chunk, string repoRoot)
+    {
+        // Find the deepest common ancestor of all paths in the chunk
+        var paths = chunk.Select(i => i.Operation == CommitOperation.Move ? i.FromPath! : i.Path).ToList();
+        var common = paths[0];
+
+        for (int i = 1; i < paths.Count; i++)
+        {
+            common = GetCommonAncestor(common, paths[i]);
+            if (string.IsNullOrEmpty(common))
+                break;
+        }
+
+        if (string.IsNullOrEmpty(common) || !Directory.Exists(common))
+            return repoRoot;
+
+        // Ensure we never commit above the repo root.
+        // Use the drives/roots themselves for comparison, not GetFullPath (which resolves "C:" to cwd).
+        var commonRoot = Path.GetPathRoot(common) ?? "";
+        var repoRootPath = Path.GetPathRoot(repoRoot) ?? "";
+        if (!string.IsNullOrEmpty(commonRoot) && !string.Equals(commonRoot, repoRootPath, StringComparison.OrdinalIgnoreCase))
+        {
+            // common is on a different drive or root — cannot safely clamp, fall back to repoRoot
+            Log.Warning("[QueueCommitProcessor] Common ancestor {Common} is on a different drive from repo root {Root}, using repo root",
+                common, repoRoot);
+            return repoRoot;
+        }
+
+        var commonFull = Path.GetFullPath(common);
+        var repoFull = Path.GetFullPath(repoRoot);
+
+        if (!commonFull.StartsWith(repoFull, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Warning("[QueueCommitProcessor] Common ancestor {Common} is outside repo root {Root}, clamping to repo root",
+                commonFull, repoFull);
+            return repoRoot;
+        }
+
+        return common;
+    }
+
+    /// <summary>Returns the longest common ancestor of two paths.</summary>
+    private static string GetCommonAncestor(string path1, string path2)
+    {
+        var parts1 = path1.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        var parts2 = path2.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < Math.Min(parts1.Length, parts2.Length); i++)
+        {
+            if (string.Equals(parts1[i], parts2[i], StringComparison.OrdinalIgnoreCase))
+            {
+                if (sb.Length > 0)
+                    sb.Append(Path.DirectorySeparatorChar);
+                sb.Append(parts1[i]);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return sb.ToString();
     }
 
     private static List<PendingCommitItem> TopologicalSort(List<PendingCommitItem> items)
