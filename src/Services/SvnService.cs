@@ -561,6 +561,11 @@ public class SvnService : IDisposable
             Log.Warning("[SvnService] Source file not found, cannot move: {FromPath} -> {ToPath}", fromPath, toPath);
             return false;
         }
+        catch (SharpSvn.SvnWorkingCopyPathNotFoundException)
+        {
+            // Source already gone — treat as success
+            return true;
+        }
     }
 
     public async Task<bool> RevertAsync(string path, bool recursive = true)
