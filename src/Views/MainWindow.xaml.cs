@@ -772,13 +772,15 @@ public partial class MainWindow : Window
                 // before Directory.Move can access it.
                 Directory.Move(item.FullPath, newPath);
 
-                // svn delete old + svn add new (marks the rename in working copy)
-                await _svnService.DeleteAsync(item.FullPath);
-                await _svnService.AddFileAsync(newPath);
+
 
                 // Enqueue as Move so QueueCommitProcessor resolves it correctly
                 CommitCoordinator.Instance.EnqueueDeleteAsync(item.FullPath);
-                CommitCoordinator.Instance.EnqueueDeleteAsync(newPath);
+                CommitCoordinator.Instance.EnqueueAddAsync(newPath);
+
+                // svn delete old + svn add new (marks the rename in working copy)
+                await _svnService.DeleteAsync(item.FullPath);
+                await _svnService.AddFileAsync(newPath);
 
                 ShowToast(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
