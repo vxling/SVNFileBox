@@ -530,6 +530,11 @@ public class SvnService : IDisposable
                 Log.Warning("[SvnService] File not found, treating as already deleted: {Path}", path);
                 return true;
             }
+            catch (SharpSvn.SvnWorkingCopyLockException)
+            {
+                Log.Warning("[SvnService] Working copy is locked, treating as already deleted: {Path}", path);
+                return true;
+            }
         }
             );
 
