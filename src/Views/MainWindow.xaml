@@ -107,52 +107,21 @@
             <Border Grid.Column="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="8,8,8,10" Padding="12"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                 <DockPanel>
-                    <!-- Top: repo list -->
-                    <DockPanel DockPanel.Dock="Top">
-                        <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Repositories}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                        <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged" d:ItemsSource="{d:SampleData ItemCount=5}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <DockPanel>
-                                        <Button DockPanel.Dock="Right" Tag="{Binding}" Content="X" Padding="4,2"
-                                                Background="Transparent" Foreground="{DynamicResource SystemFillColorCriticalBrush}" FontSize="11"
-                                                BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Margin="4,0,0,0"
-                                                Click="RemoveRepo_Click"/>
-                                        <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0">
-                                            <Image.Style>
-                                                <Style TargetType="Image">
-                                                    <Setter Property="Stretch" Value="Uniform"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding RepositoryType}" Value="Local">
-                                                            <Setter Property="Source" Value="{StaticResource LocalRepoIcon}"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding RepositoryType}" Value="Network">
-                                                            <Setter Property="Source" Value="{StaticResource NetworkRepoIcon}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Image.Style>
-                                        </Image>
-                                        <StackPanel Margin="4,0,0,0" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13"/>
-                                            <TextBlock Text="{Binding Path}" FontSize="10" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
-                                        </StackPanel>
-                                    </DockPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
+                    <!-- Top: title -->
+                    <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Repositories}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                    <!-- Middle: repo list fills remaining space -->
 
                     <!-- Bottom: buttons -->
                     <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Margin="0,8,0,0">
-                        <Separator Margin="0,0,0,8"/>
+                        <Separator Margin="0,4"/>
                         <Button x:Name="AddLocalRepoButton" Click="AddLocalRepo_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📂" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource AddLocalRepository}"/>
                             </StackPanel>
                         </Button>
-                        <Button x:Name="CheckoutButton" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                        <Button x:Name="CheckoutButton" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch" >
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🌐" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource CheckoutFromNetwork}"/>
@@ -178,6 +147,37 @@
                             </StackPanel>
                         </Button>
                     </StackPanel>
+                    <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged" d:ItemsSource="{d:SampleData ItemCount=5}" DockPanel.Dock="Top">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Tag="{Binding}" Content="X" Padding="4,2"
+                                            Background="Transparent" Foreground="{DynamicResource SystemFillColorCriticalBrush}" FontSize="11"
+                                            BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Margin="4,0,0,0"
+                                            Click="RemoveRepo_Click"/>
+                                    <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0">
+                                        <Image.Style>
+                                            <Style TargetType="{x:Type Image}">
+                                                <Setter Property="Stretch" Value="Uniform"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RepositoryType}" Value="Local">
+                                                        <Setter Property="Source" Value="{StaticResource LocalRepoIcon}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding RepositoryType}" Value="Network">
+                                                        <Setter Property="Source" Value="{StaticResource NetworkRepoIcon}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                    <StackPanel Margin="4,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13"/>
+                                        <TextBlock Text="{Binding Path}" FontSize="10" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </DockPanel>
             </Border>
 
@@ -189,7 +189,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- File Browser / Sync Records -->
-                <Border Grid.Row="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="0,8,8,8"
+                <Border Grid.Row="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="0,8,8,0"
                         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                     <DockPanel>
                         <!-- Path Bar -->
@@ -214,9 +214,9 @@
                         <!-- File List with columns -->
                         <ListView x:Name="FileList"
                                   BorderThickness="0,0,0,0"
-                                  SelectedItem="{Binding SelectedFile}" 
+                                  SelectedItem="{Binding SelectedFile}"
                                   ContextMenu="{StaticResource FileContextMenu}"
-                                  MouseDoubleClick="FileList_MouseDoubleClick"                                  
+                                  MouseDoubleClick="FileList_MouseDoubleClick"
                                   AllowDrop="True"
                                   Drop="FileList_Drop"
                                   DragOver="FileList_DragOver"
@@ -252,6 +252,24 @@
                                 </GridView>
                             </ListView.View>
                         </ListView>
+
+                        <!-- DataGrid comparison (same data, orange border) -->
+                        <DataGrid x:Name="FileDataGrid"
+                                  ItemsSource="{Binding Files}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  BorderThickness="2"
+                                  BorderBrush="Orange"
+                                  Background="#FFF8F0"
+                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource InverseBoolToVisibleConverter}}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="450"/>
+                                <DataGridTextColumn Header="Size" Binding="{Binding FileSizeDisplay}" Width="110"/>
+                                <DataGridTextColumn Header="Modified" Binding="{Binding LastModifiedDisplay}" Width="180"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
 
                         <!-- Sync Records List -->
                         <ListView x:Name="SyncRecordList"

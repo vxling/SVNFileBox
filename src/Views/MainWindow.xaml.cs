@@ -777,7 +777,8 @@ public partial class MainWindow : Window
                 await _svnService.AddFileAsync(newPath);
 
                 // Enqueue as Move so QueueCommitProcessor resolves it correctly
-                CommitCoordinator.Instance.EnqueueMove(item.FullPath, newPath);
+                CommitCoordinator.Instance.EnqueueDeleteAsync(item.FullPath);
+                CommitCoordinator.Instance.EnqueueDeleteAsync(newPath);
 
                 ShowToast(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
