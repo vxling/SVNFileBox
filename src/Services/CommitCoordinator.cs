@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
@@ -28,6 +29,7 @@ public class CommitCoordinator : IDisposable
 
     private readonly SvnService _svnService = new();
     private readonly QueueCommitProcessor _queueProcessor;
+    private readonly SemaphoreSlim _enqueueLock = new(1, 1);
 
     public QueueCommitProcessor Processor => _queueProcessor;
 
@@ -57,17 +59,25 @@ public class CommitCoordinator : IDisposable
     {
         if (string.IsNullOrEmpty(path)) return;
 
-        // Pre-check: svn add to ensure the path is tracked before enqueueing.
-        // This runs under the semaphore in SvnService.
-        var added = await _svnService.AddPathAsync(path);
-        if (!added)
+        await _enqueueLock.WaitAsync();
+        try
         {
-            Log.Warning("[CommitCoordinator] EnqueueAdd: svn add failed for {Path}", path);
-            return;
-        }
+            // Pre-check: svn add to ensure the path is tracked before enqueueing.
+            // This runs under the semaphore in SvnService.
+            var added = await _svnService.AddPathAsync(path);
+            if (!added)
+            {
+                Log.Warning("[CommitCoordinator] EnqueueAdd: svn add failed for {Path}", path);
+                return;
+            }
 
-        PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Add);
-        Log.Information("[CommitCoordinator] Enqueued Add: {Path}", path);
+            PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Add);
+            Log.Information("[CommitCoordinator] Enqueued Add: {Path}", path);
+        }
+        finally
+        {
+            _enqueueLock.Release();
+        }
     }
 
     /// <summary>
@@ -78,16 +88,24 @@ public class CommitCoordinator : IDisposable
     {
         if (string.IsNullOrEmpty(path)) return;
 
-        // Pre-check: mark as deleted in SVN before enqueueing.
-        var deleted = await _svnService.DeleteAsync(path);
-        if (!deleted)
+        await _enqueueLock.WaitAsync();
+        try
         {
-            Log.Warning("[CommitCoordinator] EnqueueDelete: svn delete failed for {Path}", path);
-            return;
-        }
+            // Pre-check: mark as deleted in SVN before enqueueing.
+            var deleted = await _svnService.DeleteAsync(path);
+            if (!deleted)
+            {
+                Log.Warning("[CommitCoordinator] EnqueueDelete: svn delete failed for {Path}", path);
+                return;
+            }
 
-        PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Delete);
-        Log.Information("[CommitCoordinator] Enqueued Delete: {Path}", path);
+            PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Delete);
+            Log.Information("[CommitCoordinator] Enqueued Delete: {Path}", path);
+        }
+        finally
+        {
+            _enqueueLock.Release();
+        }
     }
 
     /// <summary>
@@ -115,41 +133,49 @@ public class CommitCoordinator : IDisposable
     /// Analyzes a file path and determines the appropriate operation, then enqueues it.
     /// Called by FileWatcher when external changes are detected.
     /// </summary>
-    public async Task EnqueueFileChangeAsync(string path)
+public async Task EnqueueFileChangeAsync(string path)
     {
         if (string.IsNullOrEmpty(Path.GetDirectoryName(path))) return;
 
-        bool fileExists = File.Exists(path) || Directory.Exists(path);
-
-        if (!fileExists)
+        await _enqueueLock.WaitAsync();
+        try
         {
-            // Physical file/folder is gone — either deleted externally or part of a rename.
-            if (!_svnService.IsVersioned(path))
+            bool fileExists = File.Exists(path) || Directory.Exists(path);
+
+            if (!fileExists)
             {
-                // Was never tracked — nothing to sync.
-                Log.Debug("[CommitCoordinator] Skipping untracked missing file: {File}", path);
+                // Physical file/folder is gone — either deleted externally or part of a rename.
+                if (!_svnService.IsVersioned(path))
+                {
+                    // Was never tracked — nothing to sync.
+                    Log.Debug("[CommitCoordinator] Skipping untracked missing file: {File}", path);
+                    return;
+                }
+                // svn delete marks it as deleted; QueueCommitProcessor will finalize via commit.
+                await _svnService.DeleteAsync(path);
+                PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Delete);
+                Log.Information("[CommitCoordinator] SvnStatus: Deleted, Path: {File}", path);
                 return;
             }
-            // svn delete marks it as deleted; QueueCommitProcessor will finalize via commit.
-            await _svnService.DeleteAsync(path);
-            PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Delete);
-            Log.Information("[CommitCoordinator] SvnStatus: Deleted, Path: {File}", path);
-            return;
-        }
 
-        // File/folder exists — could be a new create, a modify, or the destination of a rename.
-        if (!IsSvnManaged(path))
-        {
-            // Unversioned → svn add marks it for addition; QueueCommitProcessor will commit.
-            await _svnService.AddPathAsync(path);
-            PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Add);
-            Log.Information("[CommitCoordinator] SvnStatus: Added, Path: {File}", path);
+            // File/folder exists — could be a new create, a modify, or the destination of a rename.
+            if (!IsSvnManaged(path))
+            {
+                // Unversioned → svn add marks it for addition; QueueCommitProcessor will commit.
+                await _svnService.AddPathAsync(path);
+                PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Add);
+                Log.Information("[CommitCoordinator] SvnStatus: Added, Path: {File}", path);
+            }
+            else
+            {
+                // Already versioned → svn commit will auto-detect content changes.
+                PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Modify);
+                Log.Information("[CommitCoordinator] SvnStatus: Modified, Path: {File}", path);
+            }
         }
-        else
+        finally
         {
-            // Already versioned → svn commit will auto-detect content changes.
-            PendingCommitQueue.Instance.Enqueue(path, CommitOperation.Modify);
-            Log.Information("[CommitCoordinator] SvnStatus: Modified, Path: {File}", path);
+            _enqueueLock.Release();
         }
     }
 
@@ -203,6 +229,7 @@ public class CommitCoordinator : IDisposable
     {
         _queueProcessor.Stop();
         _queueProcessor.Dispose();
+        _enqueueLock.Dispose();
         Log.Information("[CommitCoordinator] Disposed");
     }
 }
