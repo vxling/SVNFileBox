@@ -274,6 +274,17 @@ public class QueueCommitProcessor : IDisposable
         var repoRoot = FindRepoRoot(chunk);
         var commitRoot = FindChunkCommitRoot(chunk, repoRoot);
 
+        // Parent folder may have been deleted — skip if commit root no longer exists
+        if (!Directory.Exists(commitRoot) && !File.Exists(commitRoot))
+        {
+            Log.Debug("[QueueCommitProcessor] Commit root does not exist, skipping chunk: {Root}", commitRoot);
+            result.Success = true;
+            result.Revision = "ok";
+            result.ErrorMessage = null;
+            result.ItemsCount = 0;
+            return result;
+        }
+
         var message = BuildCommitMessage(chunk);
         var committed = await _svnService.CommitAsync(commitRoot, message);
 

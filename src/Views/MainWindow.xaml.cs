@@ -779,8 +779,8 @@ public partial class MainWindow : Window
                 _ = CommitCoordinator.Instance.EnqueueAddAsync(newPath);
 
                 // svn delete old + svn add new (marks the rename in working copy)
-                await _svnService.DeleteAsync(item.FullPath);
-                await _svnService.AddFileAsync(newPath);
+                // await _svnService.DeleteAsync(item.FullPath);
+                // await _svnService.AddFileAsync(newPath);
 
                 ShowToast(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));

@@ -533,6 +533,11 @@ public class SvnService : IDisposable
             catch (SharpSvn.SvnWorkingCopyLockException)
             {
                 Log.Warning("[SvnService] Working copy is locked, treating as already deleted: {Path}", path);
+                return false;
+            }
+            catch(SharpSvn.SvnInvalidNodeKindException)
+            {
+                Log.Warning("[SvnService] Not a Working copy, maybe parent directory already deleted: {Path}", path);
                 return true;
             }
         }
