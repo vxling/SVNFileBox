@@ -170,7 +170,7 @@ public class FileCopier
         // (directories were added during the dirs loop, files were added per-file above)
         if ((copied > 0 || svnAddedPaths.Count > 0) && !token.IsCancellationRequested)
         {
-            CommitCoordinator.Instance.EnqueueCommitAsync(plan.DestRoot);
+            _ = CommitCoordinator.Instance.EnqueueCommitAsync(plan.DestRoot);
         }
 
         return new CopyResult

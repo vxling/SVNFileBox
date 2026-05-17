@@ -253,24 +253,6 @@
                             </ListView.View>
                         </ListView>
 
-                        <!-- DataGrid comparison (same data, orange border) -->
-                        <DataGrid x:Name="FileDataGrid"
-                                  ItemsSource="{Binding Files}"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  HeadersVisibility="Column"
-                                  GridLinesVisibility="Horizontal"
-                                  BorderThickness="2"
-                                  BorderBrush="Orange"
-                                  Background="#FFF8F0"
-                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource InverseBoolToVisibleConverter}}">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="450"/>
-                                <DataGridTextColumn Header="Size" Binding="{Binding FileSizeDisplay}" Width="110"/>
-                                <DataGridTextColumn Header="Modified" Binding="{Binding LastModifiedDisplay}" Width="180"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-
                         <!-- Sync Records List -->
                         <ListView x:Name="SyncRecordList"
                                   Background="Transparent"

@@ -85,7 +85,7 @@
                                     <ComboBox Grid.Column="2" VerticalAlignment="Center"
                                               SelectedValue="{Binding SelectedResolution}"
                                               SelectedValuePath="Tag"
-                                              Width="140" Style="{StaticResource Win11ComboBoxStyle}">
+                                              Width="140" >
                                         <ComboBoxItem Content="{DynamicResource KeepLocal}" Tag="{x:Static local:ConflictResolution.KeepLocal}"/>
                                         <ComboBoxItem Content="{DynamicResource AcceptServer}" Tag="{x:Static local:ConflictResolution.AcceptServer}"/>
                                         <ComboBoxItem Content="{DynamicResource KeepBoth}" Tag="{x:Static local:ConflictResolution.KeepBoth}"/>

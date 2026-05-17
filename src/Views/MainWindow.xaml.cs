@@ -775,8 +775,8 @@ public partial class MainWindow : Window
 
 
                 // Enqueue as Move so QueueCommitProcessor resolves it correctly
-                CommitCoordinator.Instance.EnqueueDeleteAsync(item.FullPath);
-                CommitCoordinator.Instance.EnqueueAddAsync(newPath);
+                _ = CommitCoordinator.Instance.EnqueueDeleteAsync(item.FullPath);
+                _ = CommitCoordinator.Instance.EnqueueAddAsync(newPath);
 
                 // svn delete old + svn add new (marks the rename in working copy)
                 await _svnService.DeleteAsync(item.FullPath);

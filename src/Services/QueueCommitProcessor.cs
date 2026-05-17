@@ -294,13 +294,6 @@ public class QueueCommitProcessor : IDisposable
         return Path.GetDirectoryName(path) ?? ".";
     }
 
-    private static string GetCommonParent(PendingCommitItem item)
-    {
-        // For Move, both the source (FromPath) and destination (Path) must be included
-        // in the common-parent calculation so they land in the same commit group.
-        var path = item.Operation == CommitOperation.Move ? item.FromPath! : item.Path;
-        return Path.GetDirectoryName(path) ?? ".";
-    }
 
     private static string BuildCommitMessage(List<PendingCommitItem> items)
     {

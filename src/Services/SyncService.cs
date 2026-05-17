@@ -38,7 +38,7 @@ public class SyncService : IDisposable
     /// Used to record individual file transfer activity to SyncRecordService from
     /// the SvnService.FileTransferActivity event.
     /// </summary>
-    private static readonly AsyncLocal<string> _currentRepoName = new();
+    private static readonly AsyncLocal<string?> _currentRepoName = new();
 
     public event EventHandler<string>? SyncNotification;
     public event EventHandler? FilesChanged;
@@ -354,8 +354,8 @@ public class SyncService : IDisposable
             }
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
-            _currentRepoName.Value = ConfigService.Instance.CurrentRepository?.Name;
-            var updateSuccess = await _svnService.UpdateAsync(ConfigService.Instance.CurrentRepository.Path);
+            _currentRepoName.Value = ConfigService.Instance.CurrentRepository?.Name ?? string.Empty;
+            var updateSuccess = await _svnService.UpdateAsync(ConfigService.Instance.CurrentRepository!.Path);
             if (updateSuccess)
             {
                 var conflictInfo = await BuildConflictInfoListAsync(ConfigService.Instance.CurrentRepository.Path);

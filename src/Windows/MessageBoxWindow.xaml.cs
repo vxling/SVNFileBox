@@ -131,8 +131,6 @@ public partial class MsgBox : Window
         {
             var localizedText = ls.GetString(key);
             var isFirst = btnIndex == 0;
-            var styleKey = isFirst ? "Win11AccentButtonStyle" : "Win11NormalButtonStyle";
-            var style = (Style)FindResource(styleKey);
             var btn = new Button
             {
                 Content = localizedText,
@@ -140,7 +138,6 @@ public partial class MsgBox : Window
                 Padding = new Thickness(12, 6, 12, 6),
                 Margin = new Thickness(6, 0, 0, 0),
                 Tag = result,
-                Style = style
             };
             btn.Click += Button_Click;
             ButtonsPanel.Children.Add(btn);

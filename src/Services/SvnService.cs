@@ -125,10 +125,13 @@ public class SvnService : IDisposable
 
     public SvnService()
     {
+#pragma warning disable SYSLIB0014
         // Set HTTP-level timeouts for all WebRequest/WebResponse operations
+        // SharpSvn uses HttpWebRequest internally — these settings still affect its HTTP behavior
         ServicePointManager.DefaultConnectionLimit = 4;
         ServicePointManager.Expect100Continue = false;
         ServicePointManager.FindServicePoint(new Uri("https://dummy")).ConnectionLeaseTimeout = HttpTimeoutMs;
+#pragma warning restore SYSLIB0014
 
         Log.Information("SvnService initialized — SharpSvn {Version}, lock timeout {LockTimeout}s, HTTP timeout {HttpTimeout}s",
             typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown",
@@ -293,7 +296,7 @@ public class SvnService : IDisposable
             try
             {
                 using var client = CreateClient();
-                var handler = new EventHandler<SvnStatusEventArgs>(delegate(object? sender, SvnStatusEventArgs item)
+                var handler = new EventHandler<SvnStatusEventArgs>(delegate (object? sender, SvnStatusEventArgs item)
                 {
                     var path = item.Path;
                     if (string.IsNullOrEmpty(path)) return;
@@ -446,14 +449,6 @@ public class SvnService : IDisposable
         });
     }
 
-    public async Task<(string output, int exitCode, string error)> RunCommandAsync(string arguments, int timeoutMs = 60000)
-    {
-        // SharpSvn doesn't use CLI — all operations go through the API.
-        // This method is kept for compatibility but returns empty success.
-        await Task.CompletedTask;
-        return ("", 0, "");
-    }
-
     public async Task<bool> CommitAsync(string workingCopyPath, string message, string? username = null, string? password = null)
     {
         return await ExecuteWithProgressTimeoutAsync((token, progressCts) =>
@@ -491,48 +486,53 @@ public class SvnService : IDisposable
 
     public async Task<bool> AddPathAsync(string path)
     {
-        try
+
+        return await ExecuteAsync(token =>
         {
-            return await ExecuteAsync(token =>
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            try
             {
-                TryCleanStaleLocks(GetWorkingCopyRoot(path));
-                using var client = CreateClient();
                 return client.Add(path);
-            });
-        }
-        catch (SharpSvn.SvnEntryException ex) when (ex.Message.Contains("already under version control"))
-        {
-            // Already under version control — consider it a success
-            return true;
-        }
-        catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
-        {
-            Log.Warning("[SvnService] File not found, cannot add: {Path}", path);
-            return false;
-        }
+            }
+            catch (SharpSvn.SvnEntryException ex) when(ex.Message.Contains("already"))
+            {
+                Log.Warning("[SvnService] File already added: {Path}", path);
+                return true;
+            }
+            catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
+            {
+                Log.Warning("[SvnService] File not found, cannot add: {Path}", path);
+                return false;
+            }
+        });
+
     }
 
     public async Task<bool> DeleteAsync(string path)
     {
-        try
+
+        return await ExecuteAsync(token =>
         {
-            return await ExecuteAsync(token =>
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            try
             {
-                TryCleanStaleLocks(GetWorkingCopyRoot(path));
-                using var client = CreateClient();
                 return client.Delete(path);
-            });
+            }
+            catch (SharpSvn.SvnUnversionedNodeException)
+            {
+                Log.Warning("[SvnService] File is not under version control, cannot delete and ignore: {Path}", path);
+                return true;
+            }
+            catch (SharpSvn.SvnException ex) when (ex.Message.Contains("NotFound") || ex.InnerException is FileNotFoundException)
+            {
+                Log.Warning("[SvnService] File not found, treating as already deleted: {Path}", path);
+                return true;
+            }
         }
-        catch (SharpSvn.SvnUnversionedNodeException)
-        {
-            Log.Warning("[SvnService] File is not under version control, cannot delete: {Path}", path);
-            return false;
-        }
-        catch (SharpSvn.SvnException ex) when (ex.Message.Contains("NotFound") || ex.InnerException is FileNotFoundException)
-        {
-            Log.Warning("[SvnService] File not found, treating as already deleted: {Path}", path);
-            return true;
-        }
+            );
+
     }
 
     /// <summary>
@@ -547,25 +547,27 @@ public class SvnService : IDisposable
 
     public async Task<bool> MoveAsync(string fromPath, string toPath)
     {
-        try
+        return await ExecuteAsync(token =>
         {
-            return await ExecuteAsync(token =>
+            TryCleanStaleLocks(GetWorkingCopyRoot(fromPath));
+            using var client = CreateClient();
+            try
             {
-                TryCleanStaleLocks(GetWorkingCopyRoot(fromPath));
-                using var client = CreateClient();
                 return client.Move(fromPath, toPath);
-            });
+            }
+            catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
+            {
+                Log.Warning("[SvnService] Source file not found, cannot move: {FromPath} -> {ToPath}", fromPath, toPath);
+                return false;
+            }
+            catch (SharpSvn.SvnWorkingCopyPathNotFoundException)
+            {
+                // Source already gone — treat as success
+                return true;
+            }
         }
-        catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
-        {
-            Log.Warning("[SvnService] Source file not found, cannot move: {FromPath} -> {ToPath}", fromPath, toPath);
-            return false;
-        }
-        catch (SharpSvn.SvnWorkingCopyPathNotFoundException)
-        {
-            // Source already gone — treat as success
-            return true;
-        }
+            );
+
     }
 
     public async Task<bool> RevertAsync(string path, bool recursive = true)
@@ -576,23 +578,6 @@ public class SvnService : IDisposable
             using var client = CreateClient();
             var args = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
             return client.Revert(path, args);
-        });
-    }
-
-    public async Task<bool> CleanUpAsync(string workingCopyPath, bool breakWriteLock = false)
-    {
-        return await ExecuteAsync(token =>
-        {
-            try
-            {
-                using var client = CreateClient();
-                return client.CleanUp(workingCopyPath);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "CleanUp failed for {Path}", workingCopyPath);
-                return false;
-            }
         });
     }
 
@@ -608,7 +593,7 @@ public class SvnService : IDisposable
         {
             using var client = CreateClient();
             bool result = client.CleanUp(workingCopyPath);
-            Log.Debug("[SvnService] Stale lock cleaned for {Path}, result: {Result}", workingCopyPath, result?"success":"failed");
+            Log.Debug("[SvnService] Stale lock cleaned for {Path}, result: {Result}", workingCopyPath, result ? "success" : "failed");
         }
         catch (Exception ex)
         {
@@ -616,53 +601,6 @@ public class SvnService : IDisposable
             // just log and continue — the subsequent SVN operation will handle its own errors.
             Log.Debug(ex, "[SvnService] Cleanup attempt had no stale lock to remove for {Path}", workingCopyPath);
         }
-    }
-
-    public async Task<(string output, int exitCode)> SvnAddRecursiveAsync(string directoryPath)
-    {
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(directoryPath));
-            using var client = CreateClient();
-            client.GetStatus(directoryPath, new SvnStatusArgs { Depth = SvnDepth.Infinity }, out Collection<SvnStatusEventArgs> results);
-            int count = 0;
-            foreach (var r in results)
-            {
-                if (r.LocalNodeStatus == SharpSvnStatus.NotVersioned)
-                {
-                    if (client.Add(r.Path))
-                        count++;
-                }
-            }
-            return (count.ToString(), 0);
-        });
-    }
-
-    public async Task<bool> UnlockAsync(string path)
-    {
-        return await ExecuteAsync(token =>
-        {
-            try
-            {
-                using var client = CreateClient();
-                return client.Unlock(new[] { path }, new SvnUnlockArgs());
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Unlock failed for {Path}", path);
-                return false;
-            }
-        });
-    }
-
-    public async Task<bool> RevertRecursiveAsync(string path)
-    {
-        return await RevertAsync(path, recursive: true);
-    }
-
-    public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync2(string workingCopyPath)
-    {
-        return await GetStatusAsync(workingCopyPath, SvnDepth.Infinity);
     }
 
     public async Task<(string output, int exitCode, string error)> CheckoutAsync(
