@@ -301,8 +301,14 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                 }
             }
         }
-        catch (OperationCanceledException) { }
-        catch (InvalidOperationException) { }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown — ignore
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Warning(ex, "[SvnCommandExecutor] Worker loop InvalidOperationException");
+        }
         catch (Exception ex)
         {
             Log.Error(ex, "[SvnCommandExecutor] Worker loop crashed");
