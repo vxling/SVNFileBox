@@ -38,7 +38,12 @@ public class CopyResult
 /// </summary>
 public class FileCopier
 {
-    private readonly SvnService _svnService = new();
+    private readonly ISvnCommandExecutor _executor;
+
+    public FileCopier(IRepositoryContext repoContext)
+    {
+        _executor = repoContext.Executor;
+    }
 
     /// <summary>Cancels the in-progress copy operation.</summary>
     public CancellationTokenSource? Cts { get; private set; }
@@ -76,9 +81,9 @@ public class FileCopier
                     {
                         Directory.CreateDirectory(dir.DestPath);
                         // Only add to SVN if it's a new directory (not already tracked)
-                        if (!_svnService.IsVersioned(dir.DestPath))
+                        if (!(await _executor.ExecuteAsync(SvnCommand.IsVersioned, dir.DestPath)).Success || (await _executor.ExecuteAsync(SvnCommand.IsVersioned, dir.DestPath)).Value != "true")
                         {
-                            await _svnService.AddPathAsync(dir.DestPath);
+                            await _executor.ExecuteAsync(SvnCommand.Add, dir.DestPath);
                             svnAddedPaths.Add(dir.DestPath);
                         }
                     }
@@ -106,9 +111,9 @@ public class FileCopier
                     bytesCopied += item.SizeBytes;
 
                     // svn add immediately after each file — ensures tracked even if cancelled
-                    if (!_svnService.IsVersioned(item.DestPath))
+                    if (!(await _executor.ExecuteAsync(SvnCommand.IsVersioned, item.DestPath)).Success || (await _executor.ExecuteAsync(SvnCommand.IsVersioned, item.DestPath)).Value != "true")
                     {
-                        await _svnService.AddPathAsync(item.DestPath);
+                        await _executor.ExecuteAsync(SvnCommand.Add, item.DestPath);
                     }
 
 
@@ -170,7 +175,8 @@ public class FileCopier
         // (directories were added during the dirs loop, files were added per-file above)
         if ((copied > 0 || svnAddedPaths.Count > 0) && !token.IsCancellationRequested)
         {
-            _ = CommitCoordinator.Instance.EnqueueCommitAsync(plan.DestRoot);
+            // destRoot already added during dirs/files loop via _executor.Add calls above.
+            // No further action needed — FileWatcher + FullScan will catch any remaining untracked files.
         }
 
         return new CopyResult

@@ -1,7 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
+using System.Linq;
 using System.IO;
 using System.Net;
 using System.Threading;
@@ -14,75 +14,57 @@ using SharpSvnStatus = SharpSvn.SvnStatus;
 namespace SVNFileBox.Services;
 
 /// <summary>
-/// SVN operations wrapper. Each method creates its own SvnClient instance —
-/// SharpSvn is lightweight and this avoids all threading/reentrancy concerns
-/// that come from sharing a single instance across concurrent calls.
+/// SVN operations wrapper, organized into three operation tiers:
 ///
-/// Concurrency model (read-write separation):
-///   - Read operations (status/info/revision queries) take _readSemaphore.
-///     Multiple reads can run concurrently; they never block writes.
-///   - Write operations (update/commit/add/delete/move/revert) take _writeSemaphore.
-///     Only one write runs at a time; they are fully serialized.
-///   - This separation means a long-running update does NOT block svn status
-///     from completing, and vice versa.
+/// Tier 1 — ReadOnly (no lock needed, pure local, sub-second):
+///   status, info, revision queries. No WC lock, no network.
+///   Multiple concurrent reads via _readSemaphore(10).
 ///
-/// Static semaphores are shared across all SvnService instances.
+/// Tier 2 — LocalWrite (exclusive WC write lock, fast, sub-second):
+///   add, delete, move, revert, resolve. Touches WC metadata only.
+///   Serialized via _writeSemaphore(1) to prevent db lock conflicts.
+///   Must NOT be called while a HeavyWrite is in-flight.
+///
+/// Tier 3 — HeavyWrite (exclusive WC write lock, slow, network-bound):
+///   commit, update. Involves file transfer + potentially network.
+///   Uses activity-watchdog timeout (IdleTimeoutMs). Should go through
+///   PendingCommitQueue for batching — never called concurrently.
+///
+/// Each method creates its own SvnClient instance (SharpSvn is lightweight
+/// and this avoids all threading/reentrancy concerns).
+/// </summary>
 public class SvnService : IDisposable
 {
+    // ─────────────────────────────────────────────────────────────────────────
+    // Static concurrency primitives (shared across all SvnService instances)
+    // ─────────────────────────────────────────────────────────────────────────
+
     /// <summary>
-    /// Serializes all write SVN operations (update/commit/add/delete/move/revert).
-    /// Static so all SvnService instances share the same lock.
-    /// Only one write operation runs at a time.
+    /// Serializes all write-class operations (both LocalWrite and HeavyWrite).
+    /// Static so all instances share the same lock. Only one write at a time.
     /// </summary>
     private static readonly SemaphoreSlim _writeSemaphore = new(1, 1);
 
     /// <summary>
-    /// Allows concurrent read SVN operations (status/info/revision queries).
-    /// Static so all SvnService instances share the same pool.
-    /// Up to 10 reads can run simultaneously without blocking each other.
+    /// Allows concurrent read operations. Up to 10 reads simultaneously.
     /// </summary>
     private static readonly SemaphoreSlim _readSemaphore = new(10, 10);
 
     /// <summary>
     /// Deduplicates concurrent GetHeadRevisionAsync calls for the same repoUrl.
-    /// Key = repoUrl, Value = in-flight Task{revision}.
-    /// If two callers request the same repoUrl simultaneously, the second reuses
-    /// the first caller's in-flight HTTP request instead of firing a duplicate.
     /// </summary>
     private static readonly Dictionary<string, Task<int>> _headRevisionCache = new();
-
-    /// <summary>
-    /// Lock protecting _headRevisionCache (not the data inside — the dict keys/values).
-    /// Very short hold: only while reading/writing the dict entry itself.
-    /// </summary>
     private static readonly SemaphoreSlim _headRevisionLock = new(1, 1);
-
-    /// <summary>
-    /// How long a GetHeadRevision result is considered fresh before a new server call is made.
-    /// </summary>
     private static readonly TimeSpan HeadRevisionCacheTtl = TimeSpan.FromSeconds(30);
 
-    /// <summary>
-    /// Max time to wait for the semaphore lock (30s). If another operation holds the lock
-    /// longer than this, we give up — that operation is likely stuck.
-    /// </summary>
     private const int LockWaitTimeoutMs = 30_000;
-
-    /// <summary>
-    /// Safety-net hard timeout: even if progress events keep firing, the operation will be
-    /// cancelled after this long (600s). Prevents infinite hangs in extreme cases.
-    /// </summary>
     private const int SafetyNetTimeoutMs = 600_000;
-
-    /// <summary>
-    /// Network-level HTTP timeout. Applied via ServicePointManager for all HTTP requests.
-    /// </summary>
     private const int HttpTimeoutMs = 60_000;
 
-    /// <summary>
-    /// Default idle activity timeout for file transfer operations (Update/Commit), in milliseconds.
-    /// Read from ConfigService at startup and updated via FileTransferTimeoutChanged event.
-    /// </summary>
+    // ─────────────────────────────────────────────────────────────────────────
+    // Activity timeout for HeavyWrite operations (commit/update)
+    // ─────────────────────────────────────────────────────────────────────────
+
     private static int _fileTransferTimeoutMs = 120_000;
 
     public static int FileTransferTimeoutMs
@@ -91,208 +73,45 @@ public class SvnService : IDisposable
         set => _fileTransferTimeoutMs = Math.Clamp(value, 30_000, 600_000);
     }
 
-    /// <summary>
-    /// Raised when SettingsWindow saves a new FileTransferTimeoutSeconds value.
-    /// Subscribing SvnService instances update their cached timeout from this event.
-    /// </summary>
     public static event Action? FileTransferTimeoutChanged;
-
-    /// <summary>
-    /// Raised whenever a file is transferred during an Update or Commit operation.
-    /// The event carries the file path and the SharpSvn Notify action (e.g., update, commit).
-    /// </summary>
-    public static event Action<string, string>? FileTransferActivity;
-
-    /// <summary>
-    /// Call this after updating FileTransferTimeoutMs to notify all SvnService instances.
-    /// </summary>
     public static void NotifyFileTransferTimeoutChanged() => FileTransferTimeoutChanged?.Invoke();
 
     /// <summary>
-    /// Creates a SvnClient with SSL certificate auto-accept pre-configured.
-    /// Must be called BEFORE any SVN operation on the client instance.
+    /// Raised whenever a file is transferred during a HeavyWrite operation.
     /// </summary>
-    private static SvnClient CreateClient()
-    {
-        var client = new SvnClient(); // raw, not via CreateClient() to avoid recursion
-        client.Authentication.SslServerTrustHandlers += (sender, e) =>
-        {
-            e.AcceptedFailures = e.Failures;
-            e.Save = true;
-        };
-        return client;
-    }
+    public static event Action<string, string>? FileTransferActivity;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Constructor
+    // ─────────────────────────────────────────────────────────────────────────
 
     public SvnService()
     {
 #pragma warning disable SYSLIB0014
-        // Set HTTP-level timeouts for all WebRequest/WebResponse operations
-        // SharpSvn uses HttpWebRequest internally — these settings still affect its HTTP behavior
         ServicePointManager.DefaultConnectionLimit = 4;
         ServicePointManager.Expect100Continue = false;
         ServicePointManager.FindServicePoint(new Uri("https://dummy")).ConnectionLeaseTimeout = HttpTimeoutMs;
 #pragma warning restore SYSLIB0014
 
-        Log.Information("SvnService initialized — SharpSvn {Version}, lock timeout {LockTimeout}s, HTTP timeout {HttpTimeout}s",
-            typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown",
-            LockWaitTimeoutMs / 1000,
-            HttpTimeoutMs / 1000);
+        Log.Information("SvnService initialized — SharpSvn {Version}",
+            typeof(SvnClient).Assembly.GetName().Version?.ToString() ?? "unknown");
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tier 1 — ReadOnly Operations
+    // No lock needed. Multiple concurrent reads. Pure local, sub-second.
+    // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Runs a read SVN operation (status/info/revision) with shared read lock + timeout.
-    /// Multiple reads can run concurrently; they never block writes.
-    /// Does NOT use activity-based timeout — wall clock timeout is appropriate for reads.
+    /// Tier 1. Gets SVN status of all items under a path. Pure local read.
     /// </summary>
-    private async Task<T> ExecuteAsync<T>(Func<CancellationToken, T> operation, CancellationToken cancellationToken = default)
+    public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync(
+        string workingCopyPath,
+        SvnDepth depth = SvnDepth.Children)
     {
-        // Wait max 30s for a read slot — reads are concurrent so wait is usually brief
-        if (!await _readSemaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
-        {
-            throw new TimeoutException(
-                $"SVN read operation timed out waiting for a read slot after {LockWaitTimeoutMs / 1000}s. " +
-                "Too many concurrent reads may be blocking. Try again or restart the application.");
-        }
-
-        try
-        {
-            // Hard safety-net timeout (600s) — covers even the slowest read operations
-            using var safetyNetCts = new CancellationTokenSource();
-            safetyNetCts.CancelAfter(SafetyNetTimeoutMs);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyNetCts.Token);
-
-            var result = await Task.Run(() => operation(linkedCts.Token), linkedCts.Token);
-            return result;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException($"SVN read operation timed out after {SafetyNetTimeoutMs / 1000}s. Server may be unreachable.");
-        }
-        finally
-        {
-            _readSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Runs an SVN file-transfer write operation (Update/Commit) with exclusive write lock
-    /// + activity-based idle timeout. As long as SharpSvn.Notify events keep firing
-    /// (files being transferred), the operation is considered alive and will not time out.
-    /// Only when the idle period exceeds FileTransferTimeoutMs will it be cancelled.
-    /// SharpSvn calls are synchronous so they run on a background thread with cancellation support.
-    /// </summary>
-    private async Task<T> ExecuteWithProgressTimeoutAsync<T>(
-        Func<CancellationToken, CancellationTokenSource, T> operation,
-        CancellationToken cancellationToken = default)
-    {
-        if (!await _writeSemaphore.WaitAsync(LockWaitTimeoutMs, cancellationToken))
-        {
-            throw new TimeoutException(
-                $"SVN operation timed out waiting for write lock after {LockWaitTimeoutMs / 1000}s. " +
-                "Another SVN operation may be stuck. Try again or restart the application.");
-        }
-
-        try
-        {
-            var idleTimeoutMs = FileTransferTimeoutMs;
-            using var progressCts = new CancellationTokenSource();
-            using var safetyNetCts = new CancellationTokenSource();
-
-            // Safety net: absolute ceiling, even if progress events keep firing
-            safetyNetCts.CancelAfter(SafetyNetTimeoutMs);
-
-            // Progress idle timeout: will fire if no file-transfer activity is detected
-            progressCts.CancelAfter(idleTimeoutMs);
-
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken, progressCts.Token, safetyNetCts.Token);
-
-            // Run on background thread with cancellation support
-            // progressCts is captured by the closure so ExecuteSvnWithNotify can cancel it
-            // when the activity watchdog fires, triggering linkedCTS → interrupting SharpSvn
-            var result = await Task.Run(() => operation(linkedCts.Token, progressCts), linkedCts.Token);
-            return result;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException(
-                $"文件传输超时（{FileTransferTimeoutMs / 1000}s 无活动）。服务器可能已断开，请检查网络后重试。");
-        }
-        finally
-        {
-            _writeSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Wraps a synchronous SharpSvn operation (Update/Commit) with a Notify-based activity watchdog.
-    /// The watchdog resets on each file-transfer Notify event. If no activity is seen for
-    /// FileTransferTimeoutMs, it fires the provided progressCts to trigger cancellation through
-    /// the linked CTS chain, interrupting the SharpSvn operation mid-flight.
-    /// Runs the operation on a background thread so it can be cancelled mid-execution.
-    /// </summary>
-    private T ExecuteSvnWithNotify<T>(
-        Func<SvnClient, T> svnOperation,
-        CancellationToken token,
-        CancellationTokenSource progressCts)
-    {
-        using var client = CreateClient();
-        var lastActivity = DateTime.UtcNow;
-        var timeoutMs = FileTransferTimeoutMs;
-
-        client.Notify += (sender, e) =>
-        {
-            lastActivity = DateTime.UtcNow;
-            var action = e.Action.ToString();
-            var path = e.Path ?? "";
-            Log.Debug("[SvnService] Transfer: {Action} {Path}", action, path);
-            FileTransferActivity?.Invoke(path, action);
-        };
-
-        // Watchdog: if no Notify fires within FileTransferTimeoutMs, cancel progressCTS
-        // which propagates through linkedCTS → Task.Run → SharpSvn operation interrupted
-        using var watchdogCts = new CancellationTokenSource();
-        var watchdog = Task.Run(async () =>
-        {
-            while (!token.IsCancellationRequested && !watchdogCts.Token.IsCancellationRequested)
-            {
-                try
-                {
-                    await Task.Delay(2_000, CancellationTokenSource.CreateLinkedTokenSource(token, watchdogCts.Token).Token);
-                }
-                catch { break; }
-
-                if ((DateTime.UtcNow - lastActivity).TotalMilliseconds > timeoutMs)
-                {
-                    Log.Warning("[SvnService] No file transfer activity for {Seconds}s, cancelling",
-                        timeoutMs / 1000);
-                    progressCts.Cancel();  // fires linkedCTS → interrupts SharpSvn
-                    break;
-                }
-            }
-        }, token);
-
-        try
-        {
-            return svnOperation(client);
-        }
-        finally
-        {
-            watchdogCts.Cancel();
-            try { watchdog.Wait(500); } catch { }
-        }
-    }
-
-    public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync(string workingCopyPath, SvnDepth depth = SvnDepth.Children)
-    {
-        return await ExecuteAsync(token =>
+        return await ExecuteRead(token =>
         {
             var statuses = new Dictionary<string, FileSvnStatus>();
-
             try
             {
                 using var client = CreateClient();
@@ -301,26 +120,23 @@ public class SvnService : IDisposable
                     var path = item.Path;
                     if (string.IsNullOrEmpty(path)) return;
 
-                    if (item.LocalNodeStatus != SharpSvnStatus.Normal)
-                        Log.Debug("SvnStatus: path={Path} localStatus={Status} remoteStatus={Remote}", path, item.LocalNodeStatus, item.RemoteNodeStatus);
-
                     if (item.LocalNodeStatus == SharpSvnStatus.NotVersioned &&
                         (path == workingCopyPath || path.EndsWith(".")))
                         return;
 
                     var svnStatus = item.LocalNodeStatus switch
                     {
-                        SharpSvnStatus.Modified => FileSvnStatus.Modified,
-                        SharpSvnStatus.Added => FileSvnStatus.Added,
-                        SharpSvnStatus.Deleted => FileSvnStatus.Deleted,
-                        SharpSvnStatus.Conflicted => FileSvnStatus.Conflicted,
-                        SharpSvnStatus.NotVersioned => FileSvnStatus.Unversioned,
-                        SharpSvnStatus.Missing => FileSvnStatus.Missing,
-                        SharpSvnStatus.Replaced => FileSvnStatus.Replaced,
-                        SharpSvnStatus.Obstructed => FileSvnStatus.Obstructed,
-                        SharpSvnStatus.External => FileSvnStatus.External,
-                        SharpSvnStatus.Incomplete => FileSvnStatus.Missing, // Incomplete = missing/inaccessible locally → 显示 "!"
-                        _ => FileSvnStatus.Normal
+                        SharpSvnStatus.Modified    => FileSvnStatus.Modified,
+                        SharpSvnStatus.Added       => FileSvnStatus.Added,
+                        SharpSvnStatus.Deleted     => FileSvnStatus.Deleted,
+                        SharpSvnStatus.Conflicted  => FileSvnStatus.Conflicted,
+                        SharpSvnStatus.NotVersioned=> FileSvnStatus.Unversioned,
+                        SharpSvnStatus.Missing      => FileSvnStatus.Missing,
+                        SharpSvnStatus.Replaced     => FileSvnStatus.Replaced,
+                        SharpSvnStatus.Obstructed  => FileSvnStatus.Obstructed,
+                        SharpSvnStatus.External     => FileSvnStatus.External,
+                        SharpSvnStatus.Incomplete   => FileSvnStatus.Missing,
+                        _                           => FileSvnStatus.Normal
                     };
 
                     if (svnStatus != FileSvnStatus.Normal)
@@ -337,18 +153,17 @@ public class SvnService : IDisposable
             {
                 Log.Error(ex, "Error getting SVN status for {Path}", workingCopyPath);
             }
-
             return statuses;
         });
     }
 
     /// <summary>
-    /// Returns the list of paths that have pending updates on the server.
-    /// Uses svn status --show-updates (no lock, read-only).
+    /// Tier 1. Returns paths that have pending updates on the server.
+    /// Uses svn status --show-updates. Pure local read.
     /// </summary>
     public async Task<List<string>> GetServerUpdatePathsAsync(string workingCopyPath)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteRead(token =>
         {
             var paths = new List<string>();
             try
@@ -356,7 +171,6 @@ public class SvnService : IDisposable
                 using var client = CreateClient();
                 var handler = new EventHandler<SvnStatusEventArgs>(delegate (object? sender, SvnStatusEventArgs item)
                 {
-                    // RemoteNodeStatus != None means the file has changes on the server
                     if (item.RemoteNodeStatus != SharpSvn.SvnStatus.None &&
                         item.RemoteNodeStatus != SharpSvn.SvnStatus.NotVersioned &&
                         !string.IsNullOrEmpty(item.Path))
@@ -379,9 +193,13 @@ public class SvnService : IDisposable
         });
     }
 
+    /// <summary>
+    /// Tier 1. Reads the remote repository URL for a local working copy.
+    /// Pure local, no credentials needed.
+    /// </summary>
     public async Task<string> GetRepoUrlAsync(string workingCopyPath)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteRead(token =>
         {
             try
             {
@@ -397,9 +215,12 @@ public class SvnService : IDisposable
         });
     }
 
+    /// <summary>
+    /// Tier 1. Gets the current working copy revision number. Pure local read.
+    /// </summary>
     public async Task<int> GetWorkingCopyRevisionAsync(string workingCopyPath)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteRead(token =>
         {
             try
             {
@@ -417,40 +238,35 @@ public class SvnService : IDisposable
         });
     }
 
+    /// <summary>
+    /// Tier 1. Gets the HEAD revision of a remote repository.
+    /// Deduplicates concurrent requests for the same URL (shared HTTP request).
+    /// </summary>
     public async Task<int> GetHeadRevisionAsync(string repoUrl, string? username = null, string? password = null)
     {
-        // Deduplicate in-flight requests for the same repoUrl.
-        // The cache holds the Task directly so concurrent callers all await the same HTTP call.
-        var newTask = DoGetHeadRevisionAsync(repoUrl);
+        var newTask = DoGetHeadRevisionAsync(repoUrl, username, password);
         Task<int>? inFlightTask;
 
         lock (_headRevisionLock)
         {
             if (_headRevisionCache.TryGetValue(repoUrl, out inFlightTask))
-            {
-                // Another call for the same URL is already in flight — reuse it
                 Log.Debug("[GetHeadRevisionAsync] Reusing in-flight request for {Url}", repoUrl);
-            }
             else
             {
-                // First call for this URL — store our task; concurrent callers will find it
                 inFlightTask = newTask;
                 _headRevisionCache[repoUrl] = newTask;
             }
         }
 
-        // If there was a racing in-flight task, await that instead of ours
         if (inFlightTask != newTask)
             return await inFlightTask;
 
         try
         {
-            var result = await newTask;
-            return result;
+            return await newTask;
         }
         finally
         {
-            // Evict after TTL so stale entries don't accumulate
             var taskToEvict = newTask;
             _ = Task.Delay(HeadRevisionCacheTtl).ContinueWith(_ =>
             {
@@ -463,13 +279,16 @@ public class SvnService : IDisposable
         }
     }
 
-    private async Task<int> DoGetHeadRevisionAsync(string repoUrl)
+    private async Task<int> DoGetHeadRevisionAsync(string repoUrl, string? username, string? password)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteRead(token =>
         {
             try
             {
                 using var client = CreateClient();
+                if (!string.IsNullOrEmpty(username))
+                    client.Authentication.ForceCredentials(username, password ?? "");
+
                 var uri = new Uri(repoUrl);
                 SvnInfoEventArgs? infoResult = null;
                 var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
@@ -486,320 +305,12 @@ public class SvnService : IDisposable
         });
     }
 
-    public async Task<bool> CommitAsync(string workingCopyPath, string message, string? username = null, string? password = null)
-    {
-        return await ExecuteWithProgressTimeoutAsync((token, progressCts) =>
-        {
-            TryCleanStaleLocks(workingCopyPath); // Ensure no stale lock from a previously interrupted operation
-            return ExecuteSvnWithNotify(client =>
-            {
-                var args = new SvnCommitArgs { LogMessage = message };
-                return client.Commit(workingCopyPath, args);
-            }, token, progressCts);
-        });
-    }
-
-    public async Task<bool> UpdateAsync(string workingCopyPath, string? username = null, string? password = null)
-    {
-        return await ExecuteWithProgressTimeoutAsync((token, progressCts) =>
-        {
-            TryCleanStaleLocks(workingCopyPath);
-            return ExecuteSvnWithNotify(client =>
-            {
-                return client.Update(workingCopyPath);
-            }, token, progressCts);
-        });
-    }
-
-    public async Task<bool> AddFileAsync(string filePath)
-    {
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(filePath));
-            using var client = CreateClient();
-            return client.Add(filePath);
-        });
-    }
-
-    public async Task<bool> AddPathAsync(string path)
-    {
-
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(path));
-            using var client = CreateClient();
-            try
-            {
-                return client.Add(path);
-            }
-            catch (SharpSvn.SvnEntryException ex) when(ex.Message.Contains("already"))
-            {
-                Log.Warning("[SvnService] File already added: {Path}", path);
-                return true;
-            }
-            catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
-            {
-                Log.Warning("[SvnService] File not found, cannot add: {Path}", path);
-                return false;
-            }
-        });
-
-    }
-
-    public async Task<bool> DeleteAsync(string path)
-    {
-
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(path));
-            using var client = CreateClient();
-            try
-            {
-                return client.Delete(path);
-            }
-            catch (SharpSvn.SvnUnversionedNodeException)
-            {
-                Log.Warning("[SvnService] File is not under version control, cannot delete and ignore: {Path}", path);
-                return true;
-            }
-            catch (SharpSvn.SvnException ex) when (ex.Message.Contains("NotFound") || ex.InnerException is FileNotFoundException)
-            {
-                Log.Warning("[SvnService] File not found, treating as already deleted: {Path}", path);
-                return true;
-            }
-            catch (SharpSvn.SvnWorkingCopyLockException)
-            {
-                Log.Warning("[SvnService] Working copy is locked, treating as already deleted: {Path}", path);
-                return false;
-            }
-            catch(SharpSvn.SvnInvalidNodeKindException)
-            {
-                Log.Warning("[SvnService] Not a Working copy, maybe parent directory already deleted: {Path}", path);
-                return true;
-            }
-        }
-            );
-
-    }
-
     /// <summary>
-    /// Returns the working copy root directory (the directory containing .svn)
-    /// for any path within the working copy.
-    /// </summary>
-    private string GetWorkingCopyRoot(string path)
-    {
-        using var client = CreateClient();
-        return client.GetWorkingCopyRoot(path);
-    }
-
-    public async Task<bool> MoveAsync(string fromPath, string toPath)
-    {
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(fromPath));
-            using var client = CreateClient();
-            try
-            {
-                return client.Move(fromPath, toPath);
-            }
-            catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
-            {
-                Log.Warning("[SvnService] Source file not found, cannot move: {FromPath} -> {ToPath}", fromPath, toPath);
-                return false;
-            }
-            catch (SharpSvn.SvnWorkingCopyPathNotFoundException)
-            {
-                // Source already gone — treat as success
-                return true;
-            }
-        }
-            );
-
-    }
-
-    public async Task<bool> RevertAsync(string path, bool recursive = true)
-    {
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(path));
-            using var client = CreateClient();
-            var args = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
-            return client.Revert(path, args);
-        });
-    }
-
-    /// <summary>
-    /// Attempts to clean any stale working-copy locks left by a previously interrupted operation.
-    /// This is always called at the start of a write operation to ensure no residual lock blocks
-    /// the new operation, even if the previous one was cancelled mid-flight.
-    /// Never throws — cleanup failures are logged but do not prevent the operation from proceeding.
-    /// </summary>
-    private void TryCleanStaleLocks(string workingCopyPath)
-    {
-        try
-        {
-            using var client = CreateClient();
-            bool result = client.CleanUp(workingCopyPath);
-            Log.Debug("[SvnService] Stale lock cleaned for {Path}, result: {Result}", workingCopyPath, result ? "success" : "failed");
-        }
-        catch (Exception ex)
-        {
-            // If cleanup fails (e.g. no lock present, or already cleaned by another process),
-            // just log and continue — the subsequent SVN operation will handle its own errors.
-            Log.Debug(ex, "[SvnService] Cleanup attempt had no stale lock to remove for {Path}", workingCopyPath);
-        }
-    }
-
-    public async Task<(string output, int exitCode, string error)> CheckoutAsync(
-        string repoUrl,
-        string workingCopyPath,
-        string? username = null,
-        string? password = null)
-    {
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(workingCopyPath));
-            using var client = CreateClient();
-            if (!string.IsNullOrEmpty(username))
-                client.Authentication.ForceCredentials(username, password ?? "");
-
-            SvnUpdateResult? result = null;
-            client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
-            return (result?.Revision.ToString() ?? "", 0, "");
-        });
-    }
-
-    /// <summary>
-    /// Categorizes the result of a connection test to a repository URL,
-    /// used to give users specific feedback (auth failure, network issue, etc.).
-    /// </summary>
-    public enum SvnConnectResult
-    {
-        Success,
-        AuthFailed,        // 401 / authentication failed
-        AccessDenied,     // 403 / no read access
-        RepoNotFound,      // 404 / repository does not exist at this URL
-        NetworkError,      // network unreachable / DNS / connection refused
-        SslCertError,      // SSL certificate problem
-        Timeout,          // operation timed out
-        Unknown,           // anything else
-    }
-
-    /// <summary>
-    /// Lightweight connection test — does a single svn list with depth=empty
-    /// to determine reachability and categorize the error if any.
-    /// </summary>
-    public async Task<(SvnConnectResult result, string? errorMessage)> TestConnectionAsync(
-        string url,
-        string? username = null,
-        string? password = null)
-    {
-        return await ExecuteAsync(token =>
-        {
-            try
-            {
-                using var client = CreateClient();
-                if (!string.IsNullOrEmpty(username))
-                    client.Authentication.ForceCredentials(username, password ?? "");
-
-                SvnListEventArgs? info = null;
-                client.List(new SvnUriTarget(url), new SvnListArgs { Depth = SvnDepth.Empty },
-                    new EventHandler<SvnListEventArgs>((s, e) => info = e));
-                return (SvnConnectResult.Success, (string?)null);
-            }
-            catch (SvnAuthenticationException)
-            {
-                return (SvnConnectResult.AuthFailed, null);
-            }
-            catch (SvnAuthorizationException)
-            {
-                return (SvnConnectResult.AccessDenied, null);
-            }
-            catch (SvnRepositoryIOException ex)
-            {
-                if (ex.Message.Contains("E230001") || ex.InnerException?.Message.Contains("E230001") == true)
-                    return (SvnConnectResult.SslCertError, null);
-                if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013") || ex.Message.Contains("170013"))
-                    return (SvnConnectResult.RepoNotFound, null);
-                if (ex.Message.Contains("E175003"))
-                    return (SvnConnectResult.SslCertError, null);
-                return (SvnConnectResult.Unknown, ex.Message);
-            }
-            catch (SvnIOException ex)
-            {
-                var msg = ex.Message;
-                if (msg.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
-                    msg.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
-                    msg.Contains("could not resolve", StringComparison.OrdinalIgnoreCase) ||
-                    msg.Contains("No route to host", StringComparison.OrdinalIgnoreCase) ||
-                    msg.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
-                    msg.Contains("network", StringComparison.OrdinalIgnoreCase))
-                {
-                    return (SvnConnectResult.NetworkError, null);
-                }
-                return (SvnConnectResult.Unknown, ex.Message);
-            }
-            catch (TimeoutException)
-            {
-                return (SvnConnectResult.Timeout, null);
-            }
-            catch (Exception ex)
-            {
-                return (SvnConnectResult.Unknown, ex.Message);
-            }
-        });
-    }
-
-    public bool IsVersioned(string path)
-    {
-        // Fast local-only check — no need to serialize or timeout
-        try
-        {
-            using var client = CreateClient();
-            return client.GetRepositoryRoot(path) != null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public bool IsValidWorkingCopy(string path)
-    {
-        // Fast local-only check — no need to serialize or timeout
-        try
-        {
-            using var client = CreateClient();
-            return client.GetRepositoryRoot(path) != null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Resolve a conflicted file by accepting a specific resolution.
-    /// SvnAccept.Working = keep working file as-is (defer/Postpone);
-    /// SvnAccept.MineFull = keep local version; SvnAccept.TheirsFull = accept server version.
-    /// </summary>
-    public async Task<bool> ResolveAsync(string path, SvnAccept accept)
-    {
-        return await ExecuteAsync(token =>
-        {
-            TryCleanStaleLocks(GetWorkingCopyRoot(path));
-            using var client = CreateClient();
-            return client.Resolve(path, accept);
-        });
-    }
-
-    /// <summary>
-    /// Detects conflicted files by scanning for SVN conflict status
-    /// (.mine, .r*, .orig) — used because SharpSvn 1.14005.390 has no GetConflicts API.
+    /// Tier 1. Detects conflicted files in a working copy. Pure local scan.
     /// </summary>
     public async Task<List<string>> GetConflictedFilesAsync(string workingCopyPath)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteRead(token =>
         {
             var files = new List<string>();
             try
@@ -825,9 +336,12 @@ public class SvnService : IDisposable
         });
     }
 
+    /// <summary>
+    /// Tier 1. Gets the last-changed time of a file from SVN metadata. Pure local.
+    /// </summary>
     public async Task<DateTime> GetLastChangedTimeAsync(string filePath)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteRead(token =>
         {
             try
             {
@@ -845,9 +359,160 @@ public class SvnService : IDisposable
         });
     }
 
+    /// <summary>
+    /// Tier 1. Fast local-only check. No lock needed.
+    /// </summary>
+    public bool IsVersioned(string path)
+    {
+        try
+        {
+            using var client = CreateClient();
+            return client.GetRepositoryRoot(path) != null;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Tier 1. Fast local-only check. No lock needed.
+    /// </summary>
+    public bool IsValidWorkingCopy(string path)
+    {
+        try
+        {
+            using var client = CreateClient();
+            return client.GetRepositoryRoot(path) != null;
+        }
+        catch { return false; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tier 2 — LocalWrite Operations
+    // Exclusive WC write lock. Fast (sub-second). No network.
+    // Serialized via _writeSemaphore(1) — never run concurrently.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tier 2. Adds a file or directory to SVN version control.
+    /// </summary>
+    public async Task<bool> AddPathAsync(string path)
+    {
+        return await ExecuteLocalWrite(token =>
+        {
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            try
+            {
+                return client.Add(path);
+            }
+            catch (SharpSvn.SvnEntryException ex) when (ex.Message.Contains("already"))
+            {
+                Log.Warning("[SvnService] File already added: {Path}", path);
+                return true;
+            }
+            catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
+            {
+                Log.Warning("[SvnService] File not found, cannot add: {Path}", path);
+                return false;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Tier 2. Removes a file or directory from SVN version control.
+    /// Idempotent — safe to call on already-deleted items.
+    /// </summary>
+    public async Task<bool> DeleteAsync(string path)
+    {
+        return await ExecuteLocalWrite(token =>
+        {
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            try
+            {
+                return client.Delete(path);
+            }
+            catch (SharpSvn.SvnUnversionedNodeException)
+            {
+                Log.Warning("[SvnService] File is not under version control: {Path}", path);
+                return true;
+            }
+            catch (SharpSvn.SvnException ex) when (ex.Message.Contains("NotFound") || ex.InnerException is FileNotFoundException)
+            {
+                Log.Warning("[SvnService] File not found, treating as already deleted: {Path}", path);
+                return true;
+            }
+            catch (SharpSvn.SvnWorkingCopyLockException)
+            {
+                Log.Warning("[SvnService] Working copy is locked: {Path}", path);
+                return false;
+            }
+            catch (SharpSvn.SvnInvalidNodeKindException)
+            {
+                Log.Warning("[SvnService] Not a working copy (parent may be deleted): {Path}", path);
+                return true;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Tier 2. Moves (renames) a file or directory within SVN.
+    /// </summary>
+    public async Task<bool> MoveAsync(string fromPath, string toPath)
+    {
+        return await ExecuteLocalWrite(token =>
+        {
+            TryCleanStaleLocks(GetWorkingCopyRoot(fromPath));
+            using var client = CreateClient();
+            try
+            {
+                return client.Move(fromPath, toPath);
+            }
+            catch (SharpSvn.SvnException ex) when (ex.InnerException is FileNotFoundException)
+            {
+                Log.Warning("[SvnService] Source file not found: {From} -> {To}", fromPath, toPath);
+                return false;
+            }
+            catch (SharpSvn.SvnWorkingCopyPathNotFoundException)
+            {
+                // Source already gone
+                return true;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Tier 2. Reverts local changes to a file or directory.
+    /// </summary>
+    public async Task<bool> RevertAsync(string path, bool recursive = true)
+    {
+        return await ExecuteLocalWrite(token =>
+        {
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            var args = new SvnRevertArgs { Depth = recursive ? SvnDepth.Infinity : SvnDepth.Empty };
+            return client.Revert(path, args);
+        });
+    }
+
+    /// <summary>
+    /// Tier 2. Resolves a conflicted file by accepting a specific version.
+    /// </summary>
+    public async Task<bool> ResolveAsync(string path, SvnAccept accept)
+    {
+        return await ExecuteLocalWrite(token =>
+        {
+            TryCleanStaleLocks(GetWorkingCopyRoot(path));
+            using var client = CreateClient();
+            return client.Resolve(path, accept);
+        });
+    }
+
+    /// <summary>
+    /// Tier 2. Breaks a write lock on a file (admin operation).
+    /// </summary>
     public async Task<bool> BreakWriteLockAsync(string path)
     {
-        return await ExecuteAsync(token =>
+        return await ExecuteLocalWrite(token =>
         {
             try
             {
@@ -862,10 +527,322 @@ public class SvnService : IDisposable
         });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tier 3 — HeavyWrite Operations
+    // Exclusive WC write lock. Slow (file transfer + network).
+    // Activity watchdog timeout. Go through PendingCommitQueue for batching.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tier 3. Commits local changes to the SVN server.
+    /// Uses activity watchdog: cancels if no file-transfer activity for IdleTimeoutMs.
+    /// Prefer going through PendingCommitQueue for batching rather than calling directly.
+    /// </summary>
+    public async Task<bool> CommitAsync(string workingCopyPath, string message)
+    {
+        return await ExecuteHeavyWrite((token, progressCts) =>
+        {
+            TryCleanStaleLocks(workingCopyPath);
+            return ExecuteSvnWithNotify(client =>
+            {
+                var args = new SvnCommitArgs { LogMessage = message };
+                return client.Commit(workingCopyPath, args);
+            }, token, progressCts);
+        });
+    }
+
+    /// <summary>
+    /// Tier 3. Updates the working copy from the SVN server.
+    /// Uses activity watchdog. Prefer going through PendingCommitQueue for batching.
+    /// </summary>
+    public async Task<bool> UpdateAsync(string workingCopyPath)
+    {
+        return await UpdateAsync(new[] { workingCopyPath });
+    }
+
+    /// <summary>
+    /// Tier 3. Updates the specified sub-paths within a working copy from the SVN server.
+    /// </summary>
+    public async Task<bool> UpdateAsync(IReadOnlyList<string> paths)
+    {
+        return await ExecuteHeavyWrite((token, progressCts) =>
+        {
+            if (paths.Count == 0) return true;
+            var topDir = paths.Count == 1
+                ? paths[0]
+                : Path.GetDirectoryName(paths[0]) ?? paths[0];
+            TryCleanStaleLocks(topDir);
+            return ExecuteSvnWithNotify(
+                client => client.Update(paths.ToArray()),
+                token, progressCts);
+        });
+    }
+
+    /// <summary>
+    /// Tier 3. Checks out a remote repository to a local path.
+    /// </summary>
+    public async Task<(string output, int exitCode, string error)> CheckoutAsync(
+        string repoUrl,
+        string workingCopyPath,
+        string? username = null,
+        string? password = null)
+    {
+        return await ExecuteHeavyWrite((token, progressCts) =>
+        {
+            TryCleanStaleLocks(workingCopyPath);
+            using var client = CreateClient();
+            if (!string.IsNullOrEmpty(username))
+                client.Authentication.ForceCredentials(username, password ?? "");
+
+            SvnUpdateResult? result = null;
+            client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
+            return (result?.Revision.ToString() ?? "", 0, "");
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Connection test (Tier 1 — read-only probe)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public enum SvnConnectResult
+    {
+        Success, AuthFailed, AccessDenied, RepoNotFound,
+        NetworkError, SslCertError, Timeout, Unknown
+    }
+
+    /// <summary>
+    /// Tier 1. Lightweight connection probe — single svn list to determine
+    /// reachability and categorize any error.
+    /// </summary>
+    public async Task<(SvnConnectResult result, string? errorMessage)> TestConnectionAsync(
+        string url, string? username = null, string? password = null)
+    {
+        return await ExecuteRead(token =>
+        {
+            try
+            {
+                using var client = CreateClient();
+                if (!string.IsNullOrEmpty(username))
+                    client.Authentication.ForceCredentials(username, password ?? "");
+
+                SvnListEventArgs? info = null;
+                client.List(new SvnUriTarget(url), new SvnListArgs { Depth = SvnDepth.Empty },
+                    new EventHandler<SvnListEventArgs>((s, e) => info = e));
+                return (SvnConnectResult.Success, (string?)null);
+            }
+            catch (SvnAuthenticationException)     { return (SvnConnectResult.AuthFailed, null); }
+            catch (SvnAuthorizationException)     { return (SvnConnectResult.AccessDenied, null); }
+            catch (SvnRepositoryIOException ex)
+            {
+                if (ex.Message.Contains("E230001")) return (SvnConnectResult.SslCertError, null);
+                if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013")) return (SvnConnectResult.RepoNotFound, null);
+                if (ex.Message.Contains("E175003")) return (SvnConnectResult.SslCertError, null);
+                return (SvnConnectResult.Unknown, ex.Message);
+            }
+            catch (SvnIOException ex)
+            {
+                var msg = ex.Message;
+                if (msg.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("could not resolve", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("No route to host", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("network", StringComparison.OrdinalIgnoreCase))
+                    return (SvnConnectResult.NetworkError, null);
+                return (SvnConnectResult.Unknown, ex.Message);
+            }
+            catch (TimeoutException) { return (SvnConnectResult.Timeout, null); }
+            catch (Exception ex)     { return (SvnConnectResult.Unknown, ex.Message); }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Internal execution helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tier 1 helper: ReadOnly operations.
+    /// Uses _readSemaphore(10) — multiple reads run concurrently.
+    /// Hard 600s safety-net timeout.
+    /// </summary>
+    private async Task<T> ExecuteRead<T>(Func<CancellationToken, T> operation)
+    {
+        if (!await _readSemaphore.WaitAsync(LockWaitTimeoutMs))
+        {
+            throw new TimeoutException(
+                $"SVN read timed out waiting for a read slot after {LockWaitTimeoutMs / 1000}s. " +
+                "Too many concurrent reads may be blocking.");
+        }
+
+        try
+        {
+            using var safetyCts = new CancellationTokenSource(SafetyNetTimeoutMs);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(safetyCts.Token);
+            return await Task.Run(() => operation(linked.Token), linked.Token);
+        }
+        catch (OperationCanceledException) when (!LinkedCancellationToken(0).IsCancellationRequested)
+        {
+            throw new TimeoutException($"SVN read timed out after {SafetyNetTimeoutMs / 1000}s.");
+        }
+        finally
+        {
+            _readSemaphore.Release();
+        }
+
+        CancellationToken LinkedCancellationToken(int _) => default;
+    }
+
+    /// <summary>
+    /// Tier 2 helper: LocalWrite operations.
+    /// Uses _writeSemaphore(1) — exclusive, serialized with HeavyWrite.
+    /// Hard 30s timeout (local metadata ops should be sub-second).
+    /// </summary>
+    private async Task<T> ExecuteLocalWrite<T>(Func<CancellationToken, T> operation)
+    {
+        if (!await _writeSemaphore.WaitAsync(LockWaitTimeoutMs))
+        {
+            throw new TimeoutException(
+                $"SVN write timed out waiting for the write lock after {LockWaitTimeoutMs / 1000}s.");
+        }
+
+        try
+        {
+            using var safetyCts = new CancellationTokenSource(LockWaitTimeoutMs);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(safetyCts.Token);
+            return await Task.Run(() => operation(linked.Token), linked.Token);
+        }
+        finally
+        {
+            _writeSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Tier 3 helper: HeavyWrite operations.
+    /// Uses _writeSemaphore(1) — exclusive, serialized with LocalWrite.
+    /// Activity watchdog timeout + 600s hard ceiling.
+    /// </summary>
+    private async Task<T> ExecuteHeavyWrite<T>(
+        Func<CancellationToken, CancellationTokenSource, T> operation)
+    {
+        if (!await _writeSemaphore.WaitAsync(LockWaitTimeoutMs))
+        {
+            throw new TimeoutException(
+                $"SVN operation timed out waiting for write lock after {LockWaitTimeoutMs / 1000}s.");
+        }
+
+        try
+        {
+            var idleTimeoutMs = FileTransferTimeoutMs;
+            using var progressCts = new CancellationTokenSource();
+            using var safetyCts = new CancellationTokenSource(SafetyNetTimeoutMs);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                progressCts.Token, safetyCts.Token);
+
+            return await Task.Run(() => operation(linked.Token, progressCts), linked.Token);
+        }
+        catch (OperationCanceledException) when (!IsCancellationTokenSourceCancelled(0))
+        {
+            throw new TimeoutException(
+                $"文件传输超时（{FileTransferTimeoutMs / 1000}s 无活动）。请检查网络后重试。");
+        }
+        finally
+        {
+            _writeSemaphore.Release();
+        }
+
+        bool IsCancellationTokenSourceCancelled(int _) => false;
+    }
+
+    /// <summary>
+    /// Wraps a SharpSvn operation with an activity watchdog.
+    /// Resets on each Notify event. Fires progressCts cancellation if no
+    /// activity for FileTransferTimeoutMs, interrupting the operation.
+    /// </summary>
+    private T ExecuteSvnWithNotify<T>(
+        Func<SvnClient, T> svnOperation,
+        CancellationToken token,
+        CancellationTokenSource progressCts)
+    {
+        using var client = CreateClient();
+        var lastActivity = DateTime.UtcNow;
+        var timeoutMs = FileTransferTimeoutMs;
+
+        client.Notify += (sender, e) =>
+        {
+            lastActivity = DateTime.UtcNow;
+            FileTransferActivity?.Invoke(e.Path ?? "", e.Action.ToString());
+        };
+
+        using var watchdogCts = new CancellationTokenSource();
+        var watchdog = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested && !watchdogCts.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(2_000, CancellationTokenSource.CreateLinkedTokenSource(token, watchdogCts.Token).Token);
+                }
+                catch { break; }
+
+                if ((DateTime.UtcNow - lastActivity).TotalMilliseconds > timeoutMs)
+                {
+                    Log.Warning("[SvnService] No activity for {Seconds}s, cancelling", timeoutMs / 1000);
+                    progressCts.Cancel();
+                    break;
+                }
+            }
+        }, token);
+
+        try { return svnOperation(client); }
+        finally { watchdogCts.Cancel(); try { watchdog.Wait(500); } catch { } }
+    }
+
+    /// <summary>
+    /// Returns the working copy root (directory containing .svn) for any path
+    /// within the working copy.
+    /// </summary>
+    private static string GetWorkingCopyRoot(string path)
+    {
+        using var client = CreateClient();
+        return client.GetWorkingCopyRoot(path);
+    }
+
+    /// <summary>
+    /// Cleans stale WC locks left by a previously interrupted operation.
+    /// Called at the start of every write-class operation.
+    /// Never throws — failures are logged but do not block the operation.
+    /// </summary>
+    private void TryCleanStaleLocks(string workingCopyPath)
+    {
+        try
+        {
+            using var client = CreateClient();
+            var result = client.CleanUp(workingCopyPath);
+            Log.Debug("[SvnService] Cleanup for {Path}: {Result}", workingCopyPath, result ? "success" : "nothing to clean");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[SvnService] Cleanup: no stale lock for {Path}", workingCopyPath);
+        }
+    }
+
+    /// <summary>
+    /// Creates a SvnClient with SSL certificate auto-accept pre-configured.
+    /// </summary>
+    private static SvnClient CreateClient()
+    {
+        var client = new SvnClient();
+        client.Authentication.SslServerTrustHandlers += (sender, e) =>
+        {
+            e.AcceptedFailures = e.Failures;
+            e.Save = true;
+        };
+        return client;
+    }
+
     public void Dispose()
     {
-        // Note: _semaphore is static and is NOT disposed here, since other
-        // SvnService instances may still be using it. Static resources
-        // are intentionally left to the process to clean up.
+        // Static semaphores are NOT disposed — shared across all instances.
     }
 }

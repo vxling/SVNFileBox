@@ -18,11 +18,14 @@ public enum SyncStatusType { Idle, Syncing, Success, Failed }
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
+    private readonly IRepositoryContext _repoContext = new RepositoryContext();
     private readonly ConfigService _configService;
-    private readonly SvnService _svnService = new();
     private SyncService? _syncService;
     private System.Timers.Timer? _statusClearTimer;
     private string _lastPersistentStatus = "Ready";
+
+    /// <summary>Exposed for FileCopier creation in MainWindow.</summary>
+    public IRepositoryContext RepositoryContext => _repoContext;
 
     [ObservableProperty]
     private ObservableCollection<Repository> _repositories = new();
@@ -126,7 +129,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public MainViewModel()
     {
         _configService = ConfigService.Instance;
-        _syncService = new SyncService(_configService, SyncRecordService.Instance);
+        _syncService = new SyncService(_repoContext, SyncRecordService.Instance);
         _syncService.SyncNotification += (_, msg) => { SetStatus(msg); SyncNotification?.Invoke(this, msg); };
         _syncService.FilesChanged += async (_, _) => await RefreshAsync();
         _syncService.ConflictDetected += (_, conflicts) => ConflictDetected?.Invoke(this, conflicts);
@@ -203,13 +206,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSelectedRepositoryChanged(Repository? value)
     {
         ConfigService.Instance.CurrentRepository = value;
-        _syncService?.StopSync();
         if (value != null && Directory.Exists(value.Path))
         {
             foreach (var repo in Repositories)
                 repo.IsActive = repo.Path == value.Path;
             _configService.Config.ActiveRepositoryName = value.Name;
             _ = _configService.SaveAsync();
+            _repoContext.SwitchTo(value);
             _syncService?.StartSync(value);
             _ = LoadDirectoryAsync(value.Path);
             CanOperate = true;
@@ -218,6 +221,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         else
         {
+            _repoContext.StopSync();
             _syncService?.StopSync();
             Files.Clear();
             CurrentPath = "";
@@ -317,7 +321,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 {
                     // If the current directory itself is not a versioned SVN working copy,
                     // all its children are unversioned — skip the expensive status call.
-                    bool currentDirUnversioned = !_svnService.IsVersioned(path);
+                    bool currentDirUnversioned = !(await _repoContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, path)).Success || (await _repoContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, path)).Value != "true";
                     Log.Debug("LoadDirectoryAsync: path={Path} isVersioned={IsVersioned}", path, !currentDirUnversioned);
 
                     if (currentDirUnversioned)
@@ -335,8 +339,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                     // Run svn status on the CURRENT directory only, not the entire working copy —
                     // recursive scan of large repos is very slow, directory-level status is sufficient.
-                    var statuses = await _svnService.GetStatusAsync(path)
-                        .WaitAsync(cts.Token);
+                    var statusResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.Status, path);
+                    var statuses = statusResult.Success
+                        ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, FileSvnStatus>>(statusResult.Value ?? "{}") ?? new()
+                        : new Dictionary<string, FileSvnStatus>();
                     var repoRoot = SelectedRepository.Path;
 
                     Log.Debug("LoadDirectoryAsync: path={Path} statuses count={Count} entries={@statuses}", path, statuses.Count, statuses);

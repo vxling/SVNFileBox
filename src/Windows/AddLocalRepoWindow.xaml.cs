@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using SVNFileBox.Models;
 using SVNFileBox.Services;
@@ -12,15 +13,16 @@ namespace SVNFileBox.Windows;
 
 public partial class AddLocalRepoWindow : Window
 {
-    private readonly SvnService _svnService = new();
+    private readonly IRepositoryContext _repoContext;
     private readonly IReadOnlyList<Repository> _existingRepos;
 
     public Repository? ResultRepository { get; private set; }
 
-    public AddLocalRepoWindow() : this(Array.Empty<Repository>()) { }
+    public AddLocalRepoWindow() : this(new RepositoryContext(), Array.Empty<Repository>()) { }
 
-    public AddLocalRepoWindow(IEnumerable<Repository> existingRepos)
+    public AddLocalRepoWindow(IRepositoryContext repoContext, IEnumerable<Repository> existingRepos)
     {
+        _repoContext = repoContext;
         _existingRepos = existingRepos.ToList().AsReadOnly();
         InitializeComponent();
     }
@@ -35,11 +37,11 @@ public partial class AddLocalRepoWindow : Window
         if (dialog.ShowDialog() == true)
         {
             LocalPathBox.Text = dialog.FolderName;
-            ValidatePath();
+            _ = ValidatePathAsync(); // fire and forget — UI updates async
         }
     }
 
-    private void ValidatePath()
+    private async Task ValidatePathAsync()
     {
         ErrorText.Text = "";
         var path = LocalPathBox.Text?.Trim();
@@ -50,14 +52,14 @@ public partial class AddLocalRepoWindow : Window
             return;
         }
 
-        // Check duplicate by local path
         if (_existingRepos.Any(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
         {
             ErrorText.Text = LocalizationService.Instance.GetString("LocalPathAlreadyAdded");
             return;
         }
 
-        if (!_svnService.IsValidWorkingCopy(path))
+        var vwr = await _repoContext.Executor.ExecuteAsync(SvnCommand.IsValidWorkingCopy, path);
+        if (!(vwr.Success && vwr.Value == "true"))
         {
             ErrorText.Text = LocalizationService.Instance.GetString("NotValidWorkingCopy");
             return;
@@ -84,32 +86,31 @@ public partial class AddLocalRepoWindow : Window
             return;
         }
 
-        // Check duplicate by local path
         if (_existingRepos.Any(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
         {
             ErrorText.Text = LocalizationService.Instance.GetString("LocalPathAlreadyAdded");
             return;
         }
 
-        if (!_svnService.IsValidWorkingCopy(path))
+        var vwr = await _repoContext.Executor.ExecuteAsync(SvnCommand.IsValidWorkingCopy, path);
+        if (!(vwr.Success && vwr.Value == "true"))
         {
             ErrorText.Text = LocalizationService.Instance.GetString("NotValidWorkingCopy");
             return;
         }
 
-        // Get repo URL — show progress, disable buttons
         SetLoading(true, LocalizationService.Instance.GetString("CheckingRepoUrl"));
 
         try
         {
-            var url = await _svnService.GetRepoUrlAsync(path);
+            var urlResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.Info, path);
             var name = new DirectoryInfo(path).Name;
 
             ResultRepository = new Repository
             {
                 Name = name,
                 Path = path,
-                Url = url,
+                Url = urlResult.Success ? (urlResult.Value ?? "") : "",
                 IsActive = false,
                 RepositoryType = RepositoryType.Local
             };

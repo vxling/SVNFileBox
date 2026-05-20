@@ -12,7 +12,7 @@ namespace SVNFileBox.Windows;
 
 public partial class CheckoutWindow : Window
 {
-    private readonly SvnService _svnService = new();
+    private readonly IRepositoryContext _repoContext;
     private readonly IReadOnlyList<Repository> _existingRepos;
     private string? _generatedLocalPath;
 
@@ -22,20 +22,17 @@ public partial class CheckoutWindow : Window
     public string? Password => string.IsNullOrWhiteSpace(PasswordBox.Password) ? null : PasswordBox.Password;
     public string? LocalPath => _generatedLocalPath;
 
-    public CheckoutWindow() : this(Array.Empty<Repository>()) { }
+    public CheckoutWindow() : this(new RepositoryContext(), Array.Empty<Repository>()) { }
 
-    public CheckoutWindow(IEnumerable<Repository> existingRepos)
+    public CheckoutWindow(IRepositoryContext repoContext, IEnumerable<Repository> existingRepos)
     {
+        _repoContext = repoContext;
         _existingRepos = existingRepos.ToList().AsReadOnly();
         InitializeComponent();
         Loaded += (s, e) => RepoNameBox.Focus();
     }
 
-    private void Browse_Click(object sender, RoutedEventArgs e)
-    {
-        // Local path is auto-generated, user can't manually choose
-        UpdateLocalPath();
-    }
+    private void Browse_Click(object sender, RoutedEventArgs e) => UpdateLocalPath();
 
     private void UpdateLocalPath()
     {
@@ -46,11 +43,9 @@ public partial class CheckoutWindow : Window
             _generatedLocalPath = null;
             return;
         }
-
         _generatedLocalPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SVNFileBox", "workcopies", name);
-
         LocalPathBox.Text = _generatedLocalPath;
     }
 
@@ -73,14 +68,12 @@ public partial class CheckoutWindow : Window
     {
         ErrorText.Text = "";
 
-        // Validation
         var repoName = RepoName;
         if (string.IsNullOrWhiteSpace(repoName))
         {
             ShowError(LocalizationService.Instance.GetString("RepoNameRequired"));
             return;
         }
-        // Check invalid path characters
         var invalidChars = Path.GetInvalidFileNameChars();
         if (repoName.IndexOfAny(invalidChars) >= 0)
         {
@@ -93,25 +86,21 @@ public partial class CheckoutWindow : Window
             return;
         }
 
-        // Auto-generate local path
         UpdateLocalPath();
         if (string.IsNullOrEmpty(_generatedLocalPath)) return;
 
-        // Check if already exists
         if (Directory.Exists(_generatedLocalPath))
         {
             ShowError(LocalizationService.Instance.GetString("LocalPathExists"));
             return;
         }
 
-        // Check duplicate by URL
         if (_existingRepos.Any(r => r.Url.Equals(RepoUrl, StringComparison.OrdinalIgnoreCase)))
         {
             ShowError(LocalizationService.Instance.GetString("DuplicateRepoUrl"));
             return;
         }
 
-        // Create parent directory
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_generatedLocalPath)!);
@@ -124,22 +113,26 @@ public partial class CheckoutWindow : Window
 
         SetLoading(true, LocalizationService.Instance.GetString("CheckoutInProgress"));
 
-        // First: lightweight connection test to give specific error feedback
-        var (connectResult, connectError) = await _svnService.TestConnectionAsync(RepoUrl!, Username, Password);
-        if (connectResult != SvnService.SvnConnectResult.Success)
+        // Connection test first
+        var connResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.TestConnection, RepoUrl!, username: Username, password: Password);
+        if (!connResult.Success || connResult.Error != null)
         {
-            string msgKey = connectResult switch
+            // TestConnection failure: Success=true but Error field holds the result name or error detail
+            var errorName = connResult.Error ?? "Unknown";
+            var errorDetail = connResult.Value;  // additional context if any
+
+            string msgKey = errorName switch
             {
-                SvnService.SvnConnectResult.AuthFailed => "ErrAuthFailed",
-                SvnService.SvnConnectResult.AccessDenied => "ErrAccessDenied",
-                SvnService.SvnConnectResult.RepoNotFound => "ErrRepoNotFound",
-                SvnService.SvnConnectResult.NetworkError => "ErrNetworkError",
-                SvnService.SvnConnectResult.SslCertError => "ErrSslCertError",
-                SvnService.SvnConnectResult.Timeout => "ErrTimeout",
+                "AuthFailed" => "ErrAuthFailed",
+                "AccessDenied" => "ErrAccessDenied",
+                "RepoNotFound" => "ErrRepoNotFound",
+                "NetworkError" => "ErrNetworkError",
+                "SslCertError" => "ErrSslCertError",
+                "Timeout" => "ErrTimeout",
                 _ => "ErrUnknown",
             };
-            var msg = connectResult == SvnService.SvnConnectResult.Unknown && !string.IsNullOrEmpty(connectError)
-                ? string.Format(LocalizationService.Instance.GetString(msgKey), connectError)
+            var msg = !string.IsNullOrEmpty(errorDetail)
+                ? string.Format(LocalizationService.Instance.GetString(msgKey), errorDetail)
                 : LocalizationService.Instance.GetString(msgKey);
             ShowError(msg);
             SetLoading(false);
@@ -148,12 +141,12 @@ public partial class CheckoutWindow : Window
 
         try
         {
-            var (output, exitCode, error) = await _svnService.CheckoutAsync(
-                RepoUrl!, _generatedLocalPath, Username, Password);
+            var coResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.Checkout, _generatedLocalPath,
+                repoUrl: RepoUrl!, username: Username, password: Password);
 
-            if (exitCode != 0)
+            if (!coResult.Success)
             {
-                ShowError($"{LocalizationService.Instance.GetString("CheckoutFailed")}: {error}");
+                ShowError($"{LocalizationService.Instance.GetString("CheckoutFailed")}: {coResult.Error ?? "unknown error"}");
                 try { Directory.Delete(_generatedLocalPath, recursive: true); } catch { }
                 return;
             }

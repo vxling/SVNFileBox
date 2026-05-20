@@ -23,9 +23,8 @@ public partial class MainWindow : Window
 {
     private MainViewModel? _viewModel;
     private ConfigService? _configService;
-    private readonly SvnService _svnService = new();
     private readonly FileAnalyzer _fileAnalyzer = new();
-    private readonly FileCopier _fileCopier = new();
+    private FileCopier _fileCopier;
     private bool _isExiting;
     private readonly List<(string Message, Hardcodet.Wpf.TaskbarNotification.BalloonIcon Icon)> _pendingToasts = new();
     private bool _toastIconReady;
@@ -85,6 +84,7 @@ public partial class MainWindow : Window
     {
         _viewModel = new MainViewModel();
         _configService = _viewModel.ConfigService;
+        _fileCopier = new FileCopier(_viewModel.RepositoryContext);
         DataContext = _viewModel;
 
         // Sync FileTransferTimeout from config to SvnService static cache
@@ -227,44 +227,53 @@ public partial class MainWindow : Window
             mi.Icon = emoji;
     }
 
-    private void OnConflictDetected(object? sender, List<ConflictedFileInfo> conflicts)
+    private async void OnConflictDetected(object? sender, List<ConflictedFileInfo> conflicts)
     {
+        var deferred = false;
         Dispatcher.Invoke(() =>
         {
             var window = new ConflictWindow { Owner = this };
             window.SetConflicts(conflicts);
             var result = window.ShowDialog();
-            if (result == true)
-            {
-                // User confirmed — kick off resolution via SyncService.ApplyConflictResolutionsAsync
-                // The event was already raised in SyncService, so the loop is waiting.
-                // Actually: ConflictDetected is a synchronous event (not async),
-                // and ApplyConflictResolutionsAsync is called in the same flow after this handler returns.
-                // So we just need to tell SyncService to proceed — which it already does.
-                // But SyncService can't know when the window closes... Let's handle it via a continuation.
-                _ = ResolveConflictsAsync(conflicts);
-            }
-            // If DialogResult == false (cancel), conflicts are not resolved — user explicitly deferred
+            deferred = result != true;
         });
+
+        if (deferred)
+        {
+            Log.Information("[ConflictWindow] User deferred conflict resolution");
+            return;
+        }
+
+        // Await resolution — ExecuteAsync HeavyWrite commands return TCS that fires
+        // when WorkerLoop finishes the operation, so this properly waits for SVN result.
+        var ok = await ResolveConflictsAsync(conflicts);
+        await _viewModel!.RefreshAsync();
+        ShowToast(ok
+            ? LocalizationService.Instance.GetString("ConflictsResolved", conflicts.Count)
+            : LocalizationService.Instance.GetString("ConflictResolutionFailed"));
     }
 
-    private async Task ResolveConflictsAsync(List<ConflictedFileInfo> conflicts)
+    private async Task<bool> ResolveConflictsAsync(List<ConflictedFileInfo> conflicts)
     {
-        if (_viewModel?.SyncService == null) return;
+        if (_viewModel?.SyncService == null) return false;
         try
         {
             _viewModel.SetStatus(LocalizationService.Instance.GetString("ResolvingConflicts", conflicts.Count));
             var handled = await _viewModel.SyncService.ApplyConflictResolutionsAsync(conflicts);
             _viewModel.RecordService.AddRecord(
                 _viewModel.SelectedRepository?.Name ?? "",
-                "", "ConflictResolved", "Success", $"Resolved {handled} conflict(s)");
+                "", "ConflictResolved", "Success", $"Resolved {handled}/{conflicts.Count} conflict(s)");
             _viewModel.SetTransientStatus(LocalizationService.Instance.GetString("ConflictsResolved", handled));
-            await _viewModel.RefreshAsync();
+            return handled > 0;
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Conflict resolution failed");
             _viewModel.SetStatus(LocalizationService.Instance.GetString("ConflictResolutionFailed"));
+            _viewModel.RecordService.AddRecord(
+                _viewModel.SelectedRepository?.Name ?? "",
+                "", "ConflictResolved", "Failed", ex.Message);
+            return false;
         }
     }
 
@@ -517,7 +526,7 @@ public partial class MainWindow : Window
                 Directory.CreateDirectory(newFolderPath);
 
                 // svn add (marks new folder), SyncService auto-commits on next FullSync
-                await _svnService.AddFileAsync(newFolderPath);
+                await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.Add, newFolderPath);
 
                 ShowToast(LocalizationService.Instance.GetString("NewFolderSuccess", dialog.InputText.Trim()));
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("NewFolderSuccess", dialog.InputText.Trim()));
@@ -646,8 +655,9 @@ public partial class MainWindow : Window
             }
 
             // svn add the new zip (svn auto-detects modified existing files)
-            if (!_svnService.IsVersioned(zipPath))
-                await _svnService.AddPathAsync(zipPath);
+            var vz = await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, zipPath);
+            if (!(vz.Success && vz.Value == "true"))
+                await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.Add, zipPath);
 
             progressWindow.Close();
             ShowToast(LocalizationService.Instance.GetString("AddToZipSuccess", zipName));
@@ -721,7 +731,7 @@ public partial class MainWindow : Window
             if (!NewFileService.Create(newPath))
                 throw new Exception("NewFileService returned false");
 
-            await _svnService.AddFileAsync(newPath);
+            await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.Add, newPath);
             ShowToast(LocalizationService.Instance.GetString("NewFileSuccess", defaultName));
             _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("NewFileSuccess", defaultName));
             _ = _viewModel.RefreshAsync();
@@ -775,12 +785,12 @@ public partial class MainWindow : Window
 
 
                 // Enqueue as Move so QueueCommitProcessor resolves it correctly
-                _ = CommitCoordinator.Instance.EnqueueDeleteAsync(item.FullPath);
-                _ = CommitCoordinator.Instance.EnqueueAddAsync(newPath);
+                _viewModel!.SyncService.EnqueueDeleteAsync(item.FullPath);
+                _viewModel!.SyncService.EnqueueAddAsync(newPath);
 
                 // svn delete old + svn add new (marks the rename in working copy)
                 // await _svnService.DeleteAsync(item.FullPath);
-                // await _svnService.AddFileAsync(newPath);
+                // await _executor.ExecuteAsync(SvnCommand.Add, newPath);
 
                 ShowToast(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("RenameSuccess", $"{item.Name} -> {newName}"));
@@ -824,7 +834,7 @@ public partial class MainWindow : Window
 
                 // svn delete marks the deletion in the working copy (after physical file is gone)
                 // Enqueue via CommitCoordinator so the delete is batch-committed
-                await CommitCoordinator.Instance.EnqueueDeleteAsync(item.FullPath);
+                _viewModel!.SyncService.EnqueueDeleteAsync(item.FullPath);
 
                 ShowToast(LocalizationService.Instance.GetString("DeleteSuccess", item.Name));
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("DeleteSuccess", item.Name));
@@ -1007,7 +1017,7 @@ public partial class MainWindow : Window
 
     private void AddLocalRepo_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SVNFileBox.Windows.AddLocalRepoWindow(_viewModel!.Repositories) { Owner = this };
+        var dialog = new SVNFileBox.Windows.AddLocalRepoWindow(_viewModel!.RepositoryContext, _viewModel!.Repositories) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.ResultRepository != null)
         {
             var repo = dialog.ResultRepository;
@@ -1021,7 +1031,7 @@ public partial class MainWindow : Window
 
     private void Checkout_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SVNFileBox.Windows.CheckoutWindow(_viewModel!.Repositories) { Owner = this };
+        var dialog = new SVNFileBox.Windows.CheckoutWindow(_viewModel!.RepositoryContext, _viewModel!.Repositories) { Owner = this };
         if (dialog.ShowDialog() == true)
         {
             var repo = new Repository

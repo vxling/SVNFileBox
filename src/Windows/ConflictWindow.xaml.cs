@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Windows;
 using SVNFileBox.Models;
+using Serilog;
 
 namespace SVNFileBox.Windows;
 
@@ -54,6 +55,7 @@ public partial class ConflictWindow : Window
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
+        Log.Information("[ConflictWindow] User deferred — conflicts left unresolved, will retry on next poll");
         Close();
     }
 }
