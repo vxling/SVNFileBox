@@ -42,10 +42,23 @@ public class ConfigService
                 var config = JsonSerializer.Deserialize<AppConfig>(json);
                 if (config != null)
                 {
-                    // Decrypt passwords from encrypted storage fields into Password property
+                    // Decrypt passwords from encrypted storage fields.
+                    // On first load with a plaintext Password (legacy/initial state),
+                    // encrypt it and store in EncryptedPassword, then clear Password.
                     foreach (var repo in config.Repositories)
                     {
-                        repo.Password = DpapiService.Decrypt(repo.EncryptedPassword ?? "");
+                        if (!string.IsNullOrEmpty(repo.EncryptedPassword))
+                        {
+                            // Normal case: decrypt from encrypted storage
+                            repo.Password = DpapiService.Decrypt(repo.EncryptedPassword);
+                        }
+                        else if (!string.IsNullOrEmpty(repo.Password))
+                        {
+                            // Legacy/initial state: Password is plaintext, encrypt it now
+                            repo.EncryptedPassword = DpapiService.Encrypt(repo.Password);
+                            repo.Password = ""; // clear plaintext
+                        }
+                        // else: both empty, nothing to do
                     }
                     Config = config;
                     Log.Information("Config loaded: {RepoCount} repositories", Config.Repositories.Count);
@@ -65,11 +78,16 @@ public class ConfigService
     {
         try
         {
-            // Encrypt Password into EncryptedPassword field (only if non-empty)
+            // Encrypt Password into EncryptedPassword field, then clear plaintext Password
             foreach (var repo in Config.Repositories)
             {
                 if (!string.IsNullOrEmpty(repo.Password))
+                {
                     repo.EncryptedPassword = DpapiService.Encrypt(repo.Password ?? "");
+                    repo.Password = ""; // clear plaintext after encrypting
+                }
+                else if (string.IsNullOrEmpty(repo.EncryptedPassword))
+                    repo.EncryptedPassword = ""; // both empty, keep consistent
             }
 
             var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
