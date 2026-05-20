@@ -95,7 +95,6 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     /// </summary>
     public void Start()
     {
-        // Start fresh if the previous task is gone (completed, cancelled, or never started)
         if (_workerTask?.IsCompleted == false) return;
         if (_cts.IsCancellationRequested)
         {

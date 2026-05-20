@@ -20,7 +20,7 @@ namespace SVNFileBox.Services;
 /// </summary>
 public class RepositoryContext : IRepositoryContext, IDisposable
 {
-    private readonly SvnCommandExecutor _executor = new();
+    private SvnCommandExecutor _executor = new();
     private readonly FileWatcherService _fileWatcher = new();
 
     private string _currentPath = "";
@@ -52,6 +52,11 @@ public class RepositoryContext : IRepositoryContext, IDisposable
     {
         if (_syncRunning)
             StopSync();
+
+        // Dispose the old executor and create a fresh one — avoids lingering state
+        // (CTS, Channels, WorkerLoop) from the previous repo's session.
+        _executor.Dispose();
+        _executor = new SvnCommandExecutor();
 
         _currentRepo = repo;
         _currentPath = repo.Path;
