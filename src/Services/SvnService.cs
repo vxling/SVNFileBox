@@ -289,6 +289,8 @@ public class SvnService : IDisposable
             try
             {
                 using var client = CreateClient();
+                // Clear stale cached credentials that may block the real credentials
+                client.Authentication.ClearAuthenticationCache();
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
 
@@ -594,6 +596,7 @@ public class SvnService : IDisposable
         {
             TryCleanStaleLocks(workingCopyPath);
             using var client = CreateClient();
+            client.Authentication.ClearAuthenticationCache();
             if (!string.IsNullOrEmpty(username))
                 client.Authentication.ForceCredentials(username, password ?? "");
 
@@ -625,6 +628,7 @@ public class SvnService : IDisposable
             try
             {
                 using var client = CreateClient();
+                client.Authentication.ClearAuthenticationCache();
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
 
