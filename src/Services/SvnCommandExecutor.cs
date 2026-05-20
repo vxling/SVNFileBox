@@ -34,7 +34,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     private readonly Channel<SvnCommandItem> _localWriteQueue;
     private readonly Channel<SvnCommandItem> _heavyWriteQueue;
     private readonly ConcurrentDictionary<string, SvnCommandItem> _dedup = new();
-    private readonly CancellationTokenSource _cts = new();
+    private CancellationTokenSource _cts = new();
     private Task? _workerTask;
 
     private static readonly SvnCommandCategory[] CommandCategoryMap = BuildCategoryMap();
@@ -92,7 +92,13 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     /// </summary>
     public void Start()
     {
-        if (_workerTask != null) return;
+        // Start fresh if the previous task is gone (completed, cancelled, or never started)
+        if (_workerTask?.IsCompleted == false) return;
+        if (_cts.IsCancellationRequested)
+        {
+            _cts.Dispose();
+            _cts = new CancellationTokenSource();
+        }
         _workerTask = Task.Run(WorkerLoop, _cts.Token);
         Log.Information("[SvnCommandExecutor] Started");
     }
