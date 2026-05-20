@@ -306,6 +306,9 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                         heavyItem.Command, heavyItem.Path);
                     OnCommandCompleted?.Invoke(SvnCommandResult.Fail(heavyItem.Command, heavyItem.Path, ex.Message));
                 }
+
+                // ── Brief pause before next iteration so the loop isn't a CPU spin ──
+                await Task.Delay(50, _cts.Token);
             }
         }
         catch (OperationCanceledException)
