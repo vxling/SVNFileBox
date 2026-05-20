@@ -300,7 +300,7 @@ public class SvnService : IDisposable
                 Log.Debug("[GetHeadRevisionAsync] Result for {Url} = {Revision}", repoUrl, rev);
                 return rev;
             }
-            catch (SvnAuthenticationException)
+            catch (SvnRepositoryIOException ex) when (ex.InnerException is SvnAuthenticationException)
             {
                 // Retry once after clearing stale in-memory auth cache
                 Log.Warning("[GetHeadRevisionAsync] Auth failed, retrying with cleared cache for {Url}", repoUrl);
@@ -319,15 +319,15 @@ public class SvnService : IDisposable
                     Log.Debug("[GetHeadRevisionAsync] Retry result for {Url} = {Revision}", repoUrl, rev);
                     return rev;
                 }
-                catch (Exception ex)
+                catch (Exception retryEx)
                 {
-                    Log.Error(ex, "[GetHeadRevisionAsync] Retry failed for {Url}", repoUrl);
+                    Log.Error(retryEx, "[GetHeadRevisionAsync] Retry failed for {Url}", repoUrl);
                     return -1;
                 }
             }
-            catch (Exception ex)
+            catch (Exception outerEx)
             {
-                Log.Error(ex, "[GetHeadRevisionAsync] Failed for {Url}", repoUrl);
+                Log.Error(outerEx, "[GetHeadRevisionAsync] Failed for {Url}", repoUrl);
                 return -1;
             }
         });
@@ -351,7 +351,7 @@ public class SvnService : IDisposable
             Log.Debug("[ValidateCredentialsAsync] Success for {Url} = {Revision}", repoUrl, rev);
             return (true, rev);
         }
-        catch (SvnAuthenticationException)
+        catch (SvnRepositoryIOException ex) when (ex.InnerException is SvnAuthenticationException)
         {
             // Retry once after clearing stale in-memory auth cache
             Log.Warning("[ValidateCredentialsAsync] Auth failed on first attempt, retrying with cleared cache for {Url}", repoUrl);
@@ -370,15 +370,15 @@ public class SvnService : IDisposable
                 Log.Debug("[ValidateCredentialsAsync] Retry result for {Url} = {Revision}", repoUrl, rev);
                 return (true, rev);
             }
-            catch (Exception ex)
+            catch (Exception retryEx)
             {
-                Log.Error(ex, "[ValidateCredentialsAsync] Retry failed for {Url}", repoUrl);
+                Log.Error(retryEx, "[ValidateCredentialsAsync] Retry failed for {Url}", repoUrl);
                 return (false, -1);
             }
         }
-        catch (Exception ex)
+        catch (Exception outerEx)
         {
-            Log.Error(ex, "[ValidateCredentialsAsync] Failed for {Url}", repoUrl);
+            Log.Error(outerEx, "[ValidateCredentialsAsync] Failed for {Url}", repoUrl);
             return (false, -1);
         }
     }
@@ -677,7 +677,7 @@ public class SvnService : IDisposable
             client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
             return (result?.Revision.ToString() ?? "", 0, "");
         }
-        catch (SvnAuthenticationException)
+        catch (SvnRepositoryIOException ex) when (ex.InnerException is SvnAuthenticationException)
         {
             Log.Warning("[CheckOutAsync] Auth failed, retrying with cleared cache for {Url}", repoUrl);
             try
@@ -692,10 +692,10 @@ public class SvnService : IDisposable
                 client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
                 return (result?.Revision.ToString() ?? "", 0, "");
             }
-            catch (Exception ex)
+            catch (Exception retryEx)
             {
-                Log.Error(ex, "[CheckOutAsync] Retry failed for {Url}", repoUrl);
-                return ("", 1, ex.Message);
+                Log.Error(retryEx, "[CheckOutAsync] Retry failed for {Url}", repoUrl);
+                return ("", 1, retryEx.Message);
             }
         }
         catch (Exception ex)
