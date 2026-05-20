@@ -35,18 +35,13 @@ public class RepositoryContext : IRepositoryContext, IDisposable
     public ISvnCommandExecutor Executor => _executor;
 
     public event EventHandler<string[]>? FilesChanged;
-    /// <summary>Wired to SyncService.FilesChanged handler.</summary>
-    public event EventHandler? FilesChangedForSync;
+
     public event EventHandler<string>? SyncNotification;
     public event EventHandler<List<ConflictedFileInfo>>? ConflictDetected;
 
     public RepositoryContext()
     {
-        _fileWatcher.FilesChanged += (_, files) =>
-        {
-            FilesChanged?.Invoke(this, files);
-            FilesChangedForSync?.Invoke(this, EventArgs.Empty);
-        };
+        _fileWatcher.FilesChanged += (_, files) => FilesChanged?.Invoke(this, files);
     }
 
     /// <summary>

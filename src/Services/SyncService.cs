@@ -21,7 +21,6 @@ namespace SVNFileBox.Services;
 ///
 /// Dependency: IRepositoryContext (provides executor, FileWatcher events, repo state).
 /// All SVN operations flow through _repoContext.Executor.
-/// FileWatcher events arrive via _repoContext.FilesChangedForSync.
 /// </summary>
 public class SyncService : IDisposable
 {
@@ -53,9 +52,6 @@ public class SyncService : IDisposable
         _fullSyncTimer = new System.Timers.Timer(15 * 60 * 1000);
         _fullSyncTimer.Elapsed += OnFullSyncTimerElapsed;
         _fullSyncTimer.AutoReset = true;
-
-        // Wire FileWatcher events from RepositoryContext → enqueue path changes
-        _repoContext.FilesChangedForSync += OnFilesChanged;
 
         // Subscribe to per-file transfer activity from SvnService and record each file
         SvnService.FileTransferActivity += (path, action) =>
@@ -252,18 +248,6 @@ public class SyncService : IDisposable
         {
             Interlocked.Exchange(ref _isSyncing, 0);
         }
-    }
-
-    #endregion
-
-    #region ---- FileWatcher event handler ----
-
-    private void OnFilesChanged(object? sender, EventArgs e)
-    {
-        // FileWatcher debounces, so we process the batch here.
-        // EnqueueFileChangeAsync decides Add/Delete/Modify per file.
-        // This is called from RepositoryContext's FileWatcher event.
-        Log.Debug("[SyncService] FileWatcher change batch received");
     }
 
     private void Notify(string message) => SyncNotification?.Invoke(this, message);
@@ -501,8 +485,7 @@ public class SyncService : IDisposable
 
     public void Dispose()
     {
-        _repoContext.FilesChangedForSync -= OnFilesChanged;
-        _pollTimer.Stop(); _pollTimer.Dispose();
+_pollTimer.Stop(); _pollTimer.Dispose();
         _fullSyncTimer.Stop(); _fullSyncTimer.Dispose();
         Log.Information("[SyncService] Disposed");
     }

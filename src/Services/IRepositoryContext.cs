@@ -25,7 +25,7 @@ public interface IRepositoryContext
     ISvnCommandExecutor Executor { get; }
 
     /// <summary>Fired when the file watcher detects changes.</summary>
-    event EventHandler? FilesChangedForSync;
+
 
     /// <summary>Fired on sync notifications (status messages).</summary>
     event EventHandler<string>? SyncNotification;
