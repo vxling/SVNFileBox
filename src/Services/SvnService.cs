@@ -159,7 +159,8 @@ public class SvnService : IDisposable
 
     /// <summary>
     /// Tier 1. Returns paths that have pending updates on the server.
-    /// Uses svn status --show-updates. Pure local read.
+    /// Uses svn status --show-updates (GetRemoteStatus=true) to query the server
+    /// for changed files. Pure read-only, does not modify local working copy.
     /// </summary>
     public async Task<List<string>> GetServerUpdatePathsAsync(string workingCopyPath)
     {
@@ -171,9 +172,10 @@ public class SvnService : IDisposable
                 using var client = CreateClient();
                 var handler = new EventHandler<SvnStatusEventArgs>(delegate (object? sender, SvnStatusEventArgs item)
                 {
-                    if (item.RemoteNodeStatus != SharpSvn.SvnStatus.None &&
-                        item.RemoteNodeStatus != SharpSvn.SvnStatus.NotVersioned &&
-                        !string.IsNullOrEmpty(item.Path))
+                    // RemoteContentStatus is only populated when GetRemoteStatus=true.
+                    // IsRemoteUpdated=true means the file has pending changes on the server
+                    // that are not yet in the local working copy.
+                    if (item.IsRemoteUpdated && !string.IsNullOrEmpty(item.Path))
                     {
                         paths.Add(item.Path);
                     }
@@ -181,13 +183,9 @@ public class SvnService : IDisposable
 
                 client.Status(workingCopyPath, new SvnStatusArgs
                 {
-                    Depth = SvnDepth.Infinity,
+                    RetrieveRemoteStatus = true,
                     RetrieveAllEntries = true,
-                    // NOTE: SharpSvn 2.x does not expose a RemoteStatus property on SvnStatusArgs.
-                    // Getting remote-changed paths requires a round-trip to the server (svn status -u).
-                    // The polling mechanism relies on svn update to sync remote changes; the
-                    // GetServerUpdatePaths result here is best-effort local-only and may be 0
-                    // even when the server has newer revisions. This is a known limitation.
+                    Depth = SvnDepth.Infinity
                 }, handler);
             }
             catch (Exception ex)

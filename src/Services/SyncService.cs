@@ -217,19 +217,34 @@ public class SyncService : IDisposable
                 Log.Debug("[ScanAndCommit] Enqueued Add for unversioned: {Path}", filePath);
             }
 
-            var dirGroups = versionedChanges
-                .GroupBy(kv => Path.GetDirectoryName(kv.Key) ?? "")
+            // Group by directory, filtering out paths outside the repo root
+            var normalizedRepoPathForCommit = repoPath.Replace('\\', '/').TrimEnd('/');
+            var inRepoVersionedChanges = versionedChanges
+                .Where(kv => kv.Key.StartsWith(normalizedRepoPathForCommit + '/') || kv.Key == normalizedRepoPathForCommit)
+                .ToList();
+
+            // Map parent dir of root-level files to repo root itself
+            var dirGroups = inRepoVersionedChanges
+                .Select(kv =>
+                {
+                    var parent = Path.GetDirectoryName(kv.Key)?.Replace('\\', '/');
+                    return (key: string.IsNullOrEmpty(parent) ? normalizedRepoPathForCommit : parent, kv);
+                })
+                .GroupBy(x => x.key)
                 .ToList();
 
             Log.Information("[ScanAndCommit] Committing {DirCount} dirs, {FileCount} files (+ {AddCount} unversioned)",
                 dirGroups.Count, versionedChanges.Count, unversionedFiles.Count);
 
-            foreach (var group in dirGroups)
+            // Process deepest dirs first (parent dirs after children to avoid "out of date" errors)
+            var sortedGroups = dirGroups.OrderByDescending(g => g.Key.Split('\\', '/').Length);
+
+            foreach (var group in sortedGroups)
             {
                 var dirPath = string.IsNullOrEmpty(group.Key) ? repoPath : group.Key;
                 var fileCount = group.Count();
                 var message = fileCount == 1
-                    ? $"Auto-sync: {Path.GetFileName(group.First().Key)}"
+                    ? $"Auto-sync: {Path.GetFileName(group.First().kv.Key)}"
                     : $"Auto-sync: {fileCount} files in {Path.GetFileName(dirPath)}";
 
                 _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Commit, dirPath, message: message);
@@ -373,14 +388,25 @@ public class SyncService : IDisposable
         }
 
         // 2. Merge file list into unique parent directories
-        //    (same directory → one Update task, deduplication removes duplicates)
-        var dirs = filePaths
-            .Select(p => Path.GetDirectoryName(p)?.Replace('\\', '/') ?? ".")
-            .Distinct()
+        //    Filter to only paths within the repo root (ignore externals/overflow)
+        var normalizedRepoPath = repo.Path.Replace('\\', '/').TrimEnd('/');
+        var inRepoPaths = filePaths
+            .Where(p => p.StartsWith(normalizedRepoPath + '/') || p == normalizedRepoPath)
             .ToList();
 
-        Log.Information("[UpdateInChunks] {FileCount} files → {DirCount} unique dirs to update",
-            filePaths.Count, dirs.Count);
+        // Compute parent dirs; root-file maps to repo root (normalizedRepoPath)
+        var dirs = inRepoPaths
+            .Select(p =>
+            {
+                var dir = Path.GetDirectoryName(p)?.Replace('\\', '/');
+                return string.IsNullOrEmpty(dir) || dir == normalizedRepoPath ? normalizedRepoPath : dir;
+            })
+            .Distinct()
+            .OrderByDescending(d => d.Split('\\', '/').Length)  // deepest dirs first
+            .ToList();
+
+        Log.Information("[UpdateInChunks] {FileCount} remote files → {DirCount} dirs (filtered from {RawCount})",
+            inRepoPaths.Count, dirs.Count, filePaths.Count);
 
         // 3. Enqueue one Update per directory and wait for all to complete via TCS
         // 3. Enqueue one Update per directory and wait for all to complete via TCS
