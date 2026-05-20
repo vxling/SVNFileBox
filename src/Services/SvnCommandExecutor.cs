@@ -31,8 +31,8 @@ namespace SVNFileBox.Services;
 public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
 {
     private readonly SvnService _svnService = new();
-    private readonly Channel<SvnCommandItem> _localWriteQueue;
-    private readonly Channel<SvnCommandItem> _heavyWriteQueue;
+    private Channel<SvnCommandItem>? _localWriteQueue;
+    private Channel<SvnCommandItem>? _heavyWriteQueue;
     private readonly ConcurrentDictionary<string, SvnCommandItem> _dedup = new();
     private CancellationTokenSource _cts = new();
     private Task? _workerTask;
@@ -85,6 +85,9 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
             SingleWriter = false,
             AllowSynchronousContinuations = false
         });
+
+        // Start the worker loop immediately so it's ready to accept commands
+        Start();
     }
 
     /// <summary>
@@ -105,12 +108,11 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
 
     /// <summary>
     /// Stops the worker and signals cancellation.
+    /// Does NOT close the Channels — they are recreated on next Start().
     /// </summary>
     public void Stop()
     {
         _cts.Cancel();
-        _localWriteQueue.Writer.TryComplete();
-        _heavyWriteQueue.Writer.TryComplete();
         Log.Information("[SvnCommandExecutor] Stop requested");
     }
 
@@ -142,7 +144,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
         {
             // Fire-and-forget — result via OnCommandCompleted
             if (!TryEnqueueLocalWrite(item)) return new SvnQueryResult { Success = true };
-            await _localWriteQueue.Writer.WriteAsync(item, _cts.Token);
+            await _localWriteQueue!.Writer.WriteAsync(item, _cts.Token);
             return new SvnQueryResult { Success = true };
         }
 
@@ -158,7 +160,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
             }
         }
         OnCommandCompleted += handler;
-        await _heavyWriteQueue.Writer.WriteAsync(item, _cts.Token);
+        await _heavyWriteQueue!.Writer.WriteAsync(item, _cts.Token);
         return await tcs.Task;
     }
 
@@ -187,7 +189,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
             }
         }
         OnCommandCompleted += handler;
-        _ = _heavyWriteQueue.Writer.WriteAsync(item, _cts.Token);
+        _ = _heavyWriteQueue!.Writer.WriteAsync(item, _cts.Token);
         return tcs.Task;
     }
 
@@ -264,7 +266,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
             while (!_cts.Token.IsCancellationRequested)
             {
                 // ── Small loop: drain all LocalWrite items (non-blocking) ──
-                while (_localWriteQueue.Reader.TryRead(out var localItem))
+                while (_localWriteQueue!.Reader.TryRead(out var localItem))
                 {
                     try
                     {
@@ -282,12 +284,12 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                 SvnCommandItem heavyItem = default!;
                 try
                 {
-                    heavyItem = await _heavyWriteQueue.Reader.ReadAsync(_cts.Token);
+                    heavyItem = await _heavyWriteQueue!.Reader.ReadAsync(_cts.Token);
                 }
                 catch (OperationCanceledException)
                 {
                     // Drain any remaining LocalWrite before exiting
-                    while (_localWriteQueue.Reader.TryRead(out var remaining))
+                    while (_localWriteQueue!.Reader.TryRead(out var remaining))
                     {
                         try { await ProcessItemAsync(remaining); }
                         catch { /* ignore */ }
