@@ -22,6 +22,7 @@ public class RepositoryContext : IRepositoryContext, IDisposable
 {
     private SvnCommandExecutor _executor = new();
     private readonly FileWatcherService _fileWatcher = new();
+    private readonly SvnService _svnService = new();
 
     private string _currentPath = "";
     private string _username = "";
@@ -68,6 +69,21 @@ public class RepositoryContext : IRepositoryContext, IDisposable
         _syncRunning = true;
 
         Log.Information("[RepositoryContext] Switched to repo: {Name} at {Path}", repo.Name, repo.Path);
+
+        // Validate credentials by checking the remote URL.
+        // If auth fails on first attempt, clear cache and retry.
+        // This prevents stale cached credentials from blocking subsequent operations.
+        if (!string.IsNullOrEmpty(repo.Url))
+        {
+            _ = Task.Run(async () =>
+            {
+                var (success, rev) = await _svnService.ValidateCredentialsAsync(repo.Url, _username, _password);
+                if (success)
+                    Log.Information("[RepositoryContext] Credential validation OK for {Url} (rev {Revision})", repo.Url, rev);
+                else
+                    Log.Warning("[RepositoryContext] Credential validation FAILED for {Url}", repo.Url);
+            });
+        }
     }
 
     public void StopSync()

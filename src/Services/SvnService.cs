@@ -289,8 +289,6 @@ public class SvnService : IDisposable
             try
             {
                 using var client = CreateClient();
-                // Clear stale cached credentials that may block the real credentials
-                client.Authentication.ClearAuthenticationCache();
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
 
@@ -302,12 +300,87 @@ public class SvnService : IDisposable
                 Log.Debug("[GetHeadRevisionAsync] Result for {Url} = {Revision}", repoUrl, rev);
                 return rev;
             }
+            catch (SvnAuthenticationException)
+            {
+                // Retry once after clearing stale in-memory auth cache
+                Log.Warning("[GetHeadRevisionAsync] Auth failed, retrying with cleared cache for {Url}", repoUrl);
+                try
+                {
+                    using var client = CreateClient();
+                    client.Authentication.ClearAuthenticationCache();
+                    if (!string.IsNullOrEmpty(username))
+                        client.Authentication.ForceCredentials(username, password ?? "");
+
+                    var uri = new Uri(repoUrl);
+                    SvnInfoEventArgs? infoResult = null;
+                    var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
+                    client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
+                    var rev = infoResult != null ? (int)infoResult.Revision : -1;
+                    Log.Debug("[GetHeadRevisionAsync] Retry result for {Url} = {Revision}", repoUrl, rev);
+                    return rev;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "[GetHeadRevisionAsync] Retry failed for {Url}", repoUrl);
+                    return -1;
+                }
+            }
             catch (Exception ex)
             {
                 Log.Error(ex, "[GetHeadRevisionAsync] Failed for {Url}", repoUrl);
                 return -1;
             }
         });
+    }
+
+    public async Task<(bool success, int revision)> ValidateCredentialsAsync(
+        string repoUrl, string? username = null, string? password = null)
+    {
+        // First attempt — try with ForceCredentials only
+        try
+        {
+            using var client = CreateClient();
+            if (!string.IsNullOrEmpty(username))
+                client.Authentication.ForceCredentials(username, password ?? "");
+
+            var uri = new Uri(repoUrl);
+            SvnInfoEventArgs? infoResult = null;
+            var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
+            client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
+            var rev = infoResult != null ? (int)infoResult.Revision : -1;
+            Log.Debug("[ValidateCredentialsAsync] Success for {Url} = {Revision}", repoUrl, rev);
+            return (true, rev);
+        }
+        catch (SvnAuthenticationException)
+        {
+            // Retry once after clearing stale in-memory auth cache
+            Log.Warning("[ValidateCredentialsAsync] Auth failed on first attempt, retrying with cleared cache for {Url}", repoUrl);
+            try
+            {
+                using var client = CreateClient();
+                client.Authentication.ClearAuthenticationCache();
+                if (!string.IsNullOrEmpty(username))
+                    client.Authentication.ForceCredentials(username, password ?? "");
+
+                var uri = new Uri(repoUrl);
+                SvnInfoEventArgs? infoResult = null;
+                var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
+                client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
+                var rev = infoResult != null ? (int)infoResult.Revision : -1;
+                Log.Debug("[ValidateCredentialsAsync] Retry result for {Url} = {Revision}", repoUrl, rev);
+                return (true, rev);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[ValidateCredentialsAsync] Retry failed for {Url}", repoUrl);
+                return (false, -1);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[ValidateCredentialsAsync] Failed for {Url}", repoUrl);
+            return (false, -1);
+        }
     }
 
     /// <summary>
@@ -592,18 +665,44 @@ public class SvnService : IDisposable
         string? username = null,
         string? password = null)
     {
-        return await ExecuteHeavyWrite((token, progressCts) =>
+        // First attempt
+        try
         {
             TryCleanStaleLocks(workingCopyPath);
             using var client = CreateClient();
-            client.Authentication.ClearAuthenticationCache();
             if (!string.IsNullOrEmpty(username))
                 client.Authentication.ForceCredentials(username, password ?? "");
 
             SvnUpdateResult? result = null;
             client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
             return (result?.Revision.ToString() ?? "", 0, "");
-        });
+        }
+        catch (SvnAuthenticationException)
+        {
+            Log.Warning("[CheckOutAsync] Auth failed, retrying with cleared cache for {Url}", repoUrl);
+            try
+            {
+                TryCleanStaleLocks(workingCopyPath);
+                using var client = CreateClient();
+                client.Authentication.ClearAuthenticationCache();
+                if (!string.IsNullOrEmpty(username))
+                    client.Authentication.ForceCredentials(username, password ?? "");
+
+                SvnUpdateResult? result = null;
+                client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
+                return (result?.Revision.ToString() ?? "", 0, "");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[CheckOutAsync] Retry failed for {Url}", repoUrl);
+                return ("", 1, ex.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[CheckOutAsync] Failed for {Url}", repoUrl);
+            return ("", 1, ex.Message);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -623,12 +722,13 @@ public class SvnService : IDisposable
     public async Task<(SvnConnectResult result, string? errorMessage)> TestConnectionAsync(
         string url, string? username = null, string? password = null)
     {
-        return await ExecuteRead(token =>
+        // First attempt
+        SvnAuthenticationException? authEx = null;
+        var (result, errorMsg) = await ExecuteRead(token =>
         {
             try
             {
                 using var client = CreateClient();
-                client.Authentication.ClearAuthenticationCache();
                 if (!string.IsNullOrEmpty(username))
                     client.Authentication.ForceCredentials(username, password ?? "");
 
@@ -637,13 +737,13 @@ public class SvnService : IDisposable
                     new EventHandler<SvnListEventArgs>((s, e) => info = e));
                 return (SvnConnectResult.Success, (string?)null);
             }
-            catch (SvnAuthenticationException)     { return (SvnConnectResult.AuthFailed, null); }
-            catch (SvnAuthorizationException)     { return (SvnConnectResult.AccessDenied, null); }
+            catch (SvnAuthenticationException ex) { authEx = ex; return (SvnConnectResult.AuthFailed, (string?)null); }
+            catch (SvnAuthorizationException ex) { return (SvnConnectResult.AccessDenied, (string?)null); }
             catch (SvnRepositoryIOException ex)
             {
-                if (ex.Message.Contains("E230001")) return (SvnConnectResult.SslCertError, null);
-                if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013")) return (SvnConnectResult.RepoNotFound, null);
-                if (ex.Message.Contains("E175003")) return (SvnConnectResult.SslCertError, null);
+                if (ex.Message.Contains("E230001")) return (SvnConnectResult.SslCertError, (string?)null);
+                if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013")) return (SvnConnectResult.RepoNotFound, (string?)null);
+                if (ex.Message.Contains("E175003")) return (SvnConnectResult.SslCertError, (string?)null);
                 return (SvnConnectResult.Unknown, ex.Message);
             }
             catch (SvnIOException ex)
@@ -655,12 +755,58 @@ public class SvnService : IDisposable
                     msg.Contains("No route to host", StringComparison.OrdinalIgnoreCase) ||
                     msg.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
                     msg.Contains("network", StringComparison.OrdinalIgnoreCase))
-                    return (SvnConnectResult.NetworkError, null);
+                    return (SvnConnectResult.NetworkError, (string?)null);
                 return (SvnConnectResult.Unknown, ex.Message);
             }
-            catch (TimeoutException) { return (SvnConnectResult.Timeout, null); }
-            catch (Exception ex)     { return (SvnConnectResult.Unknown, ex.Message); }
+            catch (TimeoutException) { return (SvnConnectResult.Timeout, (string?)null); }
+            catch (Exception ex) { return (SvnConnectResult.Unknown, ex.Message); }
         });
+
+        // Retry once after clearing stale auth cache
+        if (authEx != null)
+        {
+            Log.Warning("[TestConnectionAsync] Auth failed on first attempt, retrying with cleared cache for {Url}", url);
+            return await ExecuteRead(token =>
+            {
+                try
+                {
+                    using var client = CreateClient();
+                    client.Authentication.ClearAuthenticationCache();
+                    if (!string.IsNullOrEmpty(username))
+                        client.Authentication.ForceCredentials(username, password ?? "");
+
+                    SvnListEventArgs? info = null;
+                    client.List(new SvnUriTarget(url), new SvnListArgs { Depth = SvnDepth.Empty },
+                        new EventHandler<SvnListEventArgs>((s, e) => info = e));
+                    return (SvnConnectResult.Success, (string?)null);
+                }
+                catch (SvnAuthenticationException) { return (SvnConnectResult.AuthFailed, (string?)null); }
+                catch (SvnAuthorizationException) { return (SvnConnectResult.AccessDenied, (string?)null); }
+                catch (SvnRepositoryIOException ex)
+                {
+                    if (ex.Message.Contains("E230001")) return (SvnConnectResult.SslCertError, (string?)null);
+                    if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013")) return (SvnConnectResult.RepoNotFound, (string?)null);
+                    if (ex.Message.Contains("E175003")) return (SvnConnectResult.SslCertError, (string?)null);
+                    return (SvnConnectResult.Unknown, ex.Message);
+                }
+                catch (SvnIOException ex)
+                {
+                    var msg = ex.Message;
+                    if (msg.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                        msg.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
+                        msg.Contains("could not resolve", StringComparison.OrdinalIgnoreCase) ||
+                        msg.Contains("No route to host", StringComparison.OrdinalIgnoreCase) ||
+                        msg.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
+                        msg.Contains("network", StringComparison.OrdinalIgnoreCase))
+                        return (SvnConnectResult.NetworkError, (string?)null);
+                    return (SvnConnectResult.Unknown, ex.Message);
+                }
+                catch (TimeoutException) { return (SvnConnectResult.Timeout, (string?)null); }
+                catch (Exception ex) { return (SvnConnectResult.Unknown, ex.Message); }
+            });
+        }
+
+        return (result, errorMsg);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
