@@ -264,13 +264,10 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
         {
             while (!_cts.Token.IsCancellationRequested)
             {
-                // ── Small loop: drain all LocalWrite items (non-blocking) ──
+                // ── Drain all LocalWrite items (non-blocking) ──
                 while (_localWriteQueue!.Reader.TryRead(out var localItem))
                 {
-                    try
-                    {
-                        await ProcessItemAsync(localItem);
-                    }
+                    try { await ProcessItemAsync(localItem); }
                     catch (Exception ex)
                     {
                         Log.Error(ex, "[SvnCommandExecutor] Worker error {Cmd} {Path}",
@@ -279,54 +276,30 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                     }
                 }
 
-                // ── Wait for one HeavyWrite item (blocking) ──
-                SvnCommandItem heavyItem = default!;
-                try
+                // ── Try to grab one HeavyWrite (non-blocking, unlike LocalWrite) ──
+                if (_heavyWriteQueue!.Reader.TryRead(out var heavyItem))
                 {
-                    heavyItem = await _heavyWriteQueue!.Reader.ReadAsync(_cts.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Drain any remaining LocalWrite before exiting
-                    while (_localWriteQueue!.Reader.TryRead(out var remaining))
+                    try { await ProcessItemAsync(heavyItem); }
+                    catch (Exception ex)
                     {
-                        try { await ProcessItemAsync(remaining); }
-                        catch { /* ignore */ }
+                        Log.Error(ex, "[SvnCommandExecutor] Worker error {Cmd} {Path}",
+                            heavyItem.Command, heavyItem.Path);
+                        OnCommandCompleted?.Invoke(SvnCommandResult.Fail(heavyItem.Command, heavyItem.Path, ex.Message));
                     }
-                    break;
                 }
-
-                try
+                else
                 {
-                    await ProcessItemAsync(heavyItem);
+                    // Both queues empty — sleep briefly before polling again.
+                    // Do NOT use ReadAsync here; we must not block so LocalWrite stays responsive.
+                    try { await Task.Delay(50, _cts.Token); }
+                    catch (OperationCanceledException) { break; }
                 }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "[SvnCommandExecutor] Worker error {Cmd} {Path}",
-                        heavyItem.Command, heavyItem.Path);
-                    OnCommandCompleted?.Invoke(SvnCommandResult.Fail(heavyItem.Command, heavyItem.Path, ex.Message));
-                }
-
-                // ── Brief pause before next iteration so the loop isn't a CPU spin ──
-                await Task.Delay(50, _cts.Token);
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Expected during shutdown — ignore
-        }
-        catch (InvalidOperationException ex)
-        {
-            Log.Warning(ex, "[SvnCommandExecutor] Worker loop InvalidOperationException");
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "[SvnCommandExecutor] Worker loop crashed");
-        }
-        finally
-        {
-            Log.Information("[SvnCommandExecutor] Worker loop ended");
-        }
+        catch (OperationCanceledException)   { /* shutdown — expected */ }
+        catch (InvalidOperationException ex) { Log.Warning(ex, "[SvnCommandExecutor] Worker loop InvalidOperationException"); }
+        catch (Exception ex)                { Log.Error(ex, "[SvnCommandExecutor] Worker loop crashed"); }
+        finally { Log.Information("[SvnCommandExecutor] Worker loop ended"); }
     }
 
     private async Task ProcessItemAsync(SvnCommandItem item)

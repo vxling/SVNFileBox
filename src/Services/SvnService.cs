@@ -183,6 +183,11 @@ public class SvnService : IDisposable
                 {
                     Depth = SvnDepth.Infinity,
                     RetrieveAllEntries = true,
+                    // NOTE: SharpSvn 2.x does not expose a RemoteStatus property on SvnStatusArgs.
+                    // Getting remote-changed paths requires a round-trip to the server (svn status -u).
+                    // The polling mechanism relies on svn update to sync remote changes; the
+                    // GetServerUpdatePaths result here is best-effort local-only and may be 0
+                    // even when the server has newer revisions. This is a known limitation.
                 }, handler);
             }
             catch (Exception ex)

@@ -17,6 +17,7 @@ public class SyncRecordService
     public static SyncRecordService Instance => _instance ??= new SyncRecordService();
 
     private readonly string _recordsDir;
+    private readonly HashSet<string> _loadedRepos = new();
     private readonly JsonSerializerOptions _jsonOptions;
     private int _retentionDays = 30;
 
@@ -44,12 +45,34 @@ public class SyncRecordService
 
     public void SetRetentionDays(int days) => _retentionDays = days;
 
-    /// <summary>Get records for a specific repo, or all repos if repoName is null/empty.</summary>
+    // ── Lazy per-repo loading ────────────────────────────────────────
+
+    /// <summary>Load records for one repo on demand (call from GetRecords to avoid startup cost).</summary>
+    private void LoadForRepo(string repoName)
+    {
+        if (_loadedRepos.Contains(repoName)) return;
+        var file = RepoFilePath(repoName);
+        if (!File.Exists(file)) { _loadedRepos.Add(repoName); return; }
+        try
+        {
+            var json = File.ReadAllText(file);
+            var records = JsonSerializer.Deserialize<List<SyncRecord>>(json, _jsonOptions);
+            if (records == null) return;
+            foreach (var r in records)
+                if (!Records.Any(existing => existing.Timestamp == r.Timestamp && existing.FilePath == r.FilePath))
+                    Records.Add(r);
+            _loadedRepos.Add(repoName);
+            TrimOldRecords();
+        }
+        catch (Exception ex) { Log.Warning(ex, "Failed to load sync record file: {File}", file); }
+    }
+
     public IEnumerable<SyncRecord> GetRecords(string? repoName = null)
     {
+        if (!string.IsNullOrEmpty(repoName)) LoadForRepo(repoName);
         if (string.IsNullOrEmpty(repoName))
-            return Records;
-        return Records.Where(r => r.RepoName == repoName);
+            return Records.OrderByDescending(r => r.Timestamp).Take(1000);  // cap in-memory
+        return Records.Where(r => r.RepoName == repoName).OrderByDescending(r => r.Timestamp);
     }
 
     public void AddRecord(string repoName, string filePath, string operation, string result, string message = "")
@@ -84,6 +107,8 @@ public class SyncRecordService
     public void AddRecord(string repoName, string filePath, string operation, string result)
         => AddRecord(repoName, filePath, operation, result, "");
 
+    // ── Trimming ────────────────────────────────────────────────────
+
     private void TrimOldRecords()
     {
         var cutoff = DateTime.Now.AddDays(-_retentionDays);
@@ -95,61 +120,27 @@ public class SyncRecordService
         }
     }
 
-    private string RepoFilePath(string repoName) =>
-        Path.Combine(_recordsDir, SanitizeFileName(repoName) + ".json");
+    // ── File I/O helpers ────────────────────────────────────────────
 
-    private static string SanitizeFileName(string name) =>
-        string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
+    private static string Sanitize(string name) =>
+        string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+
+    private string RepoFilePath(string repoName) =>
+        Path.Combine(_recordsDir, $"{Sanitize(repoName)}.json");
 
     private void DeleteRecordFile(string repoName)
     {
         try
         {
             var path = RepoFilePath(repoName);
-            if (File.Exists(path))
-            {
-                var remaining = Records.Count(r => r.RepoName == repoName);
-                if (remaining == 0)
-                    File.Delete(path);
-                else
-                    SaveRecordsForRepo(repoName);
-            }
+            if (!File.Exists(path)) return;
+            var remaining = Records.Count(r => r.RepoName == repoName);
+            if (remaining == 0)
+                File.Delete(path);
+            else
+                SaveRecordsForRepo(repoName);
         }
-        catch { }
-    }
-
-    private void LoadAll()
-    {
-        try
-        {
-            Records.Clear();
-            if (!Directory.Exists(_recordsDir)) return;
-            foreach (var file in Directory.GetFiles(_recordsDir, "*.json"))
-            {
-                try
-                {
-                    var json = File.ReadAllText(file);
-                    var records = JsonSerializer.Deserialize<List<SyncRecord>>(json, _jsonOptions);
-                    if (records != null)
-                        foreach (var r in records)
-                            Records.Add(r);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "Failed to load sync record file: {File}", file);
-                }
-            }
-            foreach (var r in Records.OrderByDescending(r => r.Timestamp).ToList())
-            {
-                Records.Remove(r);
-                Records.Add(r);
-            }
-            TrimOldRecords();
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to load sync records");
-        }
+        catch { /* best-effort */ }
     }
 
     private void SaveRecordsForRepo(string repoName)
@@ -164,5 +155,22 @@ public class SyncRecordService
         {
             Log.Error(ex, "Failed to save sync records for repo: {Repo}", repoName);
         }
+    }
+
+    // ── Startup ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Lightweight: just remember which repo files exist, don't deserialize anything.
+    /// Actual records are loaded lazily per-repo on first GetRecords(repoName) call.
+    /// </summary>
+    private void LoadAll()
+    {
+        try
+        {
+            if (!Directory.Exists(_recordsDir)) return;
+            foreach (var file in Directory.GetFiles(_recordsDir, "*.json"))
+                _loadedRepos.Add(Path.GetFileNameWithoutExtension(file));
+        }
+        catch (Exception ex) { Log.Error(ex, "Failed to enumerate sync record files"); }
     }
 }
