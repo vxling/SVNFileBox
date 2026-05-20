@@ -1118,6 +1118,7 @@ public partial class MainWindow : Window
 
                 if (result == MessageBoxResult.Yes)
                 {
+                    SyncRecordService.Instance.DeleteRepoRecords(repo.Name);
                     _viewModel!.Repositories.Remove(repo);
                     _configService!.Config.Repositories.Remove(repo);
                     _ = _configService.SaveAsync();
