@@ -159,6 +159,11 @@ public class LocalizationService
 
             // CheckoutWindow
             ["CheckoutTitle"] = "从网络添加仓库",
+            ["CredentialRenewalTitle"] = "凭证过期",
+            ["CredentialRenewalMessage"] = "凭证已过期，请重新输入用户名和密码",
+            ["CredentialRenewalSuccess"] = "仓库 \"{0}\" 凭据已更新",
+            ["RepoNameReadonly"] = "仓库名称",
+            ["RepoUrlReadonly"] = "仓库 URL",
             ["RepoName"] = "仓库名称",
             ["RepoUrl"] = "仓库 URL",
             ["Username"] = "用户名",
@@ -172,6 +177,9 @@ public class LocalizationService
             ["DuplicateRepoUrl"] = "该网络仓库地址已存在，不能重复添加",
             ["CannotCreateDir"] = "无法创建目录: {0}",
             ["CheckoutInProgress"] = "正在 checkout，请稍候...",
+            ["CheckingOut"] = "正在下载",
+            ["CheckoutInterruptedTitle"] = "确认关闭",
+            ["CheckoutInterruptedConfirm"] = "正在 checkout 网络仓库，如果关闭会造成错误，确定继续吗？",
 
             // Connection test errors
             ["ErrAuthFailed"] = "用户名或密码错误",
@@ -388,6 +396,11 @@ public class LocalizationService
 
             // CheckoutWindow
             ["CheckoutTitle"] = "Add Repository from Network",
+            ["CredentialRenewalTitle"] = "Credential Expired",
+            ["CredentialRenewalMessage"] = "Credential has expired. Please re-enter your username and password.",
+            ["CredentialRenewalSuccess"] = "Credential updated for repository \"{0}\"",
+            ["RepoNameReadonly"] = "Repository Name",
+            ["RepoUrlReadonly"] = "Repository URL",
             ["RepoName"] = "Repository Name",
             ["RepoUrl"] = "Repository URL",
             ["Username"] = "Username",
@@ -401,6 +414,9 @@ public class LocalizationService
             ["DuplicateRepoUrl"] = "This network repository URL already exists and cannot be added again.",
             ["CannotCreateDir"] = "Cannot create directory: {0}",
             ["CheckoutInProgress"] = "Checking out, please wait...",
+            ["CheckingOut"] = "Downloading",
+            ["CheckoutInterruptedTitle"] = "Confirm Close",
+            ["CheckoutInterruptedConfirm"] = "Checkout in progress. Closing now will result in an incomplete working copy. Continue?",
 
             // Connection test errors
             ["ErrAuthFailed"] = "Incorrect username or password",

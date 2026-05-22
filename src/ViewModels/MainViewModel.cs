@@ -18,14 +18,15 @@ public enum SyncStatusType { Idle, Syncing, Success, Failed }
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
-    private readonly IRepositoryContext _repoContext = new RepositoryContext();
     private readonly ConfigService _configService;
-    private SyncService? _syncService;
     private System.Timers.Timer? _statusClearTimer;
     private string _lastPersistentStatus = "Ready";
 
-    /// <summary>Exposed for FileCopier creation in MainWindow.</summary>
-    public IRepositoryContext RepositoryContext => _repoContext;
+    /// <summary>
+    /// 全局仓库管理器 — 所有仓库的生命周期由它管理。
+    /// MainViewModel 通过它与各 RepoManager 交互。
+    /// </summary>
+    public RepoGlobalManager GlobalManager { get; }
 
     [ObservableProperty]
     private ObservableCollection<Repository> _repositories = new();
@@ -103,7 +104,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string ConfigDir => _configService.ConfigDir;
     public ConfigService ConfigService => _configService;
     public SyncRecordService RecordService => SyncRecordService.Instance;
-    public SyncService? SyncService => _syncService;
 
     [ObservableProperty]
     private bool _canCopyPath;
@@ -122,32 +122,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _canRename;
 
-
-    public event EventHandler<List<ConflictedFileInfo>>? ConflictDetected;
-    public event EventHandler<string>? SyncNotification;
-
     public MainViewModel()
     {
         _configService = ConfigService.Instance;
-        _syncService = new SyncService(_repoContext, SyncRecordService.Instance);
-        _syncService.SyncNotification += (_, msg) => { SetStatus(msg); SyncNotification?.Invoke(this, msg); };
-        _syncService.FilesChanged += async (_, _) => await RefreshAsync();
-        _syncService.ConflictDetected += (_, conflicts) => ConflictDetected?.Invoke(this, conflicts);
+        GlobalManager = new RepoGlobalManager();
+
+        // RepoGlobalManager 的 FilesChanged 事件触发表格刷新
+        GlobalManager.FilesChanged += async (_, _) => await RefreshAsync();
 
         // Marshal SyncRecordService.AddRecord calls to the UI thread
         SyncRecordService.Instance.UiDispatcher = Application.Current?.Dispatcher;
 
-        Log.Information("MainViewModel created");
+        Log.Information("MainViewModel created with RepoGlobalManager");
     }
 
     public void LoadSyncRecords()
     {
         SyncRecords.Clear();
-        var records = string.IsNullOrEmpty(SelectedRepository?.Name)
-            ? RecordService.Records
-            : RecordService.GetRecords(SelectedRepository.Name);
+        if (SelectedRepository == null) return;
+        var records = RecordService.GetRecords(SelectedRepository.Name);
         foreach (var r in records)
-            SyncRecords.Add(SyncRecordDisplay.FromRecord(r));
+            SyncRecords.Add(SyncRecordDisplay.FromRecord(r, SelectedRepository.Name));
     }
 
     public void ToggleSyncRecordsView()
@@ -169,17 +164,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             await _configService.LoadAsync();
-            foreach (var repo in _configService.Config.Repositories)
-            {
-                var disp = Application.Current?.Dispatcher;
-                if (disp == null)
-                    Repositories.Add(repo);
-                else if (disp.CheckAccess())
-                    Repositories.Add(repo);
-                else
-                    disp.Invoke(() => Repositories.Add(repo));
-            }
 
+            // 从配置恢复所有仓库（不自动 Focus，等用户选择）
+            GlobalManager.RestoreFromConfig(_configService.Config.Repositories);
+
+            // 同步 Repositories 集合（供 UI 的 ComboBox 使用）
+            foreach (var repo in _configService.Config.Repositories)
+                Repositories.Add(repo);
+
+            // 切换到最后活跃的仓库
             if (!string.IsNullOrEmpty(_configService.Config.ActiveRepositoryName))
             {
                 var active = Repositories.FirstOrDefault(r => r.Name == _configService.Config.ActiveRepositoryName);
@@ -187,9 +180,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     SelectedRepository = active;
             }
 
-            if (SelectedRepository != null && Directory.Exists(SelectedRepository.Path))
+            // 如果还没有切换过但有仓库，切换到第一个
+            if (GlobalManager.ActiveManager == null && Repositories.Count > 0)
             {
-                await LoadDirectoryAsync(SelectedRepository.Path);
+                SelectedRepository = Repositories[0];
             }
         }
         catch (Exception ex)
@@ -203,28 +197,43 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// 处理仓库选择器切换仓库。
+    /// 触发 RepoGlobalManager.SwitchToAsync()。
+    /// </summary>
     partial void OnSelectedRepositoryChanged(Repository? value)
     {
         ConfigService.Instance.CurrentRepository = value;
-        if (value != null && Directory.Exists(value.Path))
+
+        if (value == null || !Directory.Exists(value.Path))
         {
-            foreach (var repo in Repositories)
-                repo.IsActive = repo.Path == value.Path;
-            _configService.Config.ActiveRepositoryName = value.Name;
-            _ = _configService.SaveAsync();
-            _repoContext.SwitchTo(value);
-            _syncService?.StartSync(value);
-            _ = LoadDirectoryAsync(value.Path);
+            Files.Clear();
+            CurrentPath = "";
+            CanOperate = false;
+            return;
+        }
+
+        // 标记 IsActive
+        foreach (var repo in Repositories)
+            repo.IsActive = repo.Path == value.Path;
+
+        _configService.Config.ActiveRepositoryName = value.Name;
+        _ = _configService.SaveAsync();
+
+        // 找到对应的 RepoManager 并切换
+        var manager = GlobalManager.Managers.FirstOrDefault(m => m.Repository == value);
+        if (manager != null)
+        {
+            _ = GlobalManager.SwitchToAsync(manager);
             CanOperate = true;
+            // 立即加载新仓库的根目录文件列表，不依赖 FilesChanged 事件
+            _ = LoadDirectoryAsync(value.Path);
             if (ShowSyncRecords)
                 LoadSyncRecords();
         }
         else
         {
-            _repoContext.StopSync();
-            _syncService?.StopSync();
-            Files.Clear();
-            CurrentPath = "";
+            // 理论上不会走到这里——RestoreFromConfig 已经为所有仓库创建了 RepoManager
             CanOperate = false;
         }
     }
@@ -251,7 +260,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             var parentPath = dirInfo.Parent?.FullName;
             var repoRootPath = SelectedRepository?.Path ?? "";
 
-            // Parent directory row - only show when not at repository root
+            // Parent directory row
             if (!string.IsNullOrEmpty(parentPath) && path != repoRootPath)
             {
                 items.Add(new FileItem
@@ -296,33 +305,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             var disp = Application.Current?.Dispatcher;
             if (disp == null)
-            {
-                // No dispatcher (headless/test) — update directly
                 Files = new ObservableCollection<FileItem>(items);
-            }
             else if (disp.CheckAccess())
-            {
-                // Already on UI thread — update directly
                 Files = new ObservableCollection<FileItem>(items);
-            }
             else
-            {
-                // Marshal to UI thread
                 disp.Invoke(() => Files = new ObservableCollection<FileItem>(items));
-            }
+
             var itemCount = items.Count;
             ItemCountText = itemCount == 0 ? "" : $"{itemCount} items";
             StatusText = $"Ready - {itemCount} items";
 
-            // Load real SVN statuses for all items (with 30s timeout)
+            // Load SVN statuses
             if (SelectedRepository != null && Directory.Exists(SelectedRepository.Path))
             {
                 try
                 {
-                    // If the current directory itself is not a versioned SVN working copy,
-                    // all its children are unversioned — skip the expensive status call.
-                    bool currentDirUnversioned = !(await _repoContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, path)).Success || (await _repoContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, path)).Value != "true";
-                    Log.Debug("LoadDirectoryAsync: path={Path} isVersioned={IsVersioned}", path, !currentDirUnversioned);
+                    var activeManager = GlobalManager.ActiveManager;
+                    if (activeManager == null) return;
+
+                    var executor = activeManager.Executor;
+
+                    bool currentDirUnversioned = !(await executor.ExecuteAsync(SvnCommand.IsVersioned, path)).Success
+                        || (await executor.ExecuteAsync(SvnCommand.IsVersioned, path)).Value != "true";
 
                     if (currentDirUnversioned)
                     {
@@ -337,22 +341,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     }
 
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                    // Run svn status on the CURRENT directory only, not the entire working copy —
-                    // recursive scan of large repos is very slow, directory-level status is sufficient.
-                    var statusResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.Status, path);
+                    var statusResult = await executor.ExecuteAsync(SvnCommand.Status, path);
                     var statuses = statusResult.Success
                         ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, FileSvnStatus>>(statusResult.Value ?? "{}") ?? new()
                         : new Dictionary<string, FileSvnStatus>();
-                    var repoRoot = SelectedRepository.Path;
-
-                    Log.Debug("LoadDirectoryAsync: path={Path} statuses count={Count} entries={@statuses}", path, statuses.Count, statuses);
 
                     foreach (var item in items)
                     {
                         if (item.Name == "..") continue;
-                        // Default to Normal (won't display anything, but marks the item as processed)
                         item.SvnStatus = FileSvnStatus.Normal;
-                        // Override with actual status if found in svn status output
                         if (statuses.TryGetValue(item.FullPath, out var svnStatus))
                             item.SvnStatus = svnStatus;
                     }
@@ -396,8 +393,85 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await LoadDirectoryAsync(CurrentPath);
     }
 
+    /// <summary>
+    /// 添加一个新的本地仓库（从 AddLocalRepoWindow 返回后调用）。
+    /// 创建 RepoManager → 加入 GlobalManager → 保存配置 → 切换到该仓库。
+    /// </summary>
+    public async Task<Repository?> AddLocalRepositoryAsync(Repository newRepo)
+    {
+        try
+        {
+            var manager = GlobalManager.CreateLocal(newRepo);
+            if (manager == null) return null;
+
+            _configService.Config.Repositories.Add(newRepo);
+            await _configService.SaveAsync();
+
+            if (!Repositories.Contains(newRepo))
+                Repositories.Add(newRepo);
+
+            SelectedRepository = newRepo;  // 触发 SwitchToAsync
+            return newRepo;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "AddLocalRepositoryAsync failed for {Path}", newRepo.Path);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 将 CheckoutWindow 已创建好的 RepoManager 接入 GlobalManager 并切换。
+    /// </summary>
+    public async Task<Repository?> AddNetworkRepositoryAsync(RepoManager manager)
+    {
+        try
+        {
+            var repo = manager.Repository;
+            _configService.Config.Repositories.Add(repo);
+            await _configService.SaveAsync();
+
+            if (!Repositories.Contains(repo))
+                Repositories.Add(repo);
+
+            SelectedRepository = repo;  // 触发 SwitchToAsync
+            return repo;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "AddNetworkRepositoryAsync failed");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 删除仓库（从 MainWindow 的删除按钮触发）。
+    /// </summary>
+    public void RemoveRepository(Repository repo)
+    {
+        var manager = GlobalManager.Managers.FirstOrDefault(m => m.Repository == repo);
+        if (manager == null) return;
+
+        GlobalManager.Remove(manager);
+
+        // 更新 UI 列表
+        Repositories.Remove(repo);
+        _configService.Config.Repositories.Remove(repo);
+        _ = _configService.SaveAsync();
+
+        // 切换到第一个剩余仓库
+        if (Repositories.Count > 0)
+            SelectedRepository = Repositories[0];
+        else
+        {
+            SelectedRepository = null;
+            Files.Clear();
+            CurrentPath = "";
+        }
+    }
+
     public void Dispose()
     {
-        _syncService?.StopSync();
+        GlobalManager.ShutdownAll();
     }
 }

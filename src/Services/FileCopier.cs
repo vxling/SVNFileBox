@@ -38,12 +38,14 @@ public class CopyResult
 /// </summary>
 public class FileCopier
 {
-    private readonly ISvnCommandExecutor _executor;
+    private ISvnCommandExecutor? _executor;
 
-    public FileCopier(IRepositoryContext repoContext)
-    {
-        _executor = repoContext.Executor;
-    }
+    public FileCopier() { }
+
+    /// <summary>
+    /// 设置当前活跃的 executor。每次切换仓库时由 MainWindow 主动调用。
+    /// </summary>
+    public void SetExecutor(ISvnCommandExecutor executor) => _executor = executor;
 
     /// <summary>Cancels the in-progress copy operation.</summary>
     public CancellationTokenSource? Cts { get; private set; }
@@ -55,7 +57,8 @@ public class FileCopier
         IProgress<CopyProgress>? progress,
         CancellationToken cancellationToken = default)
     {
-        Cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (_executor == null) throw new InvalidOperationException("FileCopier.SetExecutor must be called before CopyAsync");
+        Cts = new CancellationTokenSource();
         var token = Cts.Token;
 
         int copied = 0, skipped = 0, overwritten = 0;

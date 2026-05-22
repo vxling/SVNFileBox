@@ -23,9 +23,7 @@ public class ConfigService
     public ConfigService()
     {
         _instance = this;
-        ConfigDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "SVNFileBox");
+        ConfigDir = Path.Combine(AppPaths.Config);
 
         Directory.CreateDirectory(ConfigDir);
         _configPath = Path.Combine(ConfigDir, "config.json");

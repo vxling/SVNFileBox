@@ -35,7 +35,17 @@ public partial class SplashWindow : Window
         StepText.Text = LocalizationService.Instance.GetString("SplashStep", _step, _totalSteps);
         Log.Debug("[Splash] {Status}", status);
         ProgressBar.Value = Math.Min(ProgressBar.Value + 20, 95);
-        // Force UI update immediately so user sees the message
+        Dispatcher.Invoke(() => { }, DispatcherPriority.Render);
+    }
+
+    /// <summary>
+    /// Set an exact progress percentage and status text.
+    /// Used during long-running operations like migration.
+    /// </summary>
+    public void SetProgress(double percent, string status)
+    {
+        StatusText.Text = status;
+        ProgressBar.Value = Math.Min(percent, 99);
         Dispatcher.Invoke(() => { }, DispatcherPriority.Render);
     }
 

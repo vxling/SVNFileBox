@@ -23,7 +23,7 @@ public partial class SyncRecordDisplay : ObservableObject
     [ObservableProperty]
     private string _message = "";
 
-    public static SyncRecordDisplay FromRecord(SyncRecord r)
+    public static SyncRecordDisplay FromRecord(SyncRecord r, string? repoNameOverride = null)
     {
         var opColor = r.Operation switch
         {
@@ -43,10 +43,16 @@ public partial class SyncRecordDisplay : ObservableObject
             _ => r.Result
         };
 
+        // RepoName may not be stored in per-repo tables (GetRecords doesn't select it),
+        // so use the explicit repoNameOverride when available.
+        var displayRepoName = !string.IsNullOrEmpty(repoNameOverride)
+            ? repoNameOverride
+            : r.RepoName;
+
         return new SyncRecordDisplay
         {
             TimestampDisplay = r.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
-            RepoName = r.RepoName,
+            RepoName = displayRepoName,
             FilePath = r.FilePath,
             OperationDisplay = opColor,
             ResultDisplay = resultColor,

@@ -19,13 +19,16 @@ namespace SVNFileBox.Services;
 /// <summary>
 /// Sync engine for SVN upward (local→server) and downward (server→local) operations.
 ///
-/// Dependency: IRepositoryContext (provides executor, FileWatcher events, repo state).
-/// All SVN operations flow through _repoContext.Executor.
+/// Takes explicit dependencies so it is fully isolated per-repository
+/// (no IRepositoryContext, no shared state between RepoManager instances).
 /// </summary>
 public class SyncService : IDisposable
 {
-    private readonly IRepositoryContext _repoContext;
+    private readonly ISvnCommandExecutor _syncExecutor;
     private readonly SyncRecordService _recordService;
+    private readonly SvnService _svnService;
+    private readonly FileWatcherService _fileWatcher;
+    private Repository _repository;
 
     private readonly System.Timers.Timer _pollTimer;
     private readonly System.Timers.Timer _fullSyncTimer;
@@ -33,15 +36,27 @@ public class SyncService : IDisposable
 
     private int _isPolling;
     private int _isSyncing;
+    private CancellationTokenSource? _cts;
 
     public event EventHandler<string>? SyncNotification;
     public event EventHandler? FilesChanged;
     public event EventHandler<List<ConflictedFileInfo>>? ConflictDetected;
 
-    public SyncService(IRepositoryContext repoContext, SyncRecordService recordService)
+    /// <summary>
+    /// Creates a SyncService for the given executor and repository.
+    /// </summary>
+    public SyncService(
+        ISvnCommandExecutor executor,
+        SyncRecordService recordService,
+        SvnService svnService,
+        FileWatcherService fileWatcher,
+        Repository repository)
     {
-        _repoContext = repoContext;
+        _syncExecutor = executor;
         _recordService = recordService;
+        _svnService = svnService;
+        _fileWatcher = fileWatcher;
+        _repository = repository;
 
         // Poll timer (downward sync: SVN server → local)
         _pollTimer = new System.Timers.Timer(60_000);
@@ -54,24 +69,31 @@ public class SyncService : IDisposable
         _fullSyncTimer.AutoReset = true;
 
         // Subscribe to per-file transfer activity from SvnService and record each file
-        SvnService.FileTransferActivity += (path, action) =>
+        _svnService.FileTransferActivity += (path, action) =>
         {
-            var repoName = _repoContext.CurrentRepository?.Name;
+            var repoName = _repository?.Name;
             if (string.IsNullOrEmpty(repoName) || string.IsNullOrEmpty(path)) return;
             _recordService.AddRecord(repoName, path, action, "Success");
         };
 
-        Log.Information("SyncService created with RepositoryContext");
+        Log.Information("[SyncService] Created for {Name}", repository.Name);
+    }
+
+    /// <summary>Updates the repository reference (called after repo switch).</summary>
+    public void SetRepository(Repository repository)
+    {
+        _repository = repository;
     }
 
     #region Start / Stop
 
     /// <summary>
     /// Starts the sync engine for a repository.
-    /// Called after RepositoryContext.SwitchTo() has already started the FileWatcher and executor.
+    /// Called by RepoManager.Focus() after starting the FileWatcher and executor.
     /// </summary>
     public void StartSync(Repository repo)
     {
+        _cts = new CancellationTokenSource();
         _pollTimer.Start();
         _fullSyncTimer.Start();
 
@@ -79,21 +101,61 @@ public class SyncService : IDisposable
         // are picked up and queued immediately.
         _ = ScanAndCommitAsync();
 
-        Log.Information("Sync timers started for {Name}", repo.Name);
+        Log.Information("[SyncService] Timers started for {Name}", repo.Name);
     }
 
     public void StopSync()
     {
         _pollTimer.Stop();
         _fullSyncTimer.Stop();
-        Log.Information("Sync timers stopped");
+        Log.Information("[SyncService] Timers stopped");
+    }
+
+    /// <summary>
+    /// Drains all in-flight operations (ScanAndCommit, HeavyWrite tasks).
+    /// Returns when _isSyncing transitions to 0, or after 30s timeout.
+    /// Called by RepoManager.DismissAsync() before switching away.
+    /// </summary>
+    public async Task DrainAsync()
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (_isSyncing != 0 || _isPolling != 0)
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                Log.Warning("[SyncService] DrainAsync timed out (isSyncing={Syncing}, isPolling={Polling})",
+                    _isSyncing, _isPolling);
+                return;
+            }
+            await Task.Delay(200);
+        }
+        Log.Debug("[SyncService] DrainAsync complete");
+    }
+
+    /// <summary>
+    /// Initiates immediate cancellation of any in-flight SVN operations.
+    /// Called by RepoManager.Shutdown() for hard shutdown.
+    /// </summary>
+    public void Cancel()
+    {
+        _cts?.Cancel();
+        StopSync();
+        Log.Information("[SyncService] Cancel signal sent");
     }
 
     /// <summary>Triggers an immediate ScanAndCommit.</summary>
     public async Task SyncNowAsync() => await ScanAndCommitAsync();
 
-    public void DisableFileWatcher() => _repoContext.DisableFileWatcher();
-    public void ReEnableFileWatcher() => _repoContext.ReEnableFileWatcher();
+    /// <summary>
+    /// Temporarily disables the FileWatcher to prevent change events during bulk operations
+    /// such as a file copy.  Call ReEnableFileWatcher() when done.
+    /// </summary>
+    public void DisableFileWatcher() => _fileWatcher?.Disable();
+
+    /// <summary>
+    /// Re-enables the FileWatcher after a bulk operation.
+    /// </summary>
+    public void ReEnableFileWatcher() => _fileWatcher?.Enable();
 
     #endregion
 
@@ -102,22 +164,22 @@ public class SyncService : IDisposable
     public void EnqueueAddAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return;
-        _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Add, path);
+        _ = _syncExecutor.ExecuteAsync(SvnCommand.Add, path);
         Log.Information("[SyncService] Enqueued Add: {Path}", path);
     }
 
     public void EnqueueDeleteAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return;
-        _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Delete, path);
+        _ = _syncExecutor.ExecuteAsync(SvnCommand.Delete, path);
         Log.Information("[SyncService] Enqueued Delete: {Path}", path);
     }
 
     public void EnqueueMove(string fromPath, string toPath)
     {
         if (string.IsNullOrEmpty(fromPath) || string.IsNullOrEmpty(toPath)) return;
-        _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Delete, fromPath);
-        _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Add, toPath);
+        _ = _syncExecutor.ExecuteAsync(SvnCommand.Delete, fromPath);
+        _ = _syncExecutor.ExecuteAsync(SvnCommand.Add, toPath);
         Log.Information("[SyncService] Enqueued Move: {From} → {To}", fromPath, toPath);
     }
 
@@ -138,23 +200,23 @@ public class SyncService : IDisposable
 
         if (!fileExists)
         {
-            var verResult = _repoContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, path).Result;
+            var verResult = _syncExecutor.ExecuteAsync(SvnCommand.IsVersioned, path).Result;
             if (!verResult.Success || verResult.Value != "true")
             {
                 Log.Debug("[SyncService] Skipping untracked missing file: {File}", path);
                 return;
             }
-            _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Delete, path);
+            _ = _syncExecutor.ExecuteAsync(SvnCommand.Delete, path);
             Log.Information("[SyncService] FileWatcher: Deleted, Path: {File}", path);
             return;
         }
 
-        var result = _repoContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, path).Result;
+        var result = _syncExecutor.ExecuteAsync(SvnCommand.IsVersioned, path).Result;
         bool isVersioned = result.Success && result.Value == "true";
 
         if (!isVersioned)
         {
-            _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Add, path);
+            _ = _syncExecutor.ExecuteAsync(SvnCommand.Add, path);
             Log.Information("[SyncService] FileWatcher: Added, Path: {File}", path);
         }
         else
@@ -166,7 +228,7 @@ public class SyncService : IDisposable
     public void EnqueueCommitForWorkingCopy(string workingCopyPath)
     {
         if (string.IsNullOrEmpty(workingCopyPath)) return;
-        _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Add, workingCopyPath);
+        _ = _syncExecutor.ExecuteAsync(SvnCommand.Add, workingCopyPath);
         Log.Information("[SyncService] Enqueued Add (working copy): {Path}", workingCopyPath);
     }
 
@@ -176,7 +238,7 @@ public class SyncService : IDisposable
 
     private async Task ScanAndCommitAsync()
     {
-        var repo = _repoContext.CurrentRepository;
+        var repo = _repository;
         if (repo == null) return;
         if (Interlocked.CompareExchange(ref _isSyncing, 1, 0) != 0)
         {
@@ -187,7 +249,7 @@ public class SyncService : IDisposable
         try
         {
             var repoPath = repo.Path;
-            var statusResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.Status, repoPath);
+            var statusResult = await _syncExecutor.ExecuteAsync(SvnCommand.Status, repoPath, depth: true);
             if (!statusResult.Success)
             {
                 Log.Warning("[ScanAndCommit] svn status failed: {Error}", statusResult.Error);
@@ -209,11 +271,12 @@ public class SyncService : IDisposable
             var versionedChanges = statuses
                 .Where(kv => kv.Value != FileSvnStatus.Conflicted
                           && kv.Value != FileSvnStatus.Unversioned)
+                .Select(kv => (Key: kv.Key.Replace('\\', '/'), Value: kv.Value))
                 .ToList();
 
             foreach (var (filePath, _) in unversionedFiles)
             {
-                _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Add, filePath);
+                _ = _syncExecutor.ExecuteAsync(SvnCommand.Add, filePath);
                 Log.Debug("[ScanAndCommit] Enqueued Add for unversioned: {Path}", filePath);
             }
 
@@ -227,7 +290,9 @@ public class SyncService : IDisposable
             var dirGroups = inRepoVersionedChanges
                 .Select(kv =>
                 {
-                    var parent = Path.GetDirectoryName(kv.Key)?.Replace('\\', '/');
+                    // If the last segment has no '.', it's likely a directory — use kv.Key as dir directly
+                    var lastSegment = Path.GetFileName(kv.Key);
+                    var parent = lastSegment.Contains('.') ? Path.GetDirectoryName(kv.Key)?.Replace('\\', '/') : kv.Key;
                     return (key: string.IsNullOrEmpty(parent) ? normalizedRepoPathForCommit : parent, kv);
                 })
                 .GroupBy(x => x.key)
@@ -247,7 +312,7 @@ public class SyncService : IDisposable
                     ? $"Auto-sync: {Path.GetFileName(group.First().kv.Key)}"
                     : $"Auto-sync: {fileCount} files in {Path.GetFileName(dirPath)}";
 
-                _ = _repoContext.Executor.ExecuteAsync(SvnCommand.Commit, dirPath, message: message);
+                _ = _syncExecutor.ExecuteAsync(SvnCommand.Commit, dirPath, message: message);
                 Log.Debug("[ScanAndCommit] Enqueued Commit for dir: {Dir}, {Count} files", dirPath, fileCount);
             }
 
@@ -278,7 +343,7 @@ public class SyncService : IDisposable
 
     private async void OnFullSyncTimerElapsed(object? sender, ElapsedEventArgs e)
     {
-        var repo = _repoContext.CurrentRepository;
+        var repo = _repository;
         if (repo == null) return;
         try
         {
@@ -314,7 +379,7 @@ public class SyncService : IDisposable
 
     private async Task PollCoreAsync()
     {
-        var repo = _repoContext.CurrentRepository;
+        var repo = _repository;
         if (repo == null) return;
         if (Interlocked.CompareExchange(ref _isPolling, 1, 0) == 1) return;
         if (Interlocked.CompareExchange(ref _isSyncing, 0, 0) != 0)
@@ -326,18 +391,54 @@ public class SyncService : IDisposable
 
         try
         {
-            var localRevResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.GetRevision, repo.Path);
+            var localRevResult = await _syncExecutor.ExecuteAsync(SvnCommand.GetRevision, repo.Path);
             var localRev = localRevResult.Success && int.TryParse(localRevResult.Value, out var lr) ? lr : -1;
-            var serverRevResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.GetHeadRevision,
+            var serverRevResult = await _syncExecutor.ExecuteAsync(SvnCommand.GetHeadRevision,
                 repo.Url ?? "", username: repo.Username, password: repo.Password);
             var serverRev = serverRevResult.Success && int.TryParse(serverRevResult.Value, out var sr) ? sr : -1;
 
             Log.Debug("PollCheck: local={Local}, server={Server}", localRev, serverRev);
-            if (serverRev <= localRev) return;
+
+            // If server and local revisions match, check for incomplete working copy state
+            // (e.g. previous update was interrupted by crash/power loss).
+            // If incomplete items exist, force an update to repair the working copy.
+            bool hasIncomplete = false;
+            if (serverRev == localRev)
+            {
+                var statusResult = await _syncExecutor.ExecuteAsync(SvnCommand.Status, repo.Path, depth: true);
+                if (statusResult.Success && !string.IsNullOrEmpty(statusResult.Value))
+                {
+                    try
+                    {
+                        var statuses = System.Text.Json.JsonSerializer
+                            .Deserialize<Dictionary<string, SVNFileBox.Models.FileSvnStatus>>(statusResult.Value ?? "{}");
+                        hasIncomplete = statuses?.Values.Any(s => s == SVNFileBox.Models.FileSvnStatus.Incomplete) ?? false;
+                        if (hasIncomplete)
+                            Log.Warning("[PollCheck] Incomplete items detected in working copy, forcing update to repair");
+                    }
+                    catch { /* ignore deserialization errors */ }
+                }
+            }
+
+            var isRepairUpdate = hasIncomplete && serverRev == localRev;
+            if (serverRev <= localRev && !isRepairUpdate) return;
+
+            if (isRepairUpdate)
+            {
+                Log.Warning("[PollCheck] Incomplete items detected, forcing full update to repair working copy");
+                var result = await _syncExecutor.ExecuteAsync(SvnCommand.Update, repo.Path);
+                // No conflict check needed — this is a self-heal repair
+                _recordService.AddRecord(repo.Name, repo.Path, "Update", result.Success ? "Success" : "Failed",
+                    result.Success ? "Update (repaired incomplete working copy)" : $"Repair update failed: {result.Error}");
+                Notify(result.Success ? "已修复 working copy 中的 incomplete 状态" : "修复 update 失败");
+                if (result.Success) FilesChanged?.Invoke(this, EventArgs.Empty);
+                return;
+            }
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
 
-            var updateSuccess = await UpdateInChunksAsync();
+            var updateResult = await UpdateInChunksAsync();
+            var updateSuccess = updateResult.success;
             if (updateSuccess)
             {
                 var conflictInfo = await BuildConflictInfoListAsync(repo.Path);
@@ -347,10 +448,14 @@ public class SyncService : IDisposable
                 }
                 else
                 {
+                    var recordMsg = isRepairUpdate
+                        ? "Update (repaired incomplete working copy)"
+                        : $"Updated from r{localRev} to r{serverRev}, {updateResult.fileCount} file(s) changed";
                     _recordService.AddRecord(
-                        repo.Name, repo.Path, "Update", "Success",
-                        $"Updated {serverRev - localRev} revision(s)");
-                    Notify($"已从服务器更新 {serverRev - localRev} 个版本");
+                        repo.Name, repo.Path, "Update", "Success", recordMsg);
+                    Notify(isRepairUpdate
+                        ? "已修复 working copy 中的 incomplete 状态"
+                        : $"已从服务器更新 r{localRev} → r{serverRev}，共 {updateResult.fileCount} 个文件");
                     FilesChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
@@ -370,12 +475,12 @@ public class SyncService : IDisposable
         }
     }
 
-    private async Task<bool> UpdateInChunksAsync()
+    private async Task<(bool success, int fileCount)> UpdateInChunksAsync()
     {
-        var repo = _repoContext.CurrentRepository!;
+        var repo = _repository;
 
         // 1. Get list of remote-changed file paths
-        var gsupResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.GetServerUpdatePaths, repo.Path);
+        var gsupResult = await _syncExecutor.ExecuteAsync(SvnCommand.GetServerUpdatePaths, repo.Path);
         var filePaths = gsupResult.Success && !string.IsNullOrEmpty(gsupResult.Value)
             ? gsupResult.Value!.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList()
             : new List<string>();
@@ -384,13 +489,15 @@ public class SyncService : IDisposable
         if (filePaths.Count == 0)
         {
             Log.Debug("[UpdateInChunks] No remote changes");
-            return true;
+            return (true, 0);
         }
 
         // 2. Merge file list into unique parent directories
         //    Filter to only paths within the repo root (ignore externals/overflow)
+        //    Normalize all paths to forward-slash for consistent comparison
         var normalizedRepoPath = repo.Path.Replace('\\', '/').TrimEnd('/');
         var inRepoPaths = filePaths
+            .Select(p => p.Replace('\\', '/'))
             .Where(p => p.StartsWith(normalizedRepoPath + '/') || p == normalizedRepoPath)
             .ToList();
 
@@ -398,7 +505,10 @@ public class SyncService : IDisposable
         var dirs = inRepoPaths
             .Select(p =>
             {
-                var dir = Path.GetDirectoryName(p)?.Replace('\\', '/');
+                // If the last segment has no '.', it's likely a directory (not a file),
+                // so p is already the dir path and GetDirectoryName would incorrectly go above repo root.
+                var lastSegment = Path.GetFileName(p);
+                var dir = lastSegment.Contains('.') ? Path.GetDirectoryName(p)?.Replace('\\', '/') : p;
                 return string.IsNullOrEmpty(dir) || dir == normalizedRepoPath ? normalizedRepoPath : dir;
             })
             .Distinct()
@@ -409,23 +519,22 @@ public class SyncService : IDisposable
             inRepoPaths.Count, dirs.Count, filePaths.Count);
 
         // 3. Enqueue one Update per directory and wait for all to complete via TCS
-        // 3. Enqueue one Update per directory and wait for all to complete via TCS
         var tasks = dirs.Select(dir =>
-            _repoContext.Executor.ExecuteUpdateAsync(repo.Path, new List<string> { dir }));
+            _syncExecutor.ExecuteUpdateAsync(repo.Path, new List<string> { dir }));
 
         var results = await Task.WhenAll(tasks);
         var allSuccess = results.All(r => r.Success);
 
         Log.Information("[UpdateInChunks] All Updates done: {DirCount} dirs, success={AllSuccess}",
             dirs.Count, allSuccess);
-        return allSuccess;
+        return (allSuccess, inRepoPaths.Count);
     }
 
 
     private async Task<List<ConflictedFileInfo>> BuildConflictInfoListAsync(string repoPath)
     {
         var conflictInfo = new List<ConflictedFileInfo>();
-        var cfResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.GetConflictedFiles, repoPath);
+        var cfResult = await _syncExecutor.ExecuteAsync(SvnCommand.GetConflictedFiles, repoPath);
         if (!cfResult.Success || string.IsNullOrEmpty(cfResult.Value))
             return conflictInfo;
 
@@ -450,7 +559,7 @@ public class SyncService : IDisposable
 
     public async Task<int> ApplyConflictResolutionsAsync(List<ConflictedFileInfo> conflictInfo)
     {
-        var repo = _repoContext.CurrentRepository;
+        var repo = _repository;
         if (repo == null) return 0;
         int handled = 0;
 
@@ -465,9 +574,9 @@ public class SyncService : IDisposable
                 {
                     case ConflictResolution.KeepLocal:
                     {
-                        var resolved = (await _repoContext.Executor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
                         if (!resolved) Log.Warning("Resolve(MineFull) returned false for {File}", info.FilePath);
-                        var committed = (await _repoContext.Executor.ExecuteAsync(SvnCommand.Commit, parentDir,
+                        var committed = (await _syncExecutor.ExecuteAsync(SvnCommand.Commit, parentDir,
                             message: $"Auto-sync: [Conflict Resolved — Kept Local] {fileName}")).Success;
                         Log.Information("Conflict KeepLocal: {File}, resolve={Resolved}, commit={Committed}",
                             info.FilePath, resolved, committed);
@@ -475,7 +584,7 @@ public class SyncService : IDisposable
                     }
                     case ConflictResolution.AcceptServer:
                     {
-                        var resolved = (await _repoContext.Executor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
                         if (!resolved) Log.Warning("Resolve(TheirsFull) returned false for {File}", info.FilePath);
                         Log.Information("Conflict AcceptServer: {File}, resolved={Resolved}", info.FilePath, resolved);
                         break;
@@ -485,7 +594,7 @@ public class SyncService : IDisposable
                         var backupPath = info.FilePath + $".local-backup-{DateTime.UtcNow:yyyyMMddHHmmss}";
                         File.Copy(info.FilePath, backupPath, overwrite: true);
                         Log.Information("Conflict KeepBoth: copied {Original} → {Backup}", info.FilePath, backupPath);
-                        var resolved = (await _repoContext.Executor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
                         Log.Information("Conflict KeepBoth: {File} accepted server, resolved={Resolved}",
                             info.FilePath, resolved);
                         break;
@@ -509,9 +618,20 @@ public class SyncService : IDisposable
 
     #endregion
 
+    /// <summary>
+    /// Called by RepoManager to record a file transfer event from SvnService.
+    /// </summary>
+    public void RecordFileTransfer(string path, string action)
+    {
+        var repoName = _repository?.Name;
+        if (string.IsNullOrEmpty(repoName) || string.IsNullOrEmpty(path)) return;
+        _recordService.AddRecord(repoName, path, action, "Success");
+    }
+
     public void Dispose()
     {
-_pollTimer.Stop(); _pollTimer.Dispose();
+        Cancel();
+        _pollTimer.Stop(); _pollTimer.Dispose();
         _fullSyncTimer.Stop(); _fullSyncTimer.Dispose();
         Log.Information("[SyncService] Disposed");
     }

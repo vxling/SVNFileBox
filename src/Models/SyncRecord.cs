@@ -6,6 +6,9 @@ namespace SVNFileBox.Models;
 public partial class SyncRecord : ObservableObject
 {
     [ObservableProperty]
+    private long _id;
+
+    [ObservableProperty]
     private DateTime _timestamp = DateTime.Now;
 
     [ObservableProperty]

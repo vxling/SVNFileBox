@@ -13,16 +13,15 @@ namespace SVNFileBox.Windows;
 
 public partial class AddLocalRepoWindow : Window
 {
-    private readonly IRepositoryContext _repoContext;
+    private readonly SvnCommandExecutor _localExecutor = new(); // independent executor for read-only checks
     private readonly IReadOnlyList<Repository> _existingRepos;
 
     public Repository? ResultRepository { get; private set; }
 
-    public AddLocalRepoWindow() : this(new RepositoryContext(), Array.Empty<Repository>()) { }
+    public AddLocalRepoWindow() : this(Array.Empty<Repository>()) { }
 
-    public AddLocalRepoWindow(IRepositoryContext repoContext, IEnumerable<Repository> existingRepos)
+    public AddLocalRepoWindow( IEnumerable<Repository> existingRepos)
     {
-        _repoContext = repoContext;
         _existingRepos = existingRepos.ToList().AsReadOnly();
         InitializeComponent();
     }
@@ -58,7 +57,7 @@ public partial class AddLocalRepoWindow : Window
             return;
         }
 
-        var vwr = await _repoContext.Executor.ExecuteAsync(SvnCommand.IsValidWorkingCopy, path);
+        var vwr = await _localExecutor.ExecuteAsync(SvnCommand.IsValidWorkingCopy, path);
         if (!(vwr.Success && vwr.Value == "true"))
         {
             ErrorText.Text = LocalizationService.Instance.GetString("NotValidWorkingCopy");
@@ -92,7 +91,7 @@ public partial class AddLocalRepoWindow : Window
             return;
         }
 
-        var vwr = await _repoContext.Executor.ExecuteAsync(SvnCommand.IsValidWorkingCopy, path);
+        var vwr = await _localExecutor.ExecuteAsync(SvnCommand.IsValidWorkingCopy, path);
         if (!(vwr.Success && vwr.Value == "true"))
         {
             ErrorText.Text = LocalizationService.Instance.GetString("NotValidWorkingCopy");
@@ -103,7 +102,7 @@ public partial class AddLocalRepoWindow : Window
 
         try
         {
-            var urlResult = await _repoContext.Executor.ExecuteAsync(SvnCommand.Info, path);
+            var urlResult = await _localExecutor.ExecuteAsync(SvnCommand.Info, path);
             var name = new DirectoryInfo(path).Name;
 
             ResultRepository = new Repository

@@ -22,7 +22,7 @@ public interface ISvnCommandExecutor
     // ── ReadOnly: immediate Task return ──────────────────────────────────
     Task<SvnQueryResult> ExecuteAsync(SvnCommand cmd, string path,
         string? fromPath = null, string? message = null, string? repoUrl = null,
-        string? username = null, string? password = null);
+        string? username = null, string? password = null, bool depth=false );
 
     // ── Update with specific sub-paths ───────────────────────────────────
     Task<SvnQueryResult> ExecuteUpdateAsync(string workingCopyPath,

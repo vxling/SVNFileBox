@@ -33,11 +33,10 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
-        var logDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "SVNFileBox", "logs");
-        Directory.CreateDirectory(logDir);
-        var logPath = Path.Combine(logDir, "svnfilebox.log");
+        // 确保所有数据目录存在
+        AppPaths.EnsureDirectoriesExist();
+
+        var logPath = Path.Combine(AppPaths.Logs, "svnfilebox.log");
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
@@ -83,7 +82,21 @@ public partial class App : Application
     {
         try
         {
-            // Load config first, apply language before showing any UI
+            // Now show splash — language/theme are already set
+            _splash = new SplashWindow();
+            _splash.Show();
+
+            // 迁移旧版数据（如有）
+            _splash.SetProgress(0, "检查旧版数据...");
+            var progress = new Progress<string>(msg => _splash.SetProgress(50, msg));
+            var migrated = await MigrationService.MigrateIfNeededAsync(progress);
+            if (!migrated)
+            {
+                // 迁移失败仍继续启动，只是记日志
+                Log.Warning("[Startup] Migration reported failure but continuing with fresh data");
+            }
+
+            // Load config from new location
             var configService = new ConfigService();
             await configService.LoadAsync();
             LocalizationService.Instance.SetLanguage(configService.Config.Language);
@@ -92,9 +105,7 @@ public partial class App : Application
             // Pre-create MainWindow before showing splash
             var mainWindow = new MainWindow { Visibility = Visibility.Hidden };
 
-            // Now show splash — language/theme are already set
-            _splash = new SplashWindow();
-            _splash.Show();
+
 
             // Step 1: Initialize services
             _splash.SetStatus("Initializing services...");

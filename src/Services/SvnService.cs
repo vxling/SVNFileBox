@@ -78,8 +78,9 @@ public class SvnService : IDisposable
 
     /// <summary>
     /// Raised whenever a file is transferred during a HeavyWrite operation.
+    /// Instance event — each SvnService instance has its own subscribers.
     /// </summary>
-    public static event Action<string, string>? FileTransferActivity;
+    public event Action<string, string>? FileTransferActivity;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Constructor
@@ -107,7 +108,7 @@ public class SvnService : IDisposable
     /// </summary>
     public async Task<Dictionary<string, FileSvnStatus>> GetStatusAsync(
         string workingCopyPath,
-        SvnDepth depth = SvnDepth.Children)
+        bool depth)
     {
         return await ExecuteRead(token =>
         {
@@ -135,7 +136,7 @@ public class SvnService : IDisposable
                         SharpSvnStatus.Replaced     => FileSvnStatus.Replaced,
                         SharpSvnStatus.Obstructed  => FileSvnStatus.Obstructed,
                         SharpSvnStatus.External     => FileSvnStatus.External,
-                        SharpSvnStatus.Incomplete   => FileSvnStatus.Missing,
+                        SharpSvnStatus.Incomplete   => FileSvnStatus.Incomplete,
                         _                           => FileSvnStatus.Normal
                     };
 
@@ -145,7 +146,7 @@ public class SvnService : IDisposable
 
                 client.Status(workingCopyPath, new SvnStatusArgs
                 {
-                    Depth = depth,
+                    Depth = depth? SvnDepth.Infinity:SvnDepth.Children,
                     RetrieveAllEntries = true,
                 }, handler);
             }
@@ -463,6 +464,37 @@ public class SvnService : IDisposable
         catch { return false; }
     }
 
+    /// <summary>
+    /// Lightweight local-only credential check.
+    /// No network call — uses GetRepositoryRoot on local .svn metadata.
+    /// Returns true if the cached credential is usable, false if auth failed.
+    /// </summary>
+    public bool IsCredentialValid(string workingCopyPath)
+    {
+        try
+        {
+            using var client = CreateClient();
+            client.Authentication.Clear();
+            // GetRepositoryRoot reads local .svn metadata only — no network traffic
+            var root = client.GetRepositoryRoot(workingCopyPath);
+            return root != null;
+        }
+        catch (SvnAuthenticationException)
+        {
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Fired when Update or Commit throws SvnAuthenticationException —
+    /// indicates the cached credential has expired and user needs to re-enter password.
+    /// </summary>
+    public event Action<string>? CredentialExpired;
+
     // ─────────────────────────────────────────────────────────────────────────
     // Tier 2 — LocalWrite Operations
     // Exclusive WC write lock. Fast (sub-second). No network.
@@ -618,15 +650,18 @@ public class SvnService : IDisposable
     /// </summary>
     public async Task<bool> CommitAsync(string workingCopyPath, string message)
     {
-        return await ExecuteHeavyWrite((token, progressCts) =>
-        {
-            TryCleanStaleLocks(workingCopyPath);
-            return ExecuteSvnWithNotify(client =>
+        return await ExecuteHeavyWrite(
+            (token, progressCts) =>
             {
-                var args = new SvnCommitArgs { LogMessage = message };
-                return client.Commit(workingCopyPath, args);
-            }, token, progressCts);
-        });
+                TryCleanStaleLocks(workingCopyPath);
+                return ExecuteSvnWithNotify(client =>
+                {
+                    var args = new SvnCommitArgs { LogMessage = message };
+                    return client.Commit(workingCopyPath, args);
+                }, token, progressCts);
+            },
+            workingCopyPath,
+            onAuthFailed: path => CredentialExpired?.Invoke(path));
     }
 
     /// <summary>
@@ -643,21 +678,25 @@ public class SvnService : IDisposable
     /// </summary>
     public async Task<bool> UpdateAsync(IReadOnlyList<string> paths)
     {
-        return await ExecuteHeavyWrite((token, progressCts) =>
-        {
-            if (paths.Count == 0) return true;
-            var topDir = paths.Count == 1
-                ? paths[0]
-                : Path.GetDirectoryName(paths[0]) ?? paths[0];
-            TryCleanStaleLocks(topDir);
-            return ExecuteSvnWithNotify(
-                client => client.Update(paths.ToArray()),
-                token, progressCts);
-        });
+        if (paths.Count == 0) return true;
+        var topDir = paths.Count == 1
+            ? paths[0]
+            : Path.GetDirectoryName(paths[0]) ?? paths[0];
+        return await ExecuteHeavyWrite(
+            (token, progressCts) =>
+            {
+                TryCleanStaleLocks(topDir);
+                return ExecuteSvnWithNotify(
+                    client => client.Update(paths.ToArray()),
+                    token, progressCts);
+            },
+            topDir,
+            onAuthFailed: path => CredentialExpired?.Invoke(path));
     }
 
     /// <summary>
     /// Tier 3. Checks out a remote repository to a local path.
+    /// Supports cooperative cancellation via the provided CancellationToken.
     /// </summary>
     public async Task<(string output, int exitCode, string error)> CheckoutAsync(
         string repoUrl,
@@ -669,13 +708,7 @@ public class SvnService : IDisposable
         try
         {
             TryCleanStaleLocks(workingCopyPath);
-            using var client = CreateClient();
-            if (!string.IsNullOrEmpty(username))
-                client.Authentication.ForceCredentials(username, password ?? "");
-
-            SvnUpdateResult? result = null;
-            client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
-            return (result?.Revision.ToString() ?? "", 0, "");
+            return CheckoutCore(repoUrl, workingCopyPath, username, password);
         }
         catch (SvnRepositoryIOException ex) when (ex.InnerException is SvnAuthenticationException)
         {
@@ -683,14 +716,7 @@ public class SvnService : IDisposable
             try
             {
                 TryCleanStaleLocks(workingCopyPath);
-                using var client = CreateClient();
-                client.Authentication.ClearAuthenticationCache();
-                if (!string.IsNullOrEmpty(username))
-                    client.Authentication.ForceCredentials(username, password ?? "");
-
-                SvnUpdateResult? result = null;
-                client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
-                return (result?.Revision.ToString() ?? "", 0, "");
+                return CheckoutCore(repoUrl, workingCopyPath, username, password, clearCache: true);
             }
             catch (Exception retryEx)
             {
@@ -703,6 +729,27 @@ public class SvnService : IDisposable
             Log.Error(ex, "[CheckOutAsync] Failed for {Url}", repoUrl);
             return ("", 1, ex.Message);
         }
+    }
+
+    private (string output, int exitCode, string error) CheckoutCore(
+        string repoUrl, string workingCopyPath, string? username, string? password, bool clearCache = false)
+    {
+        using var client = CreateClient();
+        if (clearCache) client.Authentication.ClearAuthenticationCache();
+        if (!string.IsNullOrEmpty(username))
+            client.Authentication.ForceCredentials(username, password ?? "");
+
+        var lastActivity = DateTime.UtcNow;
+        var timeoutMs = FileTransferTimeoutMs;
+        client.Notify += (sender, e) =>
+        {
+            lastActivity = DateTime.UtcNow;
+            FileTransferActivity?.Invoke(e.Path ?? "", e.Action.ToString());
+        };
+
+        SvnUpdateResult? result = null;
+        client.CheckOut(new SvnUriTarget(repoUrl), workingCopyPath, new SvnCheckOutArgs(), out result);
+        return (result?.Revision.ToString() ?? "", 0, "");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -739,22 +786,25 @@ public class SvnService : IDisposable
             }
             catch (SvnAuthenticationException ex) { authEx = ex; return (SvnConnectResult.AuthFailed, (string?)null); }
             catch (SvnAuthorizationException ex) { return (SvnConnectResult.AccessDenied, (string?)null); }
+            catch (SvnRepositoryIOException ex) when (ex.InnerException is SvnAuthenticationException)
+            {
+                // Wrapped auth exception — password wrong or credentials rejected
+                Log.Debug("[TestConnectionAsync] Auth failed (wrapped): {Msg}", ex.Message);
+                return (SvnConnectResult.AuthFailed, (string?)null);
+            }
             catch (SvnRepositoryIOException ex)
             {
                 if (ex.Message.Contains("E230001")) return (SvnConnectResult.SslCertError, (string?)null);
                 if (ex.Message.Contains("E175002") || ex.Message.Contains("E170013")) return (SvnConnectResult.RepoNotFound, (string?)null);
                 if (ex.Message.Contains("E175003")) return (SvnConnectResult.SslCertError, (string?)null);
-                return (SvnConnectResult.Unknown, ex.Message);
-            }
-            catch (SvnIOException ex)
-            {
                 var msg = ex.Message;
                 if (msg.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
                     msg.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
                     msg.Contains("could not resolve", StringComparison.OrdinalIgnoreCase) ||
                     msg.Contains("No route to host", StringComparison.OrdinalIgnoreCase) ||
                     msg.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
-                    msg.Contains("network", StringComparison.OrdinalIgnoreCase))
+                    msg.Contains("network", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("connection", StringComparison.OrdinalIgnoreCase))
                     return (SvnConnectResult.NetworkError, (string?)null);
                 return (SvnConnectResult.Unknown, ex.Message);
             }
@@ -782,6 +832,11 @@ public class SvnService : IDisposable
                 }
                 catch (SvnAuthenticationException) { return (SvnConnectResult.AuthFailed, (string?)null); }
                 catch (SvnAuthorizationException) { return (SvnConnectResult.AccessDenied, (string?)null); }
+                catch (SvnRepositoryIOException ex) when (ex.InnerException is SvnAuthenticationException)
+                {
+                    Log.Debug("[TestConnectionAsync] Auth failed on retry (wrapped): {Msg}", ex.Message);
+                    return (SvnConnectResult.AuthFailed, (string?)null);
+                }
                 catch (SvnRepositoryIOException ex)
                 {
                     if (ex.Message.Contains("E230001")) return (SvnConnectResult.SslCertError, (string?)null);
@@ -874,9 +929,12 @@ public class SvnService : IDisposable
     /// Tier 3 helper: HeavyWrite operations.
     /// Uses _writeSemaphore(1) — exclusive, serialized with LocalWrite.
     /// Activity watchdog timeout + 600s hard ceiling.
+    /// onAuthFailed is called with the workingCopyPath when SvnAuthenticationException is caught.
     /// </summary>
     private async Task<T> ExecuteHeavyWrite<T>(
-        Func<CancellationToken, CancellationTokenSource, T> operation)
+        Func<CancellationToken, CancellationTokenSource, T> operation,
+        string workingCopyPath = "",
+        Action<string>? onAuthFailed = null)
     {
         if (!await _writeSemaphore.WaitAsync(LockWaitTimeoutMs))
         {
@@ -893,6 +951,12 @@ public class SvnService : IDisposable
                 progressCts.Token, safetyCts.Token);
 
             return await Task.Run(() => operation(linked.Token, progressCts), linked.Token);
+        }
+        catch (SvnAuthenticationException)
+        {
+            if (onAuthFailed != null && !string.IsNullOrEmpty(workingCopyPath))
+                onAuthFailed(workingCopyPath);
+            throw;
         }
         catch (OperationCanceledException) when (!IsCancellationTokenSourceCancelled(0))
         {

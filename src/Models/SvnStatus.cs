@@ -12,6 +12,6 @@ public enum FileSvnStatus
     Replaced,
     Obstructed,
     External,
-    Unknown,
+    Incomplete,
     Hidden  // Used for ".." parent directory row — hides the status badge
 }

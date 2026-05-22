@@ -8,8 +8,9 @@ using SVNFileBox.Models;
 namespace SVNFileBox.Services;
 
 /// <summary>
-/// SQLite-backed sync record store.
-/// Schema: one table per repo (name sanitized), auto-cleanup by age + count.
+/// SQLite-backed sync record store — single shared table.
+/// Schema: one table sync_records with repo_name as a normal column.
+/// Retention: MaxAgeDays = 10, MaxRecordsPerRepo = 10,000.
 /// </summary>
 public class SqliteSyncRecordStore : IDisposable
 {
@@ -25,68 +26,39 @@ public class SqliteSyncRecordStore : IDisposable
 
     public SqliteSyncRecordStore()
     {
-        var configDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "SVNFileBox");
+        var configDir = AppPaths.Base;
         _dbPath = Path.Combine(configDir, "sync_records.db");
 
         _conn = new SqliteConnection($"Data Source={_dbPath}");
         _conn.Open();
 
-        // Shared journal table — cleanup runs against this table
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
-            CREATE TABLE IF NOT EXISTS sync_meta (
-                repo_name TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL
-            );";
-        cmd.ExecuteNonQuery();
-
-        Log.Information("[SqliteSyncRecordStore] Opened {Path}", _dbPath);
-    }
-
-    // ── Per-repo table helpers ────────────────────────────────────────
-
-    private static string TableName(string repoName) =>
-        $"sync_{Sanitize(repoName)}";
-
-    private static string Sanitize(string name) =>
-        string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
-
-    /// <summary>Ensures the per-repo table exists and meta is registered.</summary>
-    public void EnsureRepo(string repoName)
-    {
-        var table = TableName(repoName);
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = $@"
-            CREATE TABLE IF NOT EXISTS {table} (
+            CREATE TABLE IF NOT EXISTS sync_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo_name TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 file_path TEXT NOT NULL,
                 operation TEXT NOT NULL,
                 result TEXT NOT NULL,
                 message TEXT NOT NULL DEFAULT ''
             );
-            CREATE INDEX IF NOT EXISTS idx_{table}_timestamp ON {table}(timestamp);";
+            CREATE INDEX IF NOT EXISTS idx_repo ON sync_records(repo_name);
+            CREATE INDEX IF NOT EXISTS idx_ts ON sync_records(timestamp);";
         cmd.ExecuteNonQuery();
 
-        cmd.CommandText = "INSERT OR IGNORE INTO sync_meta (repo_name, created_at) VALUES (@name, @now)";
-        cmd.Parameters.Clear();
-        cmd.Parameters.AddWithValue("@name", repoName);
-        cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("O"));
-        cmd.ExecuteNonQuery();
+        Log.Information("[SqliteSyncRecordStore] Opened {Path}", _dbPath);
     }
 
-    /// <summary>Adds a record for the given repo. Auto-trims oldest if over MaxRecordsPerRepo.</summary>
+    /// <summary>Adds a record. Auto-trims oldest if over MaxRecordsPerRepo.</summary>
     public void AddRecord(string repoName, DateTime timestamp, string filePath,
         string operation, string result, string message)
     {
-        var table = TableName(repoName);
-
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = $@"
-            INSERT INTO {table} (timestamp, file_path, operation, result, message)
-            VALUES (@ts, @path, @op, @result, @msg)";
+        cmd.CommandText = @"
+            INSERT INTO sync_records (repo_name, timestamp, file_path, operation, result, message)
+            VALUES (@repo, @ts, @path, @op, @result, @msg)";
+        cmd.Parameters.AddWithValue("@repo", repoName);
         cmd.Parameters.AddWithValue("@ts", timestamp.ToString("O"));
         cmd.Parameters.AddWithValue("@path", filePath);
         cmd.Parameters.AddWithValue("@op", operation);
@@ -94,18 +66,45 @@ public class SqliteSyncRecordStore : IDisposable
         cmd.Parameters.AddWithValue("@msg", message);
         cmd.ExecuteNonQuery();
 
-        // Trim by count
-        TrimByCount(table);
+        TrimByCount(repoName);
     }
 
-    /// <summary>Returns all records for a repo, newest first.</summary>
+    /// <summary>Returns records for a repo, newest first.</summary>
     public IEnumerable<SyncRecord> GetRecords(string repoName, int limit = 1000)
     {
-        var table = TableName(repoName);
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = $@"
-            SELECT timestamp, file_path, operation, result, message
-            FROM {table}
+        cmd.CommandText = @"
+            SELECT id, repo_name, timestamp, file_path, operation, result, message
+            FROM sync_records
+            WHERE repo_name = @repo
+            ORDER BY id DESC
+            LIMIT @limit";
+        cmd.Parameters.AddWithValue("@repo", repoName);
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            yield return new SyncRecord
+            {
+                Id = reader.GetInt64(0),
+                RepoName = reader.GetString(1),
+                Timestamp = DateTime.Parse(reader.GetString(2)),
+                FilePath = reader.GetString(3),
+                Operation = reader.GetString(4),
+                Result = reader.GetString(5),
+                Message = reader.GetString(6)
+            };
+        }
+    }
+
+    /// <summary>Returns all records across all repos, newest first.</summary>
+    public IEnumerable<SyncRecord> GetAllRecords(int limit = 1000)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT id, repo_name, timestamp, file_path, operation, result, message
+            FROM sync_records
             ORDER BY id DESC
             LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
@@ -115,101 +114,70 @@ public class SqliteSyncRecordStore : IDisposable
         {
             yield return new SyncRecord
             {
-                Timestamp = DateTime.Parse(reader.GetString(0)),
-                FilePath = reader.GetString(1),
-                Operation = reader.GetString(2),
-                Result = reader.GetString(3),
-                Message = reader.GetString(4)
+                Id = reader.GetInt64(0),
+                RepoName = reader.GetString(1),
+                Timestamp = DateTime.Parse(reader.GetString(2)),
+                FilePath = reader.GetString(3),
+                Operation = reader.GetString(4),
+                Result = reader.GetString(5),
+                Message = reader.GetString(6)
             };
         }
     }
-
-    /// <summary>Returns recent records across all repos, newest first.</summary>
-    public IEnumerable<SyncRecord> GetAllRecords(int limit = 1000)
-    {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
-            SELECT repo_name, timestamp, file_path, operation, result, message
-            FROM sync_meta m
-            JOIN pragma_table_list(m.repo_name) t ON t.name = 'sync_' || m.repo_name
-            ORDER BY m.created_at DESC
-            LIMIT @limit";
-        cmd.Parameters.AddWithValue("@limit", limit);
-
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            yield return new SyncRecord
-            {
-                RepoName = reader.GetString(0),
-                Timestamp = DateTime.Parse(reader.GetString(1)),
-                FilePath = reader.GetString(2),
-                Operation = reader.GetString(3),
-                Result = reader.GetString(4),
-                Message = reader.GetString(5)
-            };
-        }
-    }
-
-    // ── Cleanup ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Drops the per-repo table when a repository is removed.
-    /// Call this from wherever the repo is deleted.
+    /// Deletes all records for a repository.
     /// </summary>
     public void DeleteRepo(string repoName)
     {
-        var table = TableName(repoName);
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = $"DROP TABLE IF EXISTS {table}";
-        cmd.ExecuteNonQuery();
-
-        cmd.CommandText = "DELETE FROM sync_meta WHERE repo_name = @name";
-        cmd.Parameters.Clear();
-        cmd.Parameters.AddWithValue("@name", repoName);
-        cmd.ExecuteNonQuery();
-
-        Log.Information("[SqliteSyncRecordStore] Deleted records for repo: {Repo}", repoName);
+        cmd.CommandText = "DELETE FROM sync_records WHERE repo_name = @repo";
+        cmd.Parameters.AddWithValue("@repo", repoName);
+        int deleted = cmd.ExecuteNonQuery();
+        Log.Information("[SqliteSyncRecordStore] Deleted {Count} records for repo: {Repo}", deleted, repoName);
     }
 
-    /// <summary>Runs cleanup on all repos: removes records older than MaxAgeDays and trims to MaxRecordsPerRepo.</summary>
+    /// <summary>
+    /// Runs cleanup: removes records older than MaxAgeDays and trims each repo to MaxRecordsPerRepo.
+    /// </summary>
     public void CleanupAll()
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT repo_name FROM sync_meta";
+        // Trim by age
+        var cutoff = DateTime.Now.AddDays(-MaxAgeDays).ToString("O");
+        using var delCmd = _conn.CreateCommand();
+        delCmd.CommandText = "DELETE FROM sync_records WHERE timestamp < @cutoff";
+        delCmd.Parameters.AddWithValue("@cutoff", cutoff);
+        int deleted = delCmd.ExecuteNonQuery();
+        if (deleted > 0)
+            Log.Debug("[SqliteSyncRecordStore] Trimmed {Count} old records", deleted);
+
+        // Trim by count per repo (belt-and-suspenders)
+        using var repoCmd = _conn.CreateCommand();
+        repoCmd.CommandText = "SELECT DISTINCT repo_name FROM sync_records";
+        using var reader = repoCmd.ExecuteReader();
         var repoNames = new List<string>();
-        using (var reader = cmd.ExecuteReader())
-            while (reader.Read()) repoNames.Add(reader.GetString(0));
+        while (reader.Read()) repoNames.Add(reader.GetString(0));
+        reader.Close();
 
         foreach (var name in repoNames)
-        {
-            var table = TableName(name);
-
-            // Trim by age
-            var cutoff = DateTime.Now.AddDays(-MaxAgeDays).ToString("O");
-            using var delCmd = _conn.CreateCommand();
-            delCmd.CommandText = $"DELETE FROM {table} WHERE timestamp < @cutoff";
-            delCmd.Parameters.AddWithValue("@cutoff", cutoff);
-            int deleted = delCmd.ExecuteNonQuery();
-            if (deleted > 0)
-                Log.Debug("[SqliteSyncRecordStore] Trimmed {Count} old records for {Repo}", deleted, name);
-
-            // Trim by count (already done on insert, but belt-and-suspenders here)
-            TrimByCount(table);
-        }
+            TrimByCount(name);
     }
 
-    private void TrimByCount(string table)
+    private void TrimByCount(string repoName)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = $@"
-            DELETE FROM {table}
-            WHERE id NOT IN (
-                SELECT id FROM {table} ORDER BY id DESC LIMIT {MaxRecordsPerRepo}
-            )";
+        cmd.CommandText = @"
+            DELETE FROM sync_records
+            WHERE repo_name = @repo
+              AND id NOT IN (
+                  SELECT id FROM sync_records WHERE repo_name = @repo
+                  ORDER BY id DESC LIMIT @limit
+              )";
+        cmd.Parameters.AddWithValue("@repo", repoName);
+        cmd.Parameters.AddWithValue("@limit", MaxRecordsPerRepo);
         int removed = cmd.ExecuteNonQuery();
         if (removed > 0)
-            Log.Debug("[SqliteSyncRecordStore] Trimmed {Count} excess records from {Table}", removed, table);
+            Log.Debug("[SqliteSyncRecordStore] Trimmed {Count} excess records for {Repo}", removed, repoName);
     }
 
     public void Dispose()

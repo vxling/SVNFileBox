@@ -36,6 +36,8 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     private readonly ConcurrentDictionary<string, SvnCommandItem> _dedup = new();
     private CancellationTokenSource _cts = new();
     private Task? _workerTask;
+    private bool _drainMode;
+    private readonly TaskCompletionSource _drainTcs = new();
 
     private static readonly SvnCommandCategory[] CommandCategoryMap = BuildCategoryMap();
 
@@ -116,6 +118,20 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     }
 
     /// <summary>
+    /// Drains the queue: stops accepting new commands and completes all pending HeavyWrite
+    /// tasks before shutting down. Use when switching repositories so in-flight operations
+    /// (e.g. Update, Commit) can finish gracefully.
+    /// Returns a Task that completes when the drain is done (all tasks processed or cancelled).
+    /// </summary>
+    public Task DrainAsync()
+    {
+        _drainMode = true;
+        _cts.Cancel();
+        Log.Information("[SvnCommandExecutor] Drain mode — will complete pending tasks before shutdown");
+        return _drainTcs.Task;
+    }
+
+    /// <summary>
     /// Submit a command for execution.
     ///   ReadOnly  → executed immediately, result returned via Task.
     ///   LocalWrite → enqueued to _localWriteQueue, result via OnCommandCompleted.
@@ -128,13 +144,14 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
         string? message = null,
         string? repoUrl = null,
         string? username = null,
-        string? password = null)
+        string? password = null,
+        bool depth = false)
     {
         var category = CommandCategoryMap[(int)cmd];
 
         if (category == SvnCommandCategory.ReadOnly)
         {
-            return await ExecuteReadOnlyAsync(cmd, path, fromPath, message, repoUrl, username, password);
+            return await ExecuteReadOnlyAsync(cmd, path, fromPath, message, repoUrl, username, password, depth);
         }
 
         var item = SvnCommandItem.New(cmd, path, fromPath, message, repoUrl, username, password);
@@ -262,7 +279,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     {
         try
         {
-            while (!_cts.Token.IsCancellationRequested)
+            while (!_cts.Token.IsCancellationRequested || _drainMode)
             {
                 // ── Drain all LocalWrite items (non-blocking) ──
                 while (_localWriteQueue!.Reader.TryRead(out var localItem))
@@ -276,7 +293,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                     }
                 }
 
-                // ── Try to grab one HeavyWrite (non-blocking, unlike LocalWrite) ──
+                // ── Try to grab one HeavyWrite (non-blocking unless draining) ──
                 if (_heavyWriteQueue!.Reader.TryRead(out var heavyItem))
                 {
                     try { await ProcessItemAsync(heavyItem); }
@@ -286,6 +303,12 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                             heavyItem.Command, heavyItem.Path);
                         OnCommandCompleted?.Invoke(SvnCommandResult.Fail(heavyItem.Command, heavyItem.Path, ex.Message));
                     }
+                }
+                else if (_drainMode)
+                {
+                    // In drain mode: stop immediately when queue is empty — no waiting.
+                    Log.Information("[SvnCommandExecutor] Drain complete, worker loop ending");
+                    break;
                 }
                 else
                 {
@@ -299,7 +322,11 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
         catch (OperationCanceledException)   { /* shutdown — expected */ }
         catch (InvalidOperationException ex) { Log.Warning(ex, "[SvnCommandExecutor] Worker loop InvalidOperationException"); }
         catch (Exception ex)                { Log.Error(ex, "[SvnCommandExecutor] Worker loop crashed"); }
-        finally { Log.Information("[SvnCommandExecutor] Worker loop ended"); }
+        finally
+        {
+            _drainTcs.TrySetResult(); // unblock DrainAsync() callers
+            Log.Information("[SvnCommandExecutor] Worker loop ended");
+        }
     }
 
     private async Task ProcessItemAsync(SvnCommandItem item)
@@ -390,7 +417,8 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
         string? message,
         string? repoUrl,
         string? username,
-        string? password)
+        string? password,
+        bool depth = false)
     {
         try
         {
@@ -400,7 +428,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                     SvnQueryResult.Ok((await _svnService.GetRepoUrlAsync(path))),
 
                 SvnCommand.Status =>
-                    SvnQueryResult.Ok(await _svnService.GetStatusAsync(path)
+                    SvnQueryResult.Ok(await _svnService.GetStatusAsync(path, depth)
                         .ContinueWith(t => System.Text.Json.JsonSerializer.Serialize(
                             t.Result, typeof(Dictionary<string, FileSvnStatus>)))),
 
@@ -441,9 +469,9 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     {
         var (result, errorMsg) = await _svnService.TestConnectionAsync(url, username, password);
         var desc = result.ToString();
-        return errorMsg != null
-            ? new SvnQueryResult { Success = false, Error = $"{desc}: {errorMsg}" }
-            : new SvnQueryResult { Success = result == SvnService.SvnConnectResult.Success, Error = desc };
+        return result == SvnService.SvnConnectResult.Success
+            ? new SvnQueryResult { Success = true }
+            : new SvnQueryResult { Success = false, Error = errorMsg != null ? $"{desc}: {errorMsg}" : desc };
     }
 
     public void Dispose()

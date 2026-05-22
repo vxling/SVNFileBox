@@ -84,14 +84,14 @@ public partial class MainWindow : Window
     {
         _viewModel = new MainViewModel();
         _configService = _viewModel.ConfigService;
-        _fileCopier = new FileCopier(_viewModel.RepositoryContext);
+        _fileCopier = new FileCopier();
         DataContext = _viewModel;
 
         // Sync FileTransferTimeout from config to SvnService static cache
         if (_configService.Config.FileTransferTimeoutSeconds > 0)
             SvnService.FileTransferTimeoutMs = _configService.Config.FileTransferTimeoutSeconds * 1000;
 
-        _viewModel.SyncNotification += (_, msg) => ShowToast(msg);
+        _viewModel.GlobalManager.SyncNotification += (_, msg) => ShowToast(msg);
 
         _viewModel.PropertyChanged += (s, ev) =>
         {
@@ -117,7 +117,9 @@ public partial class MainWindow : Window
             new RelayCommand(_ => _ = DoPasteAsync()),
             Key.V, ModifierKeys.Control));
 
-        _viewModel!.ConflictDetected += OnConflictDetected;
+        _viewModel!.GlobalManager.ConflictDetected += OnConflictDetected;
+        _viewModel!.GlobalManager.CredentialExpired += OnCredentialExpired;
+        _viewModel!.GlobalManager.ActiveExecutorChanged += (_, executor) => _fileCopier.SetExecutor(executor);
 
         await _viewModel.InitializeAsync();
     }
@@ -253,13 +255,31 @@ public partial class MainWindow : Window
             : LocalizationService.Instance.GetString("ConflictResolutionFailed"));
     }
 
+    private void OnCredentialExpired(object? sender, (string repoName, string repoUrl, string username) info)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var dialog = new CheckoutWindow(_viewModel!.Repositories)
+            {
+                Owner = this
+            };
+            dialog.OpenCredentialRenewal(info.repoName, info.repoUrl, info.username);
+            if (dialog.ShowDialog() == true)
+            {
+                _viewModel!.GlobalManager.UpdateCredential(dialog.Username ?? "", dialog.Password ?? "");
+                ShowToast(LocalizationService.Instance.GetString("CredentialRenewalSuccess", info.repoName));
+            }
+        });
+    }
+
     private async Task<bool> ResolveConflictsAsync(List<ConflictedFileInfo> conflicts)
     {
-        if (_viewModel?.SyncService == null) return false;
+        var syncService = _viewModel?.GlobalManager.ActiveManager?.SyncService;
+        if (syncService == null) return false;
         try
         {
             _viewModel.SetStatus(LocalizationService.Instance.GetString("ResolvingConflicts", conflicts.Count));
-            var handled = await _viewModel.SyncService.ApplyConflictResolutionsAsync(conflicts);
+            var handled = await syncService.ApplyConflictResolutionsAsync(conflicts);
             _viewModel.RecordService.AddRecord(
                 _viewModel.SelectedRepository?.Name ?? "",
                 "", "ConflictResolved", "Success", $"Resolved {handled}/{conflicts.Count} conflict(s)");
@@ -427,12 +447,13 @@ public partial class MainWindow : Window
 
     private async void ManualSync_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel?.SyncService == null) return;
+        var syncService = _viewModel?.GlobalManager.ActiveManager?.SyncService;
+        if (syncService == null) return;
         _viewModel.SyncStatus = SyncStatusType.Syncing;
         _viewModel.SetStatus(LocalizationService.Instance.GetString("ManualSyncInProgress"));
         try
         {
-            await _viewModel.SyncService.SyncNowAsync();
+            await syncService.SyncNowAsync();
             ShowToast(LocalizationService.Instance.GetString("SyncComplete"));
             _viewModel.SetTransientStatus(LocalizationService.Instance.GetString("SyncComplete"));
             _viewModel.SyncStatus = SyncStatusType.Success;
@@ -526,7 +547,7 @@ public partial class MainWindow : Window
                 Directory.CreateDirectory(newFolderPath);
 
                 // svn add (marks new folder), SyncService auto-commits on next FullSync
-                await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.Add, newFolderPath);
+                await _viewModel!.GlobalManager.ActiveManager!.Executor.ExecuteAsync(SvnCommand.Add, newFolderPath);
 
                 ShowToast(LocalizationService.Instance.GetString("NewFolderSuccess", dialog.InputText.Trim()));
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("NewFolderSuccess", dialog.InputText.Trim()));
@@ -655,9 +676,9 @@ public partial class MainWindow : Window
             }
 
             // svn add the new zip (svn auto-detects modified existing files)
-            var vz = await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.IsVersioned, zipPath);
+            var vz = await _viewModel!.GlobalManager.ActiveManager!.Executor.ExecuteAsync(SvnCommand.IsVersioned, zipPath);
             if (!(vz.Success && vz.Value == "true"))
-                await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.Add, zipPath);
+                await _viewModel!.GlobalManager.ActiveManager!.Executor.ExecuteAsync(SvnCommand.Add, zipPath);
 
             progressWindow.Close();
             ShowToast(LocalizationService.Instance.GetString("AddToZipSuccess", zipName));
@@ -731,7 +752,7 @@ public partial class MainWindow : Window
             if (!NewFileService.Create(newPath))
                 throw new Exception("NewFileService returned false");
 
-            await _viewModel!.RepositoryContext.Executor.ExecuteAsync(SvnCommand.Add, newPath);
+            await _viewModel!.GlobalManager.ActiveManager!.Executor.ExecuteAsync(SvnCommand.Add, newPath);
             ShowToast(LocalizationService.Instance.GetString("NewFileSuccess", defaultName));
             _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("NewFileSuccess", defaultName));
             _ = _viewModel.RefreshAsync();
@@ -785,8 +806,11 @@ public partial class MainWindow : Window
 
 
                 // Enqueue as Move so QueueCommitProcessor resolves it correctly
-                _viewModel!.SyncService.EnqueueDeleteAsync(item.FullPath);
-                _viewModel!.SyncService.EnqueueAddAsync(newPath);
+                var syncService = _viewModel?.GlobalManager.ActiveManager?.SyncService;
+                if (syncService != null)
+                    syncService.EnqueueDeleteAsync(item.FullPath);
+                if (syncService != null)
+                    syncService.EnqueueAddAsync(newPath);
 
                 // svn delete old + svn add new (marks the rename in working copy)
                 // await _svnService.DeleteAsync(item.FullPath);
@@ -834,9 +858,9 @@ public partial class MainWindow : Window
 
                 // svn delete marks the deletion in the working copy (after physical file is gone)
                 // Enqueue via CommitCoordinator so the delete is batch-committed
-                _viewModel!.SyncService.EnqueueDeleteAsync(item.FullPath);
-
-                ShowToast(LocalizationService.Instance.GetString("DeleteSuccess", item.Name));
+                var syncService = _viewModel?.GlobalManager.ActiveManager?.SyncService;
+                if (syncService != null)
+                    syncService.EnqueueDeleteAsync(item.FullPath);
                 _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("DeleteSuccess", item.Name));
                 _ = _viewModel.RefreshAsync();
             }
@@ -885,7 +909,7 @@ public partial class MainWindow : Window
             return;
         }
         // Pause FileWatcher during copy to avoid triggering commit监控 for each new file
-        var syncService = _viewModel?.SyncService;
+        var syncService = _viewModel?.GlobalManager.ActiveManager?.SyncService;
         syncService?.DisableFileWatcher();
 
         // Show progress window immediately (non-blocking), then run analysis + copy in background
@@ -985,7 +1009,9 @@ public partial class MainWindow : Window
                 _viewModel!.SetTransientStatus(summary);
             }
 
-            _ = _viewModel.RefreshAsync();
+            // Trigger immediate commit (instead of waiting for next FullSync timer)
+            _ = _viewModel!.RefreshAsync();
+            syncService?.SyncNowAsync();
         }
         finally
         {
@@ -1017,37 +1043,40 @@ public partial class MainWindow : Window
 
     private void AddLocalRepo_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SVNFileBox.Windows.AddLocalRepoWindow(_viewModel!.RepositoryContext, _viewModel!.Repositories) { Owner = this };
+        var dialog = new SVNFileBox.Windows.AddLocalRepoWindow( _viewModel!.Repositories) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.ResultRepository != null)
         {
             var repo = dialog.ResultRepository;
-            _viewModel!.Repositories.Add(repo);
-            _configService!.Config.Repositories.Add(repo);
-            _ = _configService.SaveAsync();
-            _viewModel.SelectedRepository = repo;
-            RepoList.SelectedItem = repo;
+            _ = _viewModel.AddLocalRepositoryAsync(repo);
         }
     }
 
     private void Checkout_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SVNFileBox.Windows.CheckoutWindow(_viewModel!.RepositoryContext, _viewModel!.Repositories) { Owner = this };
-        if (dialog.ShowDialog() == true)
+        var dialog = new CheckoutWindow(_viewModel!.Repositories)
         {
-            var repo = new Repository
+            Owner = this
+        };
+        dialog.CheckoutPartial += (_, info) =>
+        {
+            // Partial checkout: save partial repo data so it isn't lost if user closes mid-checkout.
+            var partialRepo = new Repository
             {
-                Name = dialog.RepoName!,
-                Path = dialog.LocalPath!,
-                Url = dialog.RepoUrl!,
-                Username = dialog.Username ?? "",
+                Name = info.name,
+                Path = info.path,
+                Url = info.url,
+                Username = info.username,
                 IsActive = false,
                 RepositoryType = RepositoryType.Network
             };
-            _viewModel!.Repositories.Add(repo);
-            _configService!.Config.Repositories.Add(repo);
+            _configService!.Config.Repositories.Add(partialRepo);
             _ = _configService.SaveAsync();
-            _viewModel.SelectedRepository = repo;
-            RepoList.SelectedItem = repo;
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            var manager = dialog.ResultRepoManager;
+            if (manager != null)
+                _ = _viewModel!.AddNetworkRepositoryAsync(manager);
         }
     }
 
@@ -1102,11 +1131,7 @@ public partial class MainWindow : Window
                             return;
                         }
                     }
-                    _viewModel!.Repositories.Remove(repo);
-                    _configService!.Config.Repositories.Remove(repo);
-                    _ = _configService.SaveAsync();
-                    if (_viewModel.SelectedRepository == repo)
-                        _viewModel.SelectedRepository = null;
+                    _viewModel!.RemoveRepository(repo);
                 }
             }
             else
@@ -1119,11 +1144,7 @@ public partial class MainWindow : Window
                 if (result == MessageBoxResult.Yes)
                 {
                     SyncRecordService.Instance.DeleteRepoRecords(repo.Name);
-                    _viewModel!.Repositories.Remove(repo);
-                    _configService!.Config.Repositories.Remove(repo);
-                    _ = _configService.SaveAsync();
-                    if (_viewModel.SelectedRepository == repo)
-                        _viewModel.SelectedRepository = null;
+                    _viewModel!.RemoveRepository(repo);
                 }
             }
         }

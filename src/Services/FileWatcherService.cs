@@ -93,6 +93,20 @@ public class FileWatcherService : IDisposable
         }
     }
 
+    /// <summary>Temporarily disables file change events (used during bulk copy operations).</summary>
+    public void Disable()
+    {
+        if (_watcher != null)
+            _watcher.EnableRaisingEvents = false;
+    }
+
+    /// <summary>Re-enables file change events after a bulk operation.</summary>
+    public void Enable()
+    {
+        if (_watcher != null)
+            _watcher.EnableRaisingEvents = true;
+    }
+
     public void SetDebounceMs(int ms)
     {
         _debounceMs = ms;
