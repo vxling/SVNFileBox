@@ -100,7 +100,7 @@
 | r228 | Code review 全修复（SyncService wiring，CommitAsync 传密码，.svn 过滤修正，Repository.Password，TrayIcon null-guard） |
 | r225 | DPAPI 密码加密（DpapiService + ConfigService 集成） |
 | r223 | 最小化到托盘（Hardcodet.NotifyIcon.Wpf TaskbarIcon，OnClosing hide，BalloonTip，托盘菜单） |
-| r222 | Last-Write-Wins 冲突处理（HandleConflictsAsync） |
+| r778 | Fix: 冲突处理正确传递 SvnAccept - KeepLocal 用 MineFull, AcceptServer/TheirsFull 用 TheirsFull; 修复 Resolve case 硬编码 Working 的问题 |
 | r220 | 同步记录查看 UI（ToggleSyncRecordsView + SyncRecordDisplay + BoolToCollapsedConverter） |
 | r219 | TODO.md: mark sync record persistence done |
 | r218 | 同步记录 JSON 持久化（SyncRecord + SyncRecordService） |

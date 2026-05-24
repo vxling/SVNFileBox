@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -145,7 +146,8 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
         string? repoUrl = null,
         string? username = null,
         string? password = null,
-        bool depth = false)
+        bool depth = false,
+        SharpSvn.SvnAccept? accept = null)
     {
         var category = CommandCategoryMap[(int)cmd];
 
@@ -154,7 +156,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
             return await ExecuteReadOnlyAsync(cmd, path, fromPath, message, repoUrl, username, password, depth);
         }
 
-        var item = SvnCommandItem.New(cmd, path, fromPath, message, repoUrl, username, password);
+        var item = SvnCommandItem.New(cmd, path, fromPath, message, repoUrl, username, password, accept: accept);
 
         if (category == SvnCommandCategory.LocalWrite)
         {
@@ -193,7 +195,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
             updatePaths: updatePaths, user: username, pwd: password);
 
         if (!TryEnqueueHeavyWrite(item))
-            return Task.FromResult(new SvnQueryResult { Success = true });
+            return Task.FromResult(new SvnQueryResult { Success = false, Error = "Skipped by deduplication" });
 
         var tcs = new TaskCompletionSource<SvnQueryResult>();
         void handler(SvnCommandResult result)
@@ -239,7 +241,19 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
             return true;
         }
 
+        // For Update commands, include UpdatePaths in the dedup key so that
+        // different sub-directory updates don't deduplicate each other.
         var key = item.Path;
+        if (item.Command == SvnCommand.Update && item.UpdatePaths != null && item.UpdatePaths.Count > 0)
+        {
+            // Build a composite key: Path + "|" + sorted UpdatePaths (length-limited)
+            var pathsStr = string.Join(",", item.UpdatePaths.OrderBy(p => p));
+            const int MAX_KEY_LEN = 500;
+            if (key.Length + pathsStr.Length + 1 > MAX_KEY_LEN)
+                key = key[..(MAX_KEY_LEN - pathsStr.Length - 2)] + "|" + pathsStr;
+            else
+                key = key + "|" + pathsStr;
+        }
 
         if (item.Command == SvnCommand.Commit)
         {
@@ -268,7 +282,23 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
     // Remove item from dedup dict after worker executes it (so same file can be re-queued later)
     private void RemoveFromDedup(SvnCommandItem item)
     {
-        _dedup.TryRemove(item.Path, out _);
+        var key = GetDedupKey(item);
+        _dedup.TryRemove(key, out _);
+    }
+
+    private string GetDedupKey(SvnCommandItem item)
+    {
+        var key = item.Path;
+        if (item.Command == SvnCommand.Update && item.UpdatePaths != null && item.UpdatePaths.Count > 0)
+        {
+            var pathsStr = string.Join(",", item.UpdatePaths.OrderBy(p => p));
+            const int MAX_KEY_LEN = 500;
+            if (key.Length + pathsStr.Length + 1 > MAX_KEY_LEN)
+                key = key[..(MAX_KEY_LEN - pathsStr.Length - 2)] + "|" + pathsStr;
+            else
+                key = key + "|" + pathsStr;
+        }
+        return key;
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -361,7 +391,7 @@ public sealed class SvnCommandExecutor : ISvnCommandExecutor, IDisposable
                     break;
 
                 case SvnCommand.Resolve:
-                    success = await _svnService.ResolveAsync(item.Path, SvnAccept.Working);
+                    success = await _svnService.ResolveAsync(item.Path, item.Accept ?? SharpSvn.SvnAccept.Working);
                     error = success ? null : "svn resolve failed";
                     break;
 

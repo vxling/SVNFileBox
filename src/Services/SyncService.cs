@@ -36,6 +36,7 @@ public class SyncService : IDisposable
 
     private int _isPolling;
     private int _isSyncing;
+    private int _staleCounter;  // counts consecutive polls where serverRev == localRev
     private CancellationTokenSource? _cts;
 
     public event EventHandler<string>? SyncNotification;
@@ -99,7 +100,7 @@ public class SyncService : IDisposable
 
         // Trigger immediate scan so uncommitted local changes from previous session
         // are picked up and queued immediately.
-        _ = ScanAndCommitAsync();
+        // _ = ScanAndCommitAsync();
 
         Log.Information("[SyncService] Timers started for {Name}", repo.Name);
     }
@@ -393,8 +394,7 @@ public class SyncService : IDisposable
         {
             var localRevResult = await _syncExecutor.ExecuteAsync(SvnCommand.GetRevision, repo.Path);
             var localRev = localRevResult.Success && int.TryParse(localRevResult.Value, out var lr) ? lr : -1;
-            var serverRevResult = await _syncExecutor.ExecuteAsync(SvnCommand.GetHeadRevision,
-                repo.Url ?? "", username: repo.Username, password: repo.Password);
+            var serverRevResult = await _syncExecutor.ExecuteAsync(SvnCommand.GetHeadRevision,  repo.Url ?? "");
             var serverRev = serverRevResult.Success && int.TryParse(serverRevResult.Value, out var sr) ? sr : -1;
 
             Log.Debug("PollCheck: local={Local}, server={Server}", localRev, serverRev);
@@ -402,9 +402,40 @@ public class SyncService : IDisposable
             // If server and local revisions match, check for incomplete working copy state
             // (e.g. previous update was interrupted by crash/power loss).
             // If incomplete items exist, force an update to repair the working copy.
+            // Also track consecutive "no updates" polls: after 30 minutes (30 polls × 1 min), force a full update.
             bool hasIncomplete = false;
             if (serverRev == localRev)
             {
+                _staleCounter++;
+                if (_staleCounter >= 30)
+                {
+                    Log.Information("[PollCheck] Stale for {Count} consecutive polls, forcing full update", _staleCounter);
+                    var result = await _syncExecutor.ExecuteAsync(SvnCommand.Update, repo.Path);
+                    if (!result.Success)
+                    {
+                        _recordService.AddRecord(repo.Name, repo.Path, "Update", "Failed",
+                            $"Stale refresh failed: {result.Error}");
+                        Notify("Stale refresh: 强制更新失败");
+                        _staleCounter = 0;
+                        return;
+                    }
+
+                    var conflictInfo = await BuildConflictInfoListAsync(repo.Path);
+                    if (conflictInfo.Count > 0)
+                    {
+                        ConflictDetected?.Invoke(this, conflictInfo);
+                    }
+                    else
+                    {
+                        _recordService.AddRecord(repo.Name, repo.Path, "Update", "Success",
+                            "Stale refresh update");
+                        Notify("Stale refresh: 已强制全量更新");
+                        FilesChanged?.Invoke(this, EventArgs.Empty);
+                    }
+                    _staleCounter = 0;
+                    return;
+                }
+
                 var statusResult = await _syncExecutor.ExecuteAsync(SvnCommand.Status, repo.Path, depth: true);
                 if (statusResult.Success && !string.IsNullOrEmpty(statusResult.Value))
                 {
@@ -419,6 +450,11 @@ public class SyncService : IDisposable
                     catch { /* ignore deserialization errors */ }
                 }
             }
+            else
+            {
+                // serverRev != localRev means there was an update, reset counter
+                _staleCounter = 0;
+            }
 
             var isRepairUpdate = hasIncomplete && serverRev == localRev;
             if (serverRev <= localRev && !isRepairUpdate) return;
@@ -427,15 +463,31 @@ public class SyncService : IDisposable
             {
                 Log.Warning("[PollCheck] Incomplete items detected, forcing full update to repair working copy");
                 var result = await _syncExecutor.ExecuteAsync(SvnCommand.Update, repo.Path);
-                // No conflict check needed — this is a self-heal repair
-                _recordService.AddRecord(repo.Name, repo.Path, "Update", result.Success ? "Success" : "Failed",
-                    result.Success ? "Update (repaired incomplete working copy)" : $"Repair update failed: {result.Error}");
-                Notify(result.Success ? "已修复 working copy 中的 incomplete 状态" : "修复 update 失败");
-                if (result.Success) FilesChanged?.Invoke(this, EventArgs.Empty);
+                if (!result.Success)
+                {
+                    _recordService.AddRecord(repo.Name, repo.Path, "Update", "Failed",
+                        $"Repair update failed: {result.Error}");
+                    Notify("修复 update 失败");
+                    return;
+                }
+
+                var conflictInfo = await BuildConflictInfoListAsync(repo.Path);
+                if (conflictInfo.Count > 0)
+                {
+                    ConflictDetected?.Invoke(this, conflictInfo);
+                }
+                else
+                {
+                    _recordService.AddRecord(repo.Name, repo.Path, "Update", "Success",
+                        "Update (repaired incomplete working copy)");
+                    Notify("已修复 working copy 中的 incomplete 状态");
+                    FilesChanged?.Invoke(this, EventArgs.Empty);
+                }
                 return;
             }
 
             Log.Information("Server has updates: local={Local}, server={Server}", localRev, serverRev);
+
 
             var updateResult = await UpdateInChunksAsync();
             var updateSuccess = updateResult.success;
@@ -448,14 +500,10 @@ public class SyncService : IDisposable
                 }
                 else
                 {
-                    var recordMsg = isRepairUpdate
-                        ? "Update (repaired incomplete working copy)"
-                        : $"Updated from r{localRev} to r{serverRev}, {updateResult.fileCount} file(s) changed";
+                    var recordMsg = $"Updated from r{localRev} to r{serverRev}, {updateResult.fileCount} file(s) changed";
                     _recordService.AddRecord(
                         repo.Name, repo.Path, "Update", "Success", recordMsg);
-                    Notify(isRepairUpdate
-                        ? "已修复 working copy 中的 incomplete 状态"
-                        : $"已从服务器更新 r{localRev} → r{serverRev}，共 {updateResult.fileCount} 个文件");
+                    Notify($"已从服务器更新 r{localRev} → r{serverRev}，共 {updateResult.fileCount} 个文件");
                     FilesChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
@@ -543,9 +591,13 @@ public class SyncService : IDisposable
         {
             try
             {
+                var localTime = System.IO.File.GetLastWriteTimeUtc(filePath).ToLocalTime();
+                var serverTime = (await _svnService.GetLastChangedTimeAsync(filePath)).ToLocalTime();
                 conflictInfo.Add(new ConflictedFileInfo
                 {
                     FilePath = filePath,
+                    LocalModifiedTime = localTime,
+                    ServerModifiedTime = serverTime,
                     SelectedResolution = ConflictResolution.AcceptServer,
                 });
             }
@@ -574,7 +626,7 @@ public class SyncService : IDisposable
                 {
                     case ConflictResolution.KeepLocal:
                     {
-                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: SharpSvn.SvnAccept.MineFull)).Success;
                         if (!resolved) Log.Warning("Resolve(MineFull) returned false for {File}", info.FilePath);
                         var committed = (await _syncExecutor.ExecuteAsync(SvnCommand.Commit, parentDir,
                             message: $"Auto-sync: [Conflict Resolved — Kept Local] {fileName}")).Success;
@@ -584,7 +636,7 @@ public class SyncService : IDisposable
                     }
                     case ConflictResolution.AcceptServer:
                     {
-                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: SharpSvn.SvnAccept.TheirsFull)).Success;
                         if (!resolved) Log.Warning("Resolve(TheirsFull) returned false for {File}", info.FilePath);
                         Log.Information("Conflict AcceptServer: {File}, resolved={Resolved}", info.FilePath, resolved);
                         break;
@@ -594,7 +646,7 @@ public class SyncService : IDisposable
                         var backupPath = info.FilePath + $".local-backup-{DateTime.UtcNow:yyyyMMddHHmmss}";
                         File.Copy(info.FilePath, backupPath, overwrite: true);
                         Log.Information("Conflict KeepBoth: copied {Original} → {Backup}", info.FilePath, backupPath);
-                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath)).Success;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: SharpSvn.SvnAccept.TheirsFull)).Success;
                         Log.Information("Conflict KeepBoth: {File} accepted server, resolved={Resolved}",
                             info.FilePath, resolved);
                         break;

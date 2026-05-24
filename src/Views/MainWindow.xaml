@@ -211,6 +211,24 @@
                             </Grid>
                         </Border>
 
+                        <!-- Multi-Select Toolbar -->
+                        <Border DockPanel.Dock="Top" Background="{DynamicResource ControlFillColorSecondaryBrush}" Padding="8,4"
+                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+                                Visibility="{Binding MultiSelectEnabled, Converter={StaticResource BoolToVisibleConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox x:Name="SelectAllCheckBox" Content="全选" VerticalAlignment="Center" Margin="0,0,16,0"
+                                          Click="SelectAllCheckBox_Click"/>
+                                <Button x:Name="MultiDeleteButton" Content="🗑 删除" Padding="8,4" Margin="0,0,6,0"
+                                        Click="MultiDelete_Click" IsEnabled="False"/>
+                                <Button x:Name="MultiCopyButton" Content="📋 复制" Padding="8,4" Margin="0,0,6,0"
+                                        Click="MultiCopy_Click" IsEnabled="False"/>
+                                <Button x:Name="MultiMoveButton" Content="📁 移动" Padding="8,4" Margin="0,0,6,0"
+                                        Click="MultiMove_Click" IsEnabled="False"/>
+                                <Button x:Name="MultiZipButton" Content="📦 压缩" Padding="8,4"
+                                        Click="MultiZip_Click" IsEnabled="False"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- File List with columns -->
                         <ListView x:Name="FileList"
                                   BorderThickness="0,0,0,0"
@@ -224,6 +242,16 @@
                                   Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" d:ItemsSource="{d:SampleData ItemCount=5}" >
                             <ListView.View>
                                 <GridView>
+                                    <GridViewColumn Header="" Width="40">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          Click="FileItemCheckBox_Click"
+                                                          VerticalAlignment="Center"
+                                                          Visibility="{Binding DataContext.MultiSelectEnabled, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToVisibleConverter}}"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
                                     <GridViewColumn Header="{DynamicResource ColumnType}" Width="60">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>

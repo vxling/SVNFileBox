@@ -21,4 +21,8 @@ public class AppConfig
     /// 文件传输活动超时（秒）：文件传输过程中，如果超过此时间没有任何文件上下行，则判定为卡死。默认120秒，最大600秒。
     /// </summary>
     public int FileTransferTimeoutSeconds { get; set; } = 120;
+    /// <summary>
+    /// 是否显示多选工具栏（checkbox 列 + 批量操作按钮）。默认 false（隐藏）。
+    /// </summary>
+    public bool MultiSelectEnabled { get; set; } = false;
 }

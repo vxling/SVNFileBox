@@ -122,6 +122,7 @@ public readonly struct SvnCommandItem
     public string? RepoUrl { get; init; }       // for Checkout
     public string? Username { get; init; }
     public string? Password { get; init; }
+    public SharpSvn.SvnAccept? Accept { get; init; }  // for Resolve
     /// <summary>For Update: specific sub-paths to update (null = update whole WC).</summary>
     public IReadOnlyList<string>? UpdatePaths { get; init; }
 
@@ -129,12 +130,13 @@ public readonly struct SvnCommandItem
         SvnCommand cmd, string path, string? fromPath = null,
         string? message = null, string? repoUrl = null,
         string? user = null, string? pwd = null,
-        IReadOnlyList<string>? updatePaths = null) =>
+        IReadOnlyList<string>? updatePaths = null,
+        SharpSvn.SvnAccept? accept = null) =>
         new()
         {
             Command = cmd, Path = path, FromPath = fromPath,
             Message = message, RepoUrl = repoUrl,
             Username = user, Password = pwd,
-            UpdatePaths = updatePaths
+            UpdatePaths = updatePaths, Accept = accept
         };
 }

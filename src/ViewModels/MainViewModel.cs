@@ -94,6 +94,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(BackButtonText));
     }
 
+    // 多选工具栏开关（默认 false，即隐藏）
+    public bool MultiSelectEnabled => _configService.Config.MultiSelectEnabled;
+
+
     public string BackButtonText => ShowSyncRecords
         ? LocalizationService.Instance.GetString("Back")
         : LocalizationService.Instance.GetString("ParentDirectory");
@@ -134,6 +138,55 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SyncRecordService.Instance.UiDispatcher = Application.Current?.Dispatcher;
 
         Log.Information("MainViewModel created with RepoGlobalManager");
+    }
+
+    // ─── Multi-select support ───────────────────────────────────────────────────
+    public ObservableCollection<FileItem> SelectedItems { get; } = new();
+
+    public int SelectedCount => SelectedItems.Count;
+
+    public void ToggleItemSelection(FileItem item)
+    {
+        if (item.IsParentDirectory) return;
+        item.IsSelected = !item.IsSelected;
+        if (item.IsSelected)
+        {
+            if (!SelectedItems.Contains(item))
+                SelectedItems.Add(item);
+        }
+        else
+        {
+            SelectedItems.Remove(item);
+        }
+        OnPropertyChanged(nameof(SelectedCount));
+    }
+
+    public void SelectAll()
+    {
+        foreach (var item in Files)
+        {
+            if (!item.IsParentDirectory)
+            {
+                item.IsSelected = true;
+                if (!SelectedItems.Contains(item))
+                    SelectedItems.Add(item);
+            }
+        }
+        OnPropertyChanged(nameof(SelectedCount));
+    }
+
+    public void ClearSelection()
+    {
+        foreach (var item in Files)
+            item.IsSelected = false;
+        SelectedItems.Clear();
+        OnPropertyChanged(nameof(SelectedCount));
+    }
+
+    // Returns selected items for batch operations (excludes parent dir row)
+    public IEnumerable<FileItem> GetSelectedItemsForOperation()
+    {
+        return Files.Where(f => f.IsSelected && !f.IsParentDirectory);
     }
 
     public void LoadSyncRecords()
