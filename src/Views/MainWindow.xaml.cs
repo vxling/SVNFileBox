@@ -492,14 +492,23 @@ public partial class MainWindow : Window
 
     private void Copy_Click(object sender, RoutedEventArgs e)
     {
-        var item = GetFileItemFromContextMenu(sender);
-        if (item == null) return;
+        // Use selected items if multi-select is active, otherwise use the right-clicked item
+        var items = _viewModel!.GetSelectedItemsForOperation().ToList();
+        if (items.Count == 0)
+        {
+            var item = GetFileItemFromContextMenu(sender);
+            if (item == null) return;
+            items.Add(item);
+        }
         try
         {
-            var files = new System.Collections.Specialized.StringCollection { item.FullPath };
+            var files = new System.Collections.Specialized.StringCollection();
+            foreach (var item in items)
+                files.Add(item.FullPath);
             Clipboard.SetFileDropList(files);
-            ShowToast(LocalizationService.Instance.GetString("CopiedToClipboard", item.Name));
-            _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("CopiedToClipboard", item.Name));
+            var name = items.Count > 1 ? $"{items.Count} {LocalizationService.Instance.GetString("Files")}" : items[0].Name;
+            ShowToast(LocalizationService.Instance.GetString("CopiedToClipboard", name));
+            _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("CopiedToClipboard", name));
         }
         catch (Exception ex) { Log.Error(ex, "Copy failed"); }
     }
@@ -567,14 +576,18 @@ public partial class MainWindow : Window
     private async void AddToZip_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel == null) return;
-        var item = GetFileItemFromContextMenu(sender) as FileItem;
-        if (item == null || item.Name == "..") return;
-
+        var items = _viewModel.GetSelectedItemsForOperation().ToList();
+        if (items.Count == 0)
+        {
+            var item = GetFileItemFromContextMenu(sender) as FileItem;
+            if (item == null || item.Name == "..") return;
+            items.Add(item);
+        }
         var targetDir = _viewModel.CurrentPath;
         if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return;
 
-        // Default filename: strip existing extension if any, then append .zip
-        var baseName = Path.GetFileNameWithoutExtension(item.Name);
+        // Default filename: first item's name (strip extension)
+        var baseName = Path.GetFileNameWithoutExtension(items[0].Name);
         var dialog = new Windows.InputDialog
         {
             Title = LocalizationService.Instance.GetString("AddToZipTitle"),
@@ -586,24 +599,10 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.InputText))
             return;
 
-        // Ensure .zip extension
         var zipName = dialog.InputText.Trim();
         if (!zipName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             zipName += ".zip";
-
         var zipPath = Path.Combine(targetDir, zipName);
-        var sourcePath = item.FullPath;
-        var isDir = Directory.Exists(sourcePath);
-
-        // Cannot compress a file into itself
-        if (!isDir && sourcePath.Equals(zipPath, StringComparison.OrdinalIgnoreCase))
-        {
-            MsgBox.Show(this,
-                LocalizationService.Instance.GetString("AddToZipSelfCompress"),
-                LocalizationService.Instance.GetString("AddToZipConfirmTitle"),
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
 
         // Confirm overwrite if exists
         if (File.Exists(zipPath))
@@ -616,7 +615,6 @@ public partial class MainWindow : Window
                 return;
         }
 
-        // Show progress window and run compression on background thread
         var progressWindow = new Windows.ProgressWindow
         {
             Title = LocalizationService.Instance.GetString("AddToZipInProgress"),
@@ -625,10 +623,7 @@ public partial class MainWindow : Window
         };
 
         CancellationTokenSource? cts = null;
-        progressWindow.CancelRequested += (s, ev) =>
-        {
-            cts?.Cancel();
-        };
+        progressWindow.CancelRequested += (s, ev) => cts?.Cancel();
 
         progressWindow.Show();
         progressWindow.UpdateProgress(0, LocalizationService.Instance.GetString("AddToZipInProgress"));
@@ -637,18 +632,26 @@ public partial class MainWindow : Window
         {
             cts = new CancellationTokenSource();
 
-            // Collect files to archive
-            var files = isDir
-                ? Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories)
-                : new[] { sourcePath };
+            // Collect all files from selected items
+            var allFiles = new List<string>();
+            foreach (var item in items)
+            {
+                if (Directory.Exists(item.FullPath))
+                    allFiles.AddRange(Directory.GetFiles(item.FullPath, "*", SearchOption.AllDirectories));
+                else if (File.Exists(item.FullPath))
+                    allFiles.Add(item.FullPath);
+            }
 
-            int total = files.Length;
+            int total = allFiles.Count;
             int current = 0;
+
+            // Use first selected item as base path for relative paths
+            var basePath = items[0].IsDirectory ? items[0].FullPath : Path.GetDirectoryName(items[0].FullPath) ?? targetDir;
 
             using (var zipStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write))
             using (var archive = new System.IO.Compression.ZipArchive(zipStream, System.IO.Compression.ZipArchiveMode.Create))
             {
-                foreach (var file in files)
+                foreach (var file in allFiles)
                 {
                     if (cts.Token.IsCancellationRequested)
                     {
@@ -658,24 +661,19 @@ public partial class MainWindow : Window
                     }
 
                     current++;
-                    var relativePath = isDir
-                        ? Path.GetRelativePath(sourcePath, file)
-                        : Path.GetFileName(file);
+                    var relativePath = Path.GetRelativePath(basePath, file);
 
                     var entry = archive.CreateEntry(relativePath, System.IO.Compression.CompressionLevel.Optimal);
                     await using var entryStream = entry.Open();
                     using var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
                     await fileStream.CopyToAsync(entryStream);
-
                     var percent = total == 1 ? 100 : (int)((double)current / total * 100);
                     var statusText = $"正在压缩: {relativePath}";
-                    // Update on UI thread
                     Dispatcher.Invoke(() => progressWindow.UpdateProgress(percent, statusText));
-                    await Task.Yield(); // Let UI refresh
+                    await Task.Yield();
                 }
             }
 
-            // svn add the new zip (svn auto-detects modified existing files)
             var vz = await _viewModel!.GlobalManager.ActiveManager!.Executor.ExecuteAsync(SvnCommand.IsVersioned, zipPath);
             if (!(vz.Success && vz.Value == "true"))
                 await _viewModel!.GlobalManager.ActiveManager!.Executor.ExecuteAsync(SvnCommand.Add, zipPath);
@@ -688,7 +686,6 @@ public partial class MainWindow : Window
         catch (OperationCanceledException)
         {
             progressWindow.Close();
-            // Delete partially created zip
             if (File.Exists(zipPath)) File.Delete(zipPath);
             ShowToast(LocalizationService.Instance.GetString("AddToZipCancelled"));
         }
@@ -832,44 +829,55 @@ public partial class MainWindow : Window
 
     private async void Delete_Click(object sender, RoutedEventArgs e)
     {
-        var item = GetFileItemFromContextMenu(sender);
-        if (item == null) return;
+        // Use selected items if multi-select is active, otherwise use the right-clicked item
+        var items = _viewModel!.GetSelectedItemsForOperation().ToList();
+        if (items.Count == 0)
+        {
+            var item = GetFileItemFromContextMenu(sender);
+            if (item == null) return;
+            items.Add(item);
+        }
+        await DeleteFilesAsync(items);
+    }
 
+    private async Task DeleteFilesAsync(List<FileItem> items)
+    {
+        if (items.Count == 0) return;
+        var names = string.Join(", ", items.Select(i => i.Name));
         var result = MsgBox.Show(this,
             LocalizationService.Instance.GetString("DeleteConfirmMessage",
-                item.IsDirectory
-                    ? LocalizationService.Instance.GetString("Folder")
-                    : LocalizationService.Instance.GetString("File"), item.Name),
+                items.Count > 1
+                    ? $"{items.Count} {LocalizationService.Instance.GetString("Files")}"
+                    : (items[0].IsDirectory
+                        ? LocalizationService.Instance.GetString("Folder")
+                        : LocalizationService.Instance.GetString("File")), names),
             LocalizationService.Instance.GetString("DeleteConfirmTitle"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 
-        if (result == MessageBoxResult.Yes)
+        if (result != MessageBoxResult.Yes) return;
+
+
+        try
         {
-            try
+            var syncService = _viewModel!.GlobalManager.ActiveManager?.SyncService;
+            foreach (var item in items)
             {
-                // Physical delete first — let FileWatcher detect the missing file and enqueue.
-                // If FileWatcher fires before we reach enqueue below, it handles svn delete too.
-                // Either way the Delete operation gets committed.
                 if (item.IsDirectory || Directory.Exists(item.FullPath))
                     Directory.Delete(item.FullPath, recursive: true);
                 else
                     File.Delete(item.FullPath);
-
-                // svn delete marks the deletion in the working copy (after physical file is gone)
-                // Enqueue via CommitCoordinator so the delete is batch-committed
-                var syncService = _viewModel?.GlobalManager.ActiveManager?.SyncService;
-                if (syncService != null)
-                    syncService.EnqueueDeleteAsync(item.FullPath);
-                _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("DeleteSuccess", item.Name));
-                _ = _viewModel.RefreshAsync();
+                syncService?.EnqueueDeleteAsync(item.FullPath);
             }
-            catch (Exception ex)
-            {
-                ShowToast(LocalizationService.Instance.GetString("DeleteFailed", ex.Message),
-                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
-                _viewModel!.SetStatus(LocalizationService.Instance.GetString("DeleteFailed", ex.Message));
-            }
+            _viewModel!.SetTransientStatus(LocalizationService.Instance.GetString("DeleteSuccess", names));
+            _viewModel.ClearSelection();
+            _ = _viewModel.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowToast(LocalizationService.Instance.GetString("DeleteFailed", ex.Message),
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
+            _viewModel!.SetStatus(LocalizationService.Instance.GetString("DeleteFailed", ex.Message));
         }
     }
 
@@ -1222,6 +1230,90 @@ public partial class MainWindow : Window
             File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
         Directory.Delete(path, recursive: true);
     }
+    // ─── Multi-select toolbar handlers ─────────────────────────────────────────
+    private void SelectAllCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel == null) return;
+        if (SelectAllCheckBox.IsChecked == true)
+            _viewModel.SelectAll();
+        else
+            _viewModel.ClearSelection();
+        UpdateToolbarButtons();
+    }
+
+    private void FileItemCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel == null || sender is not CheckBox cb) return;
+        if (cb.DataContext is FileItem item)
+        {
+            // IsSelected has already been updated by the TwoWay binding above.
+            // Just sync SelectedItems collection to match current IsSelected,
+            // then refresh toolbar.
+            if (item.IsSelected)
+            {
+                if (!_viewModel.SelectedItems.Contains(item))
+                    _viewModel.SelectedItems.Add(item);
+            }
+            else
+            {
+                _viewModel.SelectedItems.Remove(item);
+            }
+            UpdateToolbarButtons();
+        }
+    }
+
+    private void UpdateToolbarButtons()
+    {
+        if (_viewModel == null) return;
+        var count = _viewModel.SelectedCount;
+        MultiDeleteButton.IsEnabled = count > 0;
+        MultiCopyButton.IsEnabled = count > 0;
+        MultiMoveButton.IsEnabled = count > 0;
+        MultiZipButton.IsEnabled = count > 0;
+        MultiDeleteButton.Content = count > 0 ? $"🗑 删除({count})" : "🗑 删除";
+        MultiCopyButton.Content = count > 0 ? $"📋 复制({count})" : "📋 复制";
+        MultiMoveButton.Content = count > 0 ? $"📁 移动({count})" : "📁 移动";
+        MultiZipButton.Content = count > 0 ? $"📦 压缩({count})" : "📦 压缩";
+        SelectAllCheckBox.IsChecked = count > 0 && _viewModel.Files.All(f => f.IsParentDirectory || f.IsSelected);
+    }
+
+    private async void MultiDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel == null) return;
+        var items = _viewModel.GetSelectedItemsForOperation().ToList();
+        if (items.Count == 0) return;
+        await DeleteFilesAsync(items);
+    }
+
+    private void MultiCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel == null) return;
+        var items = _viewModel.GetSelectedItemsForOperation().ToList();
+        if (items.Count == 0) return;
+        try
+        {
+            var files = new System.Collections.Specialized.StringCollection();
+            foreach (var item in items)
+                files.Add(item.FullPath);
+            Clipboard.SetFileDropList(files);
+            var name = items.Count > 1 ? $"{items.Count} {LocalizationService.Instance.GetString("Files")}" : items[0].Name;
+            ShowToast(LocalizationService.Instance.GetString("CopiedToClipboard", name));
+            _viewModel.SetTransientStatus(LocalizationService.Instance.GetString("CopiedToClipboard", name));
+        }
+        catch (Exception ex) { Log.Error(ex, "MultiCopy failed"); }
+    }
+
+    private void MultiMove_Click(object sender, RoutedEventArgs e)
+    {
+        // TODO: open folder browser for multi-file move
+    }
+
+    private void MultiZip_Click(object sender, RoutedEventArgs e)
+    {
+        // AddToZip_Click already reads GetSelectedItemsForOperation(), call it directly
+        AddToZip_Click(sender, e);
+    }
+
     private class RelayCommand : ICommand
     {
         private readonly Action<object?> _execute;

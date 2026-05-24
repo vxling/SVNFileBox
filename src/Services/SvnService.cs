@@ -290,8 +290,8 @@ public class SvnService : IDisposable
             try
             {
                 using var client = CreateClient();
-                if (!string.IsNullOrEmpty(username))
-                    client.Authentication.ForceCredentials(username, password ?? "");
+                if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
+                    client.Authentication.ForceCredentials(username, password);
 
                 var uri = new Uri(repoUrl);
                 SvnInfoEventArgs? infoResult = null;
@@ -301,34 +301,14 @@ public class SvnService : IDisposable
                 Log.Debug("[GetHeadRevisionAsync] Result for {Url} = {Revision}", repoUrl, rev);
                 return rev;
             }
-            catch (SvnRepositoryIOException ex) when (ex.InnerException is SvnAuthenticationException)
+            catch (Exception ex)
             {
-                // Retry once after clearing stale in-memory auth cache
-                Log.Warning("[GetHeadRevisionAsync] Auth failed, retrying with cleared cache for {Url}", repoUrl);
-                try
+                if (IsSvnAuthError(ex))
                 {
-                    using var client = CreateClient();
-                    client.Authentication.ClearAuthenticationCache();
-                    if (!string.IsNullOrEmpty(username))
-                        client.Authentication.ForceCredentials(username, password ?? "");
-
-                    var uri = new Uri(repoUrl);
-                    SvnInfoEventArgs? infoResult = null;
-                    var handler = new EventHandler<SvnInfoEventArgs>((s, e) => infoResult = e);
-                    client.Info(new SvnUriTarget(uri, SvnRevision.Head), handler);
-                    var rev = infoResult != null ? (int)infoResult.Revision : -1;
-                    Log.Debug("[GetHeadRevisionAsync] Retry result for {Url} = {Revision}", repoUrl, rev);
-                    return rev;
+                    CredentialExpired?.Invoke(repoUrl);
+                    Log.Error("[GetHeadRevisionAsync] Authentication error, credentials required for {Url}", repoUrl);
                 }
-                catch (Exception retryEx)
-                {
-                    Log.Error(retryEx, "[GetHeadRevisionAsync] Retry failed for {Url}", repoUrl);
-                    return -1;
-                }
-            }
-            catch (Exception outerEx)
-            {
-                Log.Error(outerEx, "[GetHeadRevisionAsync] Failed for {Url}", repoUrl);
+                Log.Error(ex, "[GetHeadRevisionAsync] Failed for {Url}", repoUrl);
                 return -1;
             }
         });
@@ -650,18 +630,31 @@ public class SvnService : IDisposable
     /// </summary>
     public async Task<bool> CommitAsync(string workingCopyPath, string message)
     {
-        return await ExecuteHeavyWrite(
-            (token, progressCts) =>
-            {
-                TryCleanStaleLocks(workingCopyPath);
-                return ExecuteSvnWithNotify(client =>
+        try
+        {
+            return await ExecuteHeavyWrite(
+                (token, progressCts) =>
                 {
-                    var args = new SvnCommitArgs { LogMessage = message };
-                    return client.Commit(workingCopyPath, args);
-                }, token, progressCts);
-            },
-            workingCopyPath,
-            onAuthFailed: path => CredentialExpired?.Invoke(path));
+                    TryCleanStaleLocks(workingCopyPath);
+                    return ExecuteSvnWithNotify(client =>
+                    {
+                        var args = new SvnCommitArgs { LogMessage = message };
+                        return client.Commit(workingCopyPath, args);
+                    }, token, progressCts);
+                },
+                workingCopyPath,
+                onAuthFailed: path => CredentialExpired?.Invoke(path));
+        }
+        catch (Exception ex)
+        {
+            if (IsSvnAuthError(ex))
+            {
+                CredentialExpired?.Invoke(workingCopyPath);
+                Log.Error("[CommitAsync] Authentication error, credentials required for {Path}", workingCopyPath);
+            }
+            Log.Error(ex, "[CommitAsync] Failed for {Path}", workingCopyPath);
+            return false;
+        }
     }
 
     /// <summary>
@@ -682,17 +675,33 @@ public class SvnService : IDisposable
         var topDir = paths.Count == 1
             ? paths[0]
             : Path.GetDirectoryName(paths[0]) ?? paths[0];
-        return await ExecuteHeavyWrite(
-            (token, progressCts) =>
+        try
+        {
+            return await ExecuteHeavyWrite(
+                (token, progressCts) =>
+                {
+                    TryCleanStaleLocks(topDir);
+                    return ExecuteSvnWithNotify(
+                        client => client.Update(paths.ToArray()),
+                        token, progressCts);
+                },
+                topDir,
+                onAuthFailed: path => CredentialExpired?.Invoke(path));
+        }
+        catch (Exception ex)
+        {
+            if (IsSvnAuthError(ex))
             {
-                TryCleanStaleLocks(topDir);
-                return ExecuteSvnWithNotify(
-                    client => client.Update(paths.ToArray()),
-                    token, progressCts);
-            },
-            topDir,
-            onAuthFailed: path => CredentialExpired?.Invoke(path));
+                CredentialExpired?.Invoke(topDir);
+                Log.Error("[UpdateAsync] Authentication error, credentials required for {TopDir}", topDir);
+            }
+            Log.Error(ex, "[UpdateAsync] Failed for {TopDir}", topDir);
+            return false;
+        }
     }
+
+    /// <summary>
+    /// Tier 3. Checks out a remote repository to a local path.}
 
     /// <summary>
     /// Tier 3. Checks out a remote repository to a local path.
@@ -1013,6 +1022,28 @@ public class SvnService : IDisposable
 
         try { return svnOperation(client); }
         finally { watchdogCts.Cancel(); try { watchdog.Wait(500); } catch { } }
+    }
+
+    /// <summary>
+    /// Returns true if the exception (or any of its inner exceptions) indicates
+    /// an SVN authentication / authorization failure (bad credentials or no permission).
+    /// </summary>
+    private static bool IsSvnAuthError(Exception ex)
+    {
+        var current = ex;
+        while (current != null)
+        {
+            if (current is SvnAuthorizationException)
+                return true;
+            if (current is SvnException svnErr)
+            {
+                // E170001 = "Authentication failed" in SVN protocol
+                if (svnErr.SvnErrorCode == (SvnErrorCode)0x170001)
+                    return true;
+            }
+            current = current.InnerException;
+        }
+        return false;
     }
 
     /// <summary>

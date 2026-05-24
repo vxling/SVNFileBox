@@ -50,7 +50,7 @@
 ## 暂不提供（后续迭代）
 
 - 手动 commit / revert / checkout（已通过首次添加自动完成）
-- ~~冲突手动解决界面~~ ✅ 已实现（Last-Write-Wins + ConflictWindow 辅助）
+- ~~冲突手动解决界面~~ ✅ 已实现（ConflictWindow 交互式选择 KeepLocal / AcceptServer / KeepBoth）
 - 多文件夹同时监控
 - 文件夹级别的 exclude 规则（.gitignore 类）
 - 分块同步 / 增量同步
@@ -193,22 +193,21 @@ svn update 执行
 - 工作副本目录: `%APPDATA%/SVNFileBox/workcopies/`（从网络添加时自动创建）
 - 日志目录: `%APPDATA%/SVNFileBox/logs/`
 
-### 流程四：冲突处理（Last-Write-Wins）
+### 流程四：冲突处理
 
 ```
 svn update 执行时发现冲突文件
     ↓
-获取冲突文件列表
+弹出 ConflictWindow 展示冲突文件及推荐解决方案
     ↓
-遍历每个冲突文件：
-  获取本地文件最后修改时间
-  获取服务器版本最后修改时间（svn log -r HEAD）
+用户选择处理方式：
+  - KeepLocal → SvnAccept.MineFull（完全保留本地，丢弃服务器）
+  - AcceptServer → SvnAccept.TheirsFull（完全接受服务器，丢弃本地）
+  - KeepBoth → 先备份本地文件为 .local-backup-*，再接受服务器版本
     ↓
-本地修改时间 >= 服务器修改时间？
-    ├── 是 → 保留本地版本，执行 svn resolved 标记冲突解决
-    └── 否 → 先 svn update（合并），再以本地为准 svn commit，svn resolved
+执行 svn resolved 标记冲突解决
     ↓
-全部冲突文件处理完毕
+全部冲突文件处理完毕后
     ↓
 写入同步记录（operation=ConflictResolved）
 ```
@@ -284,12 +283,15 @@ Phase 2: FileCopier.CopyAsync()（后台 Task）
   - `svn update` 完成后自动刷新文件列表视图
 - 轮询间隔可配置
 
-#### 冲突处理（Last-Write-Wins）
-- commit 前比较 **本地文件最后修改时间** vs **SVN 服务器版本最后修改时间**
-- 若本地更新，直接 commit 覆盖
-- 若 SVN 更新，先 `svn update` 再 commit（保证本地最新）
-- 多设备场景: 以最后一次 commit 的时间戳为准，强制同步
-- 冲突发生时记录到同步记录，类型标记为 `ConflictResolved`
+#### 冲突处理
+- `svn update` 遇见冲突时，弹出 ConflictWindow 供用户选择处理方式
+- 用户可选择：
+  - **保留本地**（KeepLocal）：用 `SvnAccept.MineFull` 完全覆盖服务器版本
+  - **接受服务器**（AcceptServer）：用 `SvnAccept.TheirsFull` 完全丢弃本地修改
+  - **保留两者**（KeepBoth）：本地文件备份为 `.local-backup-{timestamp}`，再接受服务器版本
+- 选择后执行 `svn resolved` 标记冲突解决
+- 冲突解决后写入同步记录（operation=ConflictResolved）
+- 若用户关闭窗口未处理，文件保持 conflicted 状态，直到下次手动处理
 
 ### 设置页面
 

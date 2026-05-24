@@ -23,6 +23,9 @@ public partial class FileItem : ObservableObject
     private DateTime _lastModified;
 
     [ObservableProperty]
+    private bool _isSelected;
+
+    [ObservableProperty]
     private FileSvnStatus _svnStatus = FileSvnStatus.Normal;
 
     public string FileSizeDisplay => IsDirectory ? "" : FormatFileSize(FileSize);
