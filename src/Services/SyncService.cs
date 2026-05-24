@@ -98,9 +98,8 @@ public class SyncService : IDisposable
         _pollTimer.Start();
         _fullSyncTimer.Start();
 
-        // Trigger immediate scan so uncommitted local changes from previous session
-        // are picked up and queued immediately.
-        // _ = ScanAndCommitAsync();
+        // 切换仓库后立即触发一次下行同步（拉取服务器最新版本），避免遗漏其他设备的修改
+        _ = PollCoreAsync();
 
         Log.Information("[SyncService] Timers started for {Name}", repo.Name);
     }
