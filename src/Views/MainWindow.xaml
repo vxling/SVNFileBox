@@ -18,6 +18,7 @@
         <conv:FileTypeIconConverter x:Key="FileTypeIconConverter"/>
         <conv:SvnStatusToColorConverter x:Key="SvnStatusToColorConverter"/>
         <conv:SvnStatusToTextConverter x:Key="SvnStatusToTextConverter"/>
+        <conv:BoolToGridLengthConverter x:Key="BoolToGridLengthConverter"/>
         <BooleanToVisibilityConverter x:Key="BoolToVisibleConverter"/>
         <conv:BoolToCollapsedConverter x:Key="BoolToCollapsedConverter"/>
         <conv:BoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
@@ -242,7 +243,7 @@
                                   Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" d:ItemsSource="{d:SampleData ItemCount=5}" >
                             <ListView.View>
                                 <GridView>
-                                    <GridViewColumn Header="" Width="40">
+                                    <GridViewColumn Width="{Binding DataContext.MultiSelectEnabled, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToGridLengthConverter}}">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
