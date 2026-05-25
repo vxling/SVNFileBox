@@ -234,6 +234,7 @@
                         <ListView x:Name="FileList"
                                   BorderThickness="0,0,0,0"
                                   SelectedItem="{Binding SelectedFile}"
+                                  ItemContainerStyle="{DynamicResource Win11ListViewItemStyle}"
                                   ContextMenu="{StaticResource FileContextMenu}"
                                   MouseDoubleClick="FileList_MouseDoubleClick"
                                   AllowDrop="True"
@@ -242,7 +243,7 @@
                                   GridViewColumnHeader.Click="GridViewColumnHeader_Click"
                                   Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" d:ItemsSource="{d:SampleData ItemCount=5}" >
                             <ListView.View>
-                                <GridView>
+                                <GridView ColumnHeaderContainerStyle="{DynamicResource Win11GridViewColumnHeaderStyle}">
                                     <GridViewColumn Width="{Binding DataContext.MultiSelectEnabled, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToGridLengthConverter}}">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
@@ -286,10 +287,11 @@
                         <ListView x:Name="SyncRecordList"
                                   Background="Transparent"
                                   BorderThickness="0"
+                                  ItemContainerStyle="{DynamicResource Win11ListViewItemStyle}"
                                   ItemsSource="{Binding SyncRecords}"
                                   Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToVisibleConverter}}">
                             <ListView.View>
-                                <GridView>
+                                <GridView ColumnHeaderContainerStyle="{DynamicResource Win11GridViewColumnHeaderStyle}">
                                     <GridViewColumn Header="{DynamicResource ColTime}" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
                                     <GridViewColumn Header="{DynamicResource ColRepo}" Width="100" DisplayMemberBinding="{Binding RepoName}"/>
                                     <GridViewColumn Header="{DynamicResource ColFile}" Width="280" DisplayMemberBinding="{Binding FilePath}"/>

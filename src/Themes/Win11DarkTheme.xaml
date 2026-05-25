@@ -1,162 +1,245 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- 深色模式核心色值 Win11 原生 -->
-    <Color x:Key="DarkAccentPrimary">#FF60CDFF</Color>
-    <Color x:Key="DarkAccentDark">#FF3A9BD8</Color>
-    <Color x:Key="DarkRowSelectedBack">#FF626262</Color>
-    <Color x:Key="DarkRowSelectedBorder">#FF93BCCE</Color>
-    <Color x:Key="DarkFocusWhiteBorder">#FFFFFFFF</Color>
-    <Color x:Key="DarkWindowBack">#FF202124</Color>
-    <Color x:Key="DarkTextPrimary">#FFF3F4F6</Color>
-    <Color x:Key="DarkTextBlack">#FF000000</Color>
-    <Color x:Key="DarkControlBorderNormal">#FF444444</Color>
-    <Color x:Key="DarkControlHoverGray">#FF2C2D30</Color>
-
-    <!-- 画刷绑定 -->
-    <SolidColorBrush x:Key="DarkAccentPrimaryBrush" Color="{StaticResource DarkAccentPrimary}"/>
-    <SolidColorBrush x:Key="DarkAccentDarkBrush" Color="{StaticResource DarkAccentDark}"/>
-    <SolidColorBrush x:Key="DarkRowSelectedBackBrush" Color="{StaticResource DarkRowSelectedBack}"/>
-    <SolidColorBrush x:Key="DarkRowSelectedBorderBrush" Color="{StaticResource DarkRowSelectedBorder}"/>
-    <SolidColorBrush x:Key="DarkFocusWhiteBorderBrush" Color="{StaticResource DarkFocusWhiteBorder}"/>
-    <SolidColorBrush x:Key="DarkWindowBackBrush" Color="{StaticResource DarkWindowBack}"/>
-    <SolidColorBrush x:Key="DarkTextPrimaryBrush" Color="{StaticResource DarkTextPrimary}"/>
-    <SolidColorBrush x:Key="DarkTextBlackBrush" Color="{StaticResource DarkTextBlack}"/>
-    <SolidColorBrush x:Key="DarkControlBorderNormalBrush" Color="{StaticResource DarkControlBorderNormal}"/>
-    <SolidColorBrush x:Key="DarkControlHoverGrayBrush" Color="{StaticResource DarkControlHoverGray}"/>
-
-    <!-- 系统默认字体 -->
     <FontFamily x:Key="SystemDefaultFont">Segoe UI</FontFamily>
 
-    <!-- 资源管理器列表行样式 深色版（key 统一为 Win11ExplorerListRowStyle，MainWindow.xaml 静态引用此 key） -->
-    <Style x:Key="Win11ExplorerListRowStyle" TargetType="ListBoxItem">
-        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DarkWindowBackBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="4,2"/>
-        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <SolidColorBrush x:Key="DataGridHeaderBackground" Color="#3C3C3C"/>
+    <SolidColorBrush x:Key="HeaderHoverBg" Color="#484848"/>
+    <SolidColorBrush x:Key="HeaderPressedBg" Color="#555555"/>
+    <SolidColorBrush x:Key="DataGridHeaderForeground" Color="#FFE5E5E5"/>
+    <SolidColorBrush x:Key="DataGridRowBackground" Color="#FF1E1E1E"/>
+    <SolidColorBrush x:Key="DataGridRowAlternatingBackground" Color="#FF252525"/>
+    <SolidColorBrush x:Key="DataGridRowSelectedBackground" Color="#FF1F4A78"/>
+    <SolidColorBrush x:Key="DataGridRowSelectedForeground" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="RowSelectedBorder" Color="#FF4A86C2"/>
+    <SolidColorBrush x:Key="RowHoverBg" Color="#FF383838"/>
+    <SolidColorBrush x:Key="RowSelectedBorderBrush" Color="#FF4A86C2"/>
 
-        <Style.Triggers>
-            <!-- 鼠标悬浮 -->
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource DarkControlHoverGrayBrush}"/>
-                <Setter Property="BorderThickness" Value="0"/>
-            </Trigger>
+    <SolidColorBrush x:Key="WindowBackBrush" Color="#FF1E1E1E"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFE5E5E5"/>
+    <SolidColorBrush x:Key="ControlHoverGrayBrush" Color="#FF383838"/>
 
-            <!-- 选中无焦点 -->
-            <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{x:Null}"/>
-                <Setter Property="BorderThickness" Value="0"/>
-            </Trigger>
+    <SolidColorBrush x:Key="ButtonBackground" Color="#FF383838"/>
+    <SolidColorBrush x:Key="ButtonHoverBackground" Color="#4A4A4A"/>
+    <SolidColorBrush x:Key="ButtonPressedBackground" Color="#0078D4"/>
+    <SolidColorBrush x:Key="ButtonForeground" Color="#FFE5E5E5"/>
+    <SolidColorBrush x:Key="ButtonPressedForeground" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF555555"/>
+    <SolidColorBrush x:Key="AccentButtonBackground" Color="#0078D4"/>
+    <SolidColorBrush x:Key="AccentButtonHoverBackground" Color="#1E86C8"/>
+    <SolidColorBrush x:Key="AccentButtonPressedBackground" Color="#005A9E"/>
+    <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFF"/>
 
-            <!-- 选中+键盘焦点 -->
-            <MultiTrigger>
-                <MultiTrigger.Conditions>
-                    <Condition Property="IsSelected" Value="True"/>
-                    <Condition Property="IsKeyboardFocusWithin" Value="True"/>
-                </MultiTrigger.Conditions>
-                <MultiTrigger.Setters>
-                    <Setter Property="BorderThickness" Value="0"/>
-                </MultiTrigger.Setters>
-            </MultiTrigger>
-        </Style.Triggers>
-    </Style>
+    <SolidColorBrush x:Key="TextBoxBackground" Color="#FF2C2D30"/>
+    <SolidColorBrush x:Key="TextBoxForeground" Color="#FFE5E5E5"/>
+    <SolidColorBrush x:Key="TextBoxBorderBrush" Color="#FF3F3F3F"/>
+    <SolidColorBrush x:Key="TextBoxFocusBorderBrush" Color="#FF60CDFF"/>
 
-    <!-- 深色普通按钮（key 统一为 Win11NormalButtonStyle） -->
+    <SolidColorBrush x:Key="ExplorerRowHoverBg" Color="#FF383838"/>
+    <SolidColorBrush x:Key="ExplorerRowSelectedBg" Color="#FF1F4A78"/>
+    <SolidColorBrush x:Key="ExplorerRowSelectedBorder" Color="#FF4A86C2"/>
+
     <Style x:Key="Win11NormalButtonStyle" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
-        <Setter Property="Background" Value="#FF38393C"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DarkControlBorderNormalBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Background" Value="{DynamicResource ButtonBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ButtonForeground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
-        <Setter Property="Padding" Value="10,3"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource DarkRowSelectedBackBrush}"/>
-            </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{StaticResource DarkAccentPrimaryBrush}"/>
-                <Setter Property="Foreground" Value="{StaticResource DarkTextBlackBrush}"/>
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ButtonHoverBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ButtonPressedBackground}"/>
+                            <Setter TargetName="Bd" Property="Foreground" Value="{DynamicResource ButtonPressedForeground}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                            <Setter TargetName="Bd" Property="Foreground" Value="#888888"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="#444444"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <!-- 深色强调主按钮（key 统一为 Win11AccentButtonStyle） -->
     <Style x:Key="Win11AccentButtonStyle" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
-        <Setter Property="Background" Value="{StaticResource DarkAccentPrimaryBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextBlackBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="10,3"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource DarkAccentDarkBrush}"/>
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentButtonHoverBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentButtonPressedBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                            <Setter TargetName="Bd" Property="Foreground" Value="#888888"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <!-- 深色文本框 焦点高亮边框（key 统一为 Win11TextBoxStyle） -->
     <Style x:Key="Win11TextBoxStyle" TargetType="TextBox">
-        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
-        <Setter Property="Background" Value="#FF2C2D30"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DarkControlBorderNormalBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource TextBoxBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBoxForeground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource TextBoxBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource DarkAccentPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource TextBoxFocusBorderBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
-    <!-- 深色窗口全局样式（key 统一为 Win11WindowStyle） -->
-    <Style x:Key="Win11WindowStyle" TargetType="Window">
-        <Setter Property="Background" Value="{StaticResource DarkWindowBackBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+    <Style x:Key="Win11GridViewColumnHeaderStyle" TargetType="GridViewColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource DataGridHeaderBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DataGridHeaderForeground}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,0"/>
+        <Setter Property="BorderBrush" Value="#FF3F3F3F"/>
+        <Setter Property="Padding" Value="6,0"/>
         <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GridViewColumnHeader">
+                    <Grid>
+                        <Border x:Name="Bd"
+                                Background="{DynamicResource DataGridHeaderBackground}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                Height="{TemplateBinding Height}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <Thumb x:Name="PART_HeaderGripper"
+                               Width="4"
+                               HorizontalAlignment="Right"
+                               Cursor="SizeWE"
+                               Opacity="0"
+                               Background="#FF3F3F3F"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HeaderHoverBg}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HeaderPressedBg}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <!-- ===================== 信息/警告状态刷子 ===================== -->
-    <!-- 信息色（蓝色提示背景/文字） -->
-    <SolidColorBrush x:Key="InfoBackgroundBrush" Color="#1A3B5C"/>
-    <SolidColorBrush x:Key="InfoForegroundBrush" Color="#60CDFF"/>
-
-    <!-- 警告色（橙色提示背景/文字） -->
-    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#3D2A0A"/>
-    <SolidColorBrush x:Key="WarningForegroundBrush" Color="#FFB900"/>
-
-    <!-- ===================== 下拉框 ComboBox ===================== -->
-    <Style x:Key="Win11ComboBoxStyle" TargetType="ComboBox">
-        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
-        <Setter Property="Background" Value="#FF2C2D30"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DarkControlBorderNormalBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-        <Style.Triggers>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource DarkAccentPrimaryBrush}"/>
-            </Trigger>
-        </Style.Triggers>
+    <Style x:Key="Win11ListViewItemStyle" TargetType="ListViewItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding" Value="1,3"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <GridViewRowPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowHoverBg}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DataGridRowSelectedBackground}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource RowSelectedBorderBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="1"/>
+                            <Setter Property="Foreground" Value="{DynamicResource DataGridRowSelectedForeground}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <!-- ===================== 复选框 CheckBox ===================== -->
-    <Style x:Key="Win11CheckBoxStyle" TargetType="CheckBox">
-        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
-    </Style>
-
-    <!-- ===================== 单选框 RadioButton ===================== -->
-    <Style x:Key="Win11RadioButtonStyle" TargetType="RadioButton">
-        <Setter Property="FontFamily" Value="{StaticResource SystemDefaultFont}"/>
-        <Setter Property="Foreground" Value="{StaticResource DarkTextPrimaryBrush}"/>
+    <Style x:Key="Win11ExplorerListRowStyle" TargetType="ListBoxItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Bd"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ExplorerRowHoverBg}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ExplorerRowSelectedBg}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ExplorerRowSelectedBorder}"/>
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="1"/>
+                            <Setter Property="Foreground" Value="{DynamicResource DataGridRowSelectedForeground}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
 </ResourceDictionary>

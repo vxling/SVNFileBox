@@ -6,8 +6,8 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- 微软官方 Fluent 主题 (.NET 9+ 内置，无需 NuGet) -->
-                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml"/>
+                <!-- 自定义 Win11 主题（无 Fluent，避免 GridViewColumnHeader 被隐式样式覆盖） -->
+                <ResourceDictionary Source="pack://application:,,,/SVNFileBox;component/Themes/Win11DarkTheme.xaml"/>
                 <!-- 语言资源（运行时由 LocalizationService 动态替换） -->
                 <ResourceDictionary x:Name="LangResources"/>
             </ResourceDictionary.MergedDictionaries>
