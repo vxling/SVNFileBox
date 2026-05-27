@@ -5,7 +5,8 @@
         Height="500" Width="450"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Background="{DynamicResource WindowBackBrush}">
     <Grid Margin="15">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
@@ -25,7 +26,7 @@
                             <TextBlock Text="{DynamicResource AutoSync}" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{DynamicResource AutoSyncTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <CheckBox x:Name="AutoSyncCheckBox" Grid.Column="1" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="AutoSyncCheckBox" Grid.Column="1" IsChecked="True" IsEnabled="False" VerticalAlignment="Center" Style="{DynamicResource Win11CheckBoxStyle}"/>
                     </Grid>
                 </Border>
 
@@ -36,7 +37,7 @@
                         <TextBlock Text="{DynamicResource SyncIntervalTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,6"/>
                         <StackPanel Orientation="Horizontal">
                             <Slider x:Name="SyncIntervalSlider" Minimum="1" Maximum="10" Width="200" Value="1"
-                                    TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                    TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" Style="{DynamicResource Win11SliderStyle}"/>
                             <TextBlock x:Name="SyncIntervalText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"/>
                         </StackPanel>
                     </StackPanel>
@@ -53,8 +54,10 @@
                             <TextBlock Text="{DynamicResource Theme}" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{DynamicResource ThemeTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center" SelectedIndex="0">
-                            <ComboBoxItem Content="{DynamicResource ThemeSystem}"/>
+                        <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center" SelectedIndex="0" Style="{DynamicResource Win11ComboBoxStyle}">
+                            <ComboBoxItem Content="{DynamicResource ThemeSystem}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeLight}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
+                            <ComboBoxItem Content="{DynamicResource ThemeDark}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
                         </ComboBox>
                     </Grid>
                 </Border>
@@ -70,10 +73,10 @@
                             <TextBlock Text="{DynamicResource Language}" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{DynamicResource LanguageTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <ComboBox x:Name="LanguageComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center">
-                            <ComboBoxItem Content="{DynamicResource LangSystem}"/>
-                            <ComboBoxItem Content="{DynamicResource LangZh}"/>
-                            <ComboBoxItem Content="{DynamicResource LangEn}"/>
+                        <ComboBox x:Name="LanguageComboBox" Grid.Column="1" Width="120" VerticalAlignment="Center" Style="{DynamicResource Win11ComboBoxStyle}">
+                            <ComboBoxItem Content="{DynamicResource LangSystem}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
+                            <ComboBoxItem Content="{DynamicResource LangZh}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
+                            <ComboBoxItem Content="{DynamicResource LangEn}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
                         </ComboBox>
                     </Grid>
                 </Border>
@@ -83,7 +86,7 @@
                     <StackPanel>
                         <TextBlock Text="{DynamicResource ProxyUrl}" FontWeight="SemiBold" FontSize="13"/>
                         <TextBlock Text="{DynamicResource ProxyUrlTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,6"/>
-                        <TextBox x:Name="ProxyUrlBox" Padding="4,3" FontSize="12"/>
+                        <TextBox x:Name="ProxyUrlBox" Padding="4,3" FontSize="12" Style="{DynamicResource Win11TextBoxStyle}"/>
                     </StackPanel>
                 </Border>
 
@@ -98,7 +101,7 @@
                             <TextBlock Text="{DynamicResource AutoStart}" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{DynamicResource AutoStartTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <CheckBox x:Name="AutoStartCheckBox" Grid.Column="1" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="AutoStartCheckBox" Grid.Column="1" VerticalAlignment="Center" Style="{DynamicResource Win11CheckBoxStyle}"/>
                     </Grid>
                 </Border>
 
@@ -113,7 +116,7 @@
                             <TextBlock Text="{DynamicResource AutoStartMinimize}" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{DynamicResource AutoStartMinimizeTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <CheckBox x:Name="AutoStartMinimizeCheckBox" Grid.Column="1" VerticalAlignment="Center" IsEnabled="False"/>
+                        <CheckBox x:Name="AutoStartMinimizeCheckBox" Grid.Column="1" VerticalAlignment="Center" IsEnabled="False" Style="{DynamicResource Win11CheckBoxStyle}"/>
                     </Grid>
                 </Border>
 
@@ -128,7 +131,7 @@
                             <TextBlock Text="{DynamicResource MinimizeToTray}" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{DynamicResource MinimizeToTrayTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <CheckBox x:Name="MinimizeToTrayCheckBox" Grid.Column="1" IsChecked="True" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="MinimizeToTrayCheckBox" Grid.Column="1" IsChecked="True" VerticalAlignment="Center" Style="{DynamicResource Win11CheckBoxStyle}"/>
                     </Grid>
                 </Border>
 
@@ -139,7 +142,7 @@
                         <TextBlock Text="{DynamicResource FileTransferTimeoutTip}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,6"/>
                         <StackPanel Orientation="Horizontal">
                             <Slider x:Name="FileTransferTimeoutSlider" Minimum="30" Maximum="600" Width="200" Value="120"
-                                    TickFrequency="30" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                    TickFrequency="30" IsSnapToTickEnabled="True" VerticalAlignment="Center" Style="{DynamicResource Win11SliderStyle}"/>
                             <TextBlock x:Name="FileTransferTimeoutText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"/>
                         </StackPanel>
                     </StackPanel>
@@ -148,8 +151,8 @@
         </ScrollViewer>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="{DynamicResource OK}" Margin="0,0,10,0" Click="OK_Click" MinWidth="80" Padding="12,6"/>
-            <Button Content="{DynamicResource Cancel}" Click="Cancel_Click" MinWidth="80" Padding="12,6"/>
+            <Button Content="{DynamicResource OK}" Margin="0,0,10,0" Click="OK_Click" MinWidth="80" Padding="12,6" Style="{DynamicResource Win11NormalButtonStyle}"/>
+            <Button Content="{DynamicResource Cancel}" Click="Cancel_Click" MinWidth="80" Padding="12,6" Style="{DynamicResource Win11NormalButtonStyle}"/>
         </StackPanel>
     </Grid>
 </Window>

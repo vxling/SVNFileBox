@@ -101,7 +101,7 @@ public class FileTypeIconConverter : IValueConverter
         if (item.IsDirectory || (!string.IsNullOrEmpty(item.FullPath) && Directory.Exists(item.FullPath)))
         {
             if (_folderIcon == null)
-                _folderIcon = LoadIcon("folder") ?? CreateFallbackFolderIcon();
+                _folderIcon = LoadIcon("dir") ?? CreateFallbackFolderIcon();
             return _folderIcon;
         }
 

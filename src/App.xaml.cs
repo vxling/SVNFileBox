@@ -46,6 +46,16 @@ public partial class App : Application
         // 监听语言切换事件，动态更新 ResourceDictionary
         LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
         UpdateLanguageResources();
+
+        // 启动系统主题监听
+        ThemeWatcher.Instance.Start();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        ThemeWatcher.Instance.Stop();
+        Log.CloseAndFlush();
+        base.OnExit(e);
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
@@ -112,10 +122,7 @@ public partial class App : Application
             var syncRecordService = SyncRecordService.Instance;
             Log.Information("[Startup] Step 1 complete: Services initialized");
 
-            // Step 2: Load system file type icons (fallback to emoji on failure)
-            _splash.SetStatus("Loading resources...");
-            IconExtractor.Initialize();
-            Log.Information("[Startup] Step 2 complete: IconExtractor initialized");
+            // Step 2: (removed - now using custom PNG icons for all menu items)
 
             // Step 3: Show main window
             _splash.SetStatus("Loading main window...");

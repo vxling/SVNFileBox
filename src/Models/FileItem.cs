@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SVNFileBox.Services;
 
 namespace SVNFileBox.Models;
 
@@ -32,7 +33,16 @@ public partial class FileItem : ObservableObject
 
     public string LastModifiedDisplay => LastModified == DateTime.MinValue ? "" : LastModified.ToString("yyyy-MM-dd HH:mm");
 
-    public string TypeDisplay => IsParentDirectory ? "↗" : (IsDirectory ? "📁" : GetFileIcon(Name));
+    public string TypeDisplay
+    {
+        get
+        {
+            var L = LocalizationService.Instance;
+            if (IsParentDirectory) return "";
+            if (IsDirectory) return L.GetString("FileType_Folder");
+            return GetFileIcon(Name);
+        }
+    }
 
     public bool IsParentDirectory { get; set; }
 
@@ -41,19 +51,23 @@ public partial class FileItem : ObservableObject
     private static string GetFileIcon(string fileName)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var L = LocalizationService.Instance;
         return ext switch
         {
-            ".cs" => "💻",
-            ".xlsx" or ".xls" => "📊",
-            ".docx" or ".doc" => "📝",
-            ".pptx" or ".ppt" => "📽️",
-            ".pdf" => "📕",
-            ".txt" => "📄",
-            ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" => "🖼️",
-            ".zip" or ".rar" or ".7z" => "📦",
-            ".json" or ".xml" or ".yaml" or ".yml" => "📋",
-            ".html" or ".css" or ".js" => "🌐",
-            _ => "📄"
+            ".cs" or ".fs" or ".vb" or ".java" or ".py" or ".go" or ".rs" or ".c" or ".cpp" or ".h" or ".hpp" => L.GetString("FileType_Code"),
+            ".xlsx" or ".xls" or ".xlsm" or ".csv" => L.GetString("FileType_Excel"),
+            ".docx" or ".doc" or ".odt" or ".rtf" => L.GetString("FileType_Word"),
+            ".pptx" or ".ppt" or ".odp" => L.GetString("FileType_PPT"),
+            ".pdf" => L.GetString("FileType_PDF"),
+            ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" or ".webp" or ".ico" or ".svg" or ".tiff" => L.GetString("FileType_Image"),
+            ".mp4" or ".avi" or ".mkv" or ".mov" or ".wmv" or ".flv" or ".webm" => L.GetString("FileType_Video"),
+            ".mp3" or ".wav" or ".flac" or ".aac" or ".ogg" or ".wma" => L.GetString("FileType_Audio"),
+            ".zip" or ".rar" or ".7z" or ".tar" or ".gz" or ".bz2" => L.GetString("FileType_Archive"),
+            ".txt" or ".md" or ".log" or ".ini" or ".cfg" or ".conf" => L.GetString("FileType_Text"),
+            ".json" or ".xml" or ".yaml" or ".yml" or ".toml" or ".ini" => L.GetString("FileType_Config"),
+            ".html" or ".htm" or ".css" or ".js" or ".ts" or ".jsx" or ".tsx" or ".vue" or ".sass" or ".scss" => L.GetString("FileType_Web"),
+            ".exe" or ".msi" or ".dll" or ".sys" or ".bat" or ".cmd" or ".ps1" => L.GetString("FileType_Executable"),
+            _ => L.GetString("FileType_Document")
         };
     }
 

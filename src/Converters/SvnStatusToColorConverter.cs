@@ -25,7 +25,8 @@ public class SvnStatusToColorConverter : IValueConverter
             FileSvnStatus.Incomplete   => new SolidColorBrush(Color.FromRgb(0xFF, 0xA0, 0x00)), // Amber - checkout in progress
             FileSvnStatus.External    => new SolidColorBrush(Color.FromRgb(0xAA, 0x00, 0xFF)), // Violet
             FileSvnStatus.Normal      => new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x53)), // Green check
-            FileSvnStatus.Hidden      => Brushes.Transparent, // No badge for parent directory row
+            FileSvnStatus.Hidden        => Brushes.Transparent, // No badge for parent directory row
+            FileSvnStatus.TreeConflicted  => new SolidColorBrush(Color.FromRgb(0xF0, 0x00, 0x00)), // Red
             _ => Brushes.Transparent
         };
     }
@@ -54,6 +55,7 @@ public class SvnStatusToTextConverter : IValueConverter
             FileSvnStatus.Obstructed => "~",
             FileSvnStatus.Incomplete  => "…",
             FileSvnStatus.External    => "X",
+            FileSvnStatus.TreeConflicted  => "T",
             _ => ""
         };
     }

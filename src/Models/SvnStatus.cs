@@ -13,5 +13,6 @@ public enum FileSvnStatus
     Obstructed,
     External,
     Incomplete,
-    Hidden  // Used for ".." parent directory row — hides the status badge
+    Hidden,         // Used for ".." parent directory row — hides the status badge
+    TreeConflicted  // Tree conflict: local edit vs incoming delete/move on a directory
 }

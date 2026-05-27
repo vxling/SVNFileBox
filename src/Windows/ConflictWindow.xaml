@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:SVNFileBox.Models"
         xmlns:conv="clr-namespace:SVNFileBox.Converters"
+        Background="{DynamicResource WindowBackBrush}"
         Title="{DynamicResource ConflictTitle}"
         Height="420" Width="600"
         WindowStartupLocation="CenterOwner"
@@ -85,10 +86,11 @@
                                     <ComboBox Grid.Column="2" VerticalAlignment="Center"
                                               SelectedValue="{Binding SelectedResolution}"
                                               SelectedValuePath="Tag"
-                                              Width="140" >
-                                        <ComboBoxItem Content="{DynamicResource KeepLocal}" Tag="{x:Static local:ConflictResolution.KeepLocal}"/>
-                                        <ComboBoxItem Content="{DynamicResource AcceptServer}" Tag="{x:Static local:ConflictResolution.AcceptServer}"/>
-                                        <ComboBoxItem Content="{DynamicResource KeepBoth}" Tag="{x:Static local:ConflictResolution.KeepBoth}"/>
+                                              Width="140"
+                                              Style="{DynamicResource Win11ComboBoxStyle}">
+                                        <ComboBoxItem Content="{DynamicResource KeepLocal}" Tag="{x:Static local:ConflictResolution.KeepLocal}" Style="{DynamicResource Win11ComboBoxStyle}"/>
+                                        <ComboBoxItem Content="{DynamicResource AcceptServer}" Tag="{x:Static local:ConflictResolution.AcceptServer}" Style="{DynamicResource Win11ComboBoxStyle}"/>
+                                        <ComboBoxItem Content="{DynamicResource KeepBoth}" Tag="{x:Static local:ConflictResolution.KeepBoth}" Style="{DynamicResource Win11ComboBoxStyle}"/>
                                     </ComboBox>
                                 </Grid>
                             </Border>
@@ -101,13 +103,13 @@
         <!-- Buttons -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="{DynamicResource KeepAllLocal}" Click="KeepAllLocal_Click"
-                    Padding="12,6" MinWidth="100" Margin="0,0,8,0" />
+                    Padding="12,6" MinWidth="100" Margin="0,0,8,0"  Style="{DynamicResource Win11NormalButtonStyle}"/>
             <Button Content="{DynamicResource AcceptAllServer}" Click="AcceptAllServer_Click"
-                    Padding="12,6" MinWidth="100" Margin="0,0,8,0" />
+                    Padding="12,6" MinWidth="100" Margin="0,0,8,0"  Style="{DynamicResource Win11NormalButtonStyle}"/>
             <Button Content="{DynamicResource ConflictConfirm}" Click="OK_Click"
-                    Padding="16,6" MinWidth="80" Margin="0,0,8,0"  />
+                    Padding="16,6" MinWidth="80" Margin="0,0,8,0"   Style="{DynamicResource Win11NormalButtonStyle}"/>
             <Button Content="{DynamicResource Cancel}" Click="Cancel_Click"
-                    Padding="16,6" MinWidth="80" />
+                    Padding="16,6" MinWidth="80"  Style="{DynamicResource Win11NormalButtonStyle}"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -25,6 +25,18 @@ public class ThemeService
 
     public event EventHandler<string>? ThemeChanged;
 
+    public ThemeService()
+    {
+        // 监听系统主题变化，只有在 "system" 模式时才响应
+        ThemeWatcher.Instance.ThemeChanged += isDarkMode =>
+        {
+            if (_currentTheme == "system")
+            {
+                LoadWin11Theme("system");
+            }
+        };
+    }
+
     /// <summary>
     /// 应用主题偏好，动态替换 Win11 主题资源字典
     /// </summary>
@@ -32,8 +44,8 @@ public class ThemeService
     {
         _currentTheme = theme;
         Log.Information("[Theme] Preference set to: {Theme}", theme);
-        ThemeChanged?.Invoke(this, theme);
         LoadWin11Theme(theme);
+        ThemeChanged?.Invoke(this, theme);
     }
 
     /// <summary>

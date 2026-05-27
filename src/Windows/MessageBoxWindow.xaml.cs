@@ -139,6 +139,7 @@ public partial class MsgBox : Window
                 Margin = new Thickness(6, 0, 0, 0),
                 Tag = result,
             };
+            btn.SetResourceReference(System.Windows.Controls.Button.StyleProperty, "Win11NormalButtonStyle");
             btn.Click += Button_Click;
             ButtonsPanel.Children.Add(btn);
             btnIndex++;

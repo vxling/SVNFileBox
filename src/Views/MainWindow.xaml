@@ -7,21 +7,232 @@
         xmlns:conv="clr-namespace:SVNFileBox.Converters"
         xmlns:tb="http://www.hardcodet.net/taskbar"
         xmlns:local="clr-namespace:SVNFileBox.Views"
+        xmlns:helper="clr-namespace:SVNFileBox.Helpers"
         mc:Ignorable="d"
         Title="SVNFileBox" Height="580" Width="1100"
         MinHeight="550" MinWidth="900"
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/Icons/app.ico"
+        Background="{DynamicResource WindowBackBrush}"
         >
 
     <Window.Resources>
+        <BitmapImage x:Key="OpenInExplorerImg" UriSource="pack://application:,,,/Assets/Icons/OpenInExplorer.png"/>
+        <BitmapImage x:Key="MenuIconOpenImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconOpen.png"/>
+        <BitmapImage x:Key="MenuIconNewTextFileImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNewTextFile.png"/>
+        <BitmapImage x:Key="MenuIconNewWordDocImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNewWordDoc.png"/>
+        <BitmapImage x:Key="MenuIconNewExcelSheetImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNewExcelSheet.png"/>
+        <BitmapImage x:Key="MenuIconNewPowerPointImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNewPowerPoint.png"/>
+        <BitmapImage x:Key="MenuIconNewBmpImageImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNewBmpImage.png"/>
+        <BitmapImage x:Key="MenuIconNewPngImageImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNewPngImage.png"/>
+        <BitmapImage x:Key="MenuIconCopyImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconCopy.png"/>
+        <BitmapImage x:Key="MenuIconPasteImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconPaste.png"/>
+        <BitmapImage x:Key="MenuIconDeleteImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconDelete.png"/>
+        <BitmapImage x:Key="MenuIconRenameImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconRename.png"/>
+        <BitmapImage x:Key="MenuIconZipImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconZip.png"/>
+        <BitmapImage x:Key="MenuIconSyncImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconSync.png"/>
+        <BitmapImage x:Key="MenuIconRefreshImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconRefresh.png"/>
+        <BitmapImage x:Key="MenuIconExplorerImg" UriSource="pack://application:,,,/Assets/Icons/OpenInExplorer.png"/>
+        <BitmapImage x:Key="NewFolderImg" UriSource="pack://application:,,,/Assets/Icons/dir.png"/>
+        <!-- Menu Icons using PNG images via DrawingImage + ImageBrush wrapper -->
+        <BitmapImage x:Key="MenuIconNewFolderImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNewFolder.png"/>
+        <BitmapImage x:Key="MenuIconNewImg" UriSource="pack://application:,,,/Assets/Icons/MenuIconNew.png"/>
+        <BitmapImage x:Key="NetworkRepoImg" UriSource="pack://application:,,,/Assets/Icons/NetworkRepo.png"/>
+                <DrawingImage x:Key="MenuIconOpen_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconOpenImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconCopy_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconCopyImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconPaste_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconPasteImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconDelete_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconDeleteImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconRename_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconRenameImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconZip_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconZipImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconNewFolder_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconNewFolderImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconSync_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconSyncImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconExplorer_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource OpenInExplorerImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconNewTextFile_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconNewTextFileImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconNewWordDoc_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconNewWordDocImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconNewExcelSheet_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconNewExcelSheetImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconNewPowerPoint_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconNewPowerPointImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconNewPngImage_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconNewPngImageImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="MenuIconNewBmpImage_D">
+            <DrawingImage.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <ImageBrush ImageSource="{StaticResource MenuIconNewBmpImageImg}" Stretch="Uniform"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
         <conv:FileTypeIconConverter x:Key="FileTypeIconConverter"/>
         <conv:SvnStatusToColorConverter x:Key="SvnStatusToColorConverter"/>
         <conv:SvnStatusToTextConverter x:Key="SvnStatusToTextConverter"/>
-        <conv:BoolToGridLengthConverter x:Key="BoolToGridLengthConverter"/>
         <BooleanToVisibilityConverter x:Key="BoolToVisibleConverter"/>
         <conv:BoolToCollapsedConverter x:Key="BoolToCollapsedConverter"/>
         <conv:BoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
+
+        <!-- Extend Win11ListViewItemStyle to add FontFamily -->
+        <Style x:Key="FileListItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource Win11ListViewItemStyle}">
+    
+        </Style>
+
+        <!-- Fill-column converter: when multi-select, checkbox takes space; when off, name takes remaining space -->
+
 
 
         <!-- Repository Icons -->
@@ -41,6 +252,7 @@
                 </DrawingGroup>
             </DrawingImage.Drawing>
         </DrawingImage>
+        <!-- Context Menu Icons (16x16 geometry drawings, #888888) -->        <DrawingImage x:Key="MenuIconOpen">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M3,4 L3,18 L17,18 L17,8 L11,8 L9,5 L3,5 Z M3,8 L9,8 L9,6 L11,6 L11,18 M14,13 L14,16 L17,16"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconRefresh">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M10,2 A7.5,7.5 0 1,1 2.5,10 L0,10 L0,17 L7,17 L7,14 Z"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconCopy">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M13,1 L13,3 L4,3 C3,3 2,4 2,5 L2,13 L4,13 L4,5 M11,13 L17,13 L17,6 C17,5 16,4 15,4 L11,4"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconPaste">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M2,0 L2,2 L14,2 L14,14 L16,14 L16,0 L2,0 M0,3 L0,16 L8,16 L8,14 L2,14 L2,3 L0,3 M5,5 L7,5 L7,9 L5,9 M9,5 L15,5 L15,7 L9,7"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconDelete">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M2,2 L16,2 L16,5 L14,5 L14,17 L4,17 L4,5 L2,5 Z M6,7 L8,7 L8,15 L6,15 M10,7 L12,7 L12,15 L10,15"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconRename">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M1,14 L4,11 L13,2 C13.6,1.4 14.4,1.4 15,2 L15,2 L17,4 C17.6,4.6 17.6,5.4 17,6 L8,15 M4,12 L7,9"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconZip">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M2,1 L10,1 L12,3 L16,3 L16,17 L2,17 Z M8,1 L8,3 L10,3 M2,7 L16,7 M2,11 L16,11"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconNewFolder">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M1,4 L1,16 L15,16 L15,5 L7,5 L5,2 L1,2 Z"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconSync">            <DrawingImage.Drawing>                <GeometryDrawing Brush="#888888">                    <GeometryDrawing.Geometry>                        <PathGeometry Figures="M10,0 A8,8 0 1,0 10,16 L6,16 L10,20 L14,20 L10,16 L6,16 M10,8 A8,8 0 1,0 10,0 L6,0 L10,-4 L14,-4 L10,0 L6,0"/>                    </GeometryDrawing.Geometry>                </GeometryDrawing>            </DrawingImage.Drawing>        </DrawingImage>        <DrawingImage x:Key="MenuIconExplorer"><DrawingImage.Drawing><GeometryDrawing Brush="#888888"><GeometryDrawing.Geometry><PathGeometry Figures="M1,2 L1,16 L15,16 L15,5 L8,5 L6,2 Z M3,9 L13,9 M3,12 L10,12"/></GeometryDrawing.Geometry></GeometryDrawing></DrawingImage.Drawing></DrawingImage>
 
         <DrawingImage x:Key="NetworkRepoIcon">
             <DrawingImage.Drawing>
@@ -52,33 +264,43 @@
             </DrawingImage.Drawing>
         </DrawingImage>
 
+        <!-- Base MenuItem style for ContextMenus - dark background -->
+        <Style TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SystemDefaultFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="10,6"/>
+        </Style>
+
         <!-- Context Menu for file list -->
-        <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened">
-            <MenuItem Header="{DynamicResource Open}" Click="Open_Click" x:Name="OpenMenuItem" Icon="📂"/>
+        <ContextMenu x:Key="FileContextMenu" Opened="ContextMenu_Opened"
+                  Style="{DynamicResource Win11ContextMenuStyle}">
+            <MenuItem Header="{DynamicResource Open}" Click="Open_Click" x:Name="OpenMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconOpenImg}"/></MenuItem.Icon></MenuItem>
             <Separator/>
-            <MenuItem Header="{DynamicResource Refresh}" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Icon="🔄"/>
+            <MenuItem Header="{DynamicResource Refresh}" Click="Refresh_Click" IsEnabled="{Binding CanOperate}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconRefreshImg}"/></MenuItem.Icon></MenuItem>
             <Separator/>
-            <MenuItem Header="{DynamicResource Copy}" Click="Copy_Click" IsEnabled="{Binding CanDelete}" Icon="📋"/>
-            <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Icon="🔗" Visibility="Collapsed"/>
-            <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Icon="📄"/>
+            <MenuItem Header="{DynamicResource Copy}" Click="Copy_Click" IsEnabled="{Binding CanDelete}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconCopyImg}"/></MenuItem.Icon></MenuItem>
+            <MenuItem Header="{DynamicResource CopyPath}" Click="CopyPath_Click" IsEnabled="{Binding CanDelete}" Visibility="Collapsed" Style="{DynamicResource Win11MenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource Paste}" Click="Paste_Click" x:Name="PasteMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconPasteImg}"/></MenuItem.Icon></MenuItem>
             <Separator/>
-            <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Icon="🗑️"/>
-            <MenuItem Header="{DynamicResource Rename}" Click="Rename_Click" IsEnabled="{Binding CanRename}" Icon="✏️"/>
-            <MenuItem Header="{DynamicResource AddToZip}" Click="AddToZip_Click" x:Name="AddToZipMenuItem" IsEnabled="False" Icon="📦"/>
+            <MenuItem Header="{DynamicResource Delete}" Click="Delete_Click" IsEnabled="{Binding CanDelete}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconDeleteImg}"/></MenuItem.Icon></MenuItem>
+            <MenuItem Header="{DynamicResource Rename}" Click="Rename_Click" IsEnabled="{Binding CanRename}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconRenameImg}"/></MenuItem.Icon></MenuItem>
+            <MenuItem Header="{DynamicResource AddToZip}" Click="AddToZip_Click" x:Name="AddToZipMenuItem" IsEnabled="False" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconZipImg}"/></MenuItem.Icon></MenuItem>
             <Separator/>
-            <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Icon="📁"/>
-            <MenuItem Header="{DynamicResource New}" x:Name="NewMenuItem" IsEnabled="{Binding CanOperate}" Icon="✨">
-                <MenuItem Header="{DynamicResource NewTextFile}" Click="NewTextFile_Click" x:Name="NewTextFileMenuItem"/>
-                <MenuItem Header="{DynamicResource NewWordDoc}" Click="NewWordDoc_Click" x:Name="NewWordDocMenuItem"/>
-                <MenuItem Header="{DynamicResource NewExcelSheet}" Click="NewExcelSheet_Click" x:Name="NewExcelSheetMenuItem"/>
-                <MenuItem Header="{DynamicResource NewPowerPoint}" Click="NewPowerPoint_Click" x:Name="NewPowerPointMenuItem"/>
-                <MenuItem Header="{DynamicResource NewPngImage}" Click="NewPngImage_Click" x:Name="NewPngImageMenuItem"/>
-                <MenuItem Header="{DynamicResource NewBmpImage}" Click="NewBmpImage_Click" x:Name="NewBmpImageMenuItem"/>
+            <MenuItem Header="{DynamicResource New}" x:Name="NewMenuItem" IsEnabled="{Binding CanOperate}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewImg}"/></MenuItem.Icon>
+                <MenuItem Header="{DynamicResource NewFolder}" Click="NewFolder_Click" IsEnabled="{Binding CanOperate}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewFolderImg}"/></MenuItem.Icon></MenuItem>
+                <MenuItem Header="{DynamicResource NewTextFile}" Click="NewTextFile_Click" x:Name="NewTextFileMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewTextFileImg}"/></MenuItem.Icon></MenuItem>
+                <MenuItem Header="{DynamicResource NewWordDoc}" Click="NewWordDoc_Click" x:Name="NewWordDocMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewWordDocImg}"/></MenuItem.Icon></MenuItem>
+                <MenuItem Header="{DynamicResource NewExcelSheet}" Click="NewExcelSheet_Click" x:Name="NewExcelSheetMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewExcelSheetImg}"/></MenuItem.Icon></MenuItem>
+                <MenuItem Header="{DynamicResource NewPowerPoint}" Click="NewPowerPoint_Click" x:Name="NewPowerPointMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewPowerPointImg}"/></MenuItem.Icon></MenuItem>
+                <MenuItem Header="{DynamicResource NewPngImage}" Click="NewPngImage_Click" x:Name="NewPngImageMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewPngImageImg}"/></MenuItem.Icon></MenuItem>
+                <MenuItem Header="{DynamicResource NewBmpImage}" Click="NewBmpImage_Click" x:Name="NewBmpImageMenuItem" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconNewBmpImageImg}"/></MenuItem.Icon></MenuItem>
             </MenuItem>
             <Separator/>
-            <MenuItem Header="{DynamicResource ManualSync}" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Icon="🔃"/>
+            <MenuItem Header="{DynamicResource ManualSync}" Click="ManualSync_Click" IsEnabled="{Binding CanOperate}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconSyncImg}"/></MenuItem.Icon></MenuItem>
             <Separator/>
-            <MenuItem Header="{DynamicResource OpenInExplorer}" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Icon="📂"/>
+            <MenuItem Header="{DynamicResource OpenInExplorer}" Click="OpenInExplorer_Click" IsEnabled="{Binding CanDelete}" Style="{DynamicResource Win11MenuItemStyle}"><MenuItem.Icon><Image Width="16" Height="16" Source="{StaticResource MenuIconExplorerImg}"/></MenuItem.Icon></MenuItem>
         </ContextMenu>
     </Window.Resources>
 
@@ -90,9 +312,9 @@
                         TrayMouseDoubleClick="TrayIcon_TrayMouseDoubleClick">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
-                    <MenuItem Header="{DynamicResource OpenSVNFileBox}" Click="TrayShow_Click"/>
+                    <MenuItem Header="{DynamicResource OpenSVNFileBox}" Click="TrayShow_Click" Style="{DynamicResource Win11MenuItemStyle}"/>
                     <Separator/>
-                    <MenuItem Header="{DynamicResource Exit}" Click="TrayExit_Click"/>
+                    <MenuItem Header="{DynamicResource Exit}" Click="TrayExit_Click" Style="{DynamicResource Win11MenuItemStyle}"/>
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
@@ -105,7 +327,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left Sidebar: buttons + repo list, full height -->
-            <Border Grid.Column="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="8,8,8,10" Padding="12"
+            <Border Grid.Column="0" Background="{DynamicResource WindowBackBrush}" Margin="8,8,8,10" Padding="12"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                 <DockPanel>
                     <!-- Top: title -->
@@ -116,46 +338,46 @@
                     <!-- Bottom: buttons -->
                     <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Margin="0,8,0,0">
                         <Separator Margin="0,4"/>
-                        <Button x:Name="AddLocalRepoButton" Click="AddLocalRepo_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                        <Button x:Name="AddLocalRepoButton" Click="AddLocalRepo_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch" Style="{DynamicResource Win11NormalButtonStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📂" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource AddLocalRepository}"/>
                             </StackPanel>
                         </Button>
-                        <Button x:Name="CheckoutButton" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch" >
+                        <Button x:Name="CheckoutButton" Click="Checkout_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch"  Style="{DynamicResource Win11NormalButtonStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🌐" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource CheckoutFromNetwork}"/>
                             </StackPanel>
                         </Button>
-                        <Button x:Name="ViewSyncRecordsButton" Click="ViewSyncRecords_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                        <Button x:Name="ViewSyncRecordsButton" Click="ViewSyncRecords_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch" Style="{DynamicResource Win11NormalButtonStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📋" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource ViewSyncRecords}"/>
                             </StackPanel>
                         </Button>
                         <Separator Margin="0,4"/>
-                        <Button x:Name="SettingsButton" Click="Settings_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch">
+                        <Button x:Name="SettingsButton" Click="Settings_Click" Margin="0,0,0,8" Padding="8,6" HorizontalAlignment="Stretch" Style="{DynamicResource Win11NormalButtonStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="⚙️" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource Settings}"/>
                             </StackPanel>
                         </Button>
-                        <Button x:Name="AboutButton" Click="About_Click" Padding="8,6" HorizontalAlignment="Stretch">
+                        <Button x:Name="AboutButton" Click="About_Click" Padding="8,6" HorizontalAlignment="Stretch" Style="{DynamicResource Win11NormalButtonStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="ℹ️" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource About}"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>
-                    <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="Transparent" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged" d:ItemsSource="{d:SampleData ItemCount=5}" DockPanel.Dock="Top">
+                    <ListBox x:Name="RepoList" ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}" Background="{DynamicResource WindowBackBrush}" Foreground="{DynamicResource TextPrimaryBrush}" ItemContainerStyle="{DynamicResource Win11ExplorerListRowStyle}" BorderThickness="0" SelectionChanged="RepoList_SelectionChanged" d:ItemsSource="{d:SampleData ItemCount=5}" DockPanel.Dock="Top" Margin="0,4,0,0">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel>
                                     <Button DockPanel.Dock="Right" Tag="{Binding}" Content="X" Padding="4,2"
                                             Background="Transparent" Foreground="{DynamicResource SystemFillColorCriticalBrush}" FontSize="11"
                                             BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Margin="4,0,0,0"
-                                            Click="RemoveRepo_Click"/>
+                                            Click="RemoveRepo_Click" Style="{DynamicResource Win11NormalButtonStyle}"/>
                                     <Image DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,10,0">
                                         <Image.Style>
                                             <Style TargetType="{x:Type Image}">
@@ -165,7 +387,7 @@
                                                         <Setter Property="Source" Value="{StaticResource LocalRepoIcon}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding RepositoryType}" Value="Network">
-                                                        <Setter Property="Source" Value="{StaticResource NetworkRepoIcon}"/>
+                                                        <Setter Property="Source" Value="{StaticResource NetworkRepoImg}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -190,11 +412,11 @@
                 </Grid.RowDefinitions>
 
                 <!-- File Browser / Sync Records -->
-                <Border Grid.Row="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="0,8,8,0"
+                <Border Grid.Row="0" Background="{DynamicResource WindowBackBrush}" Margin="0,8,8,0"
                         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                     <DockPanel>
                         <!-- Path Bar -->
-                        <Border DockPanel.Dock="Top" Background="{DynamicResource ControlFillColorDefaultBrush}" Padding="12,5,12,5" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                        <Border DockPanel.Dock="Top" Background="{DynamicResource WindowBackBrush}" Padding="12,5,12,5" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -206,65 +428,63 @@
                                     <TextBlock x:Name="PathText" Text="" FontSize="13"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" x:Name="RefreshListButton" Content="{DynamicResource Refresh}" Click="Refresh_Click" Padding="12,6"
-                                        Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}"/>
+                                        Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" Style="{DynamicResource Win11NormalButtonStyle}"/>
                                 <Button Grid.Column="1" x:Name="BackToFilesButton" Content="{Binding BackButtonText}" Click="BackToFiles_Click" Padding="12,6"
-                                        Visibility="{Binding ShowSyncRecords, Converter={StaticResource InverseBoolToVisibleConverter}}"/>
+                                        Visibility="{Binding ShowSyncRecords, Converter={StaticResource InverseBoolToVisibleConverter}}" Style="{DynamicResource Win11NormalButtonStyle}"/>
                             </Grid>
                         </Border>
 
-                        <!-- Multi-Select Toolbar -->
-                        <Border DockPanel.Dock="Top" Background="{DynamicResource ControlFillColorSecondaryBrush}" Padding="8,4"
-                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
-                                Visibility="{Binding MultiSelectEnabled, Converter={StaticResource BoolToVisibleConverter}}">
-                            <StackPanel Orientation="Horizontal">
-                                <CheckBox x:Name="SelectAllCheckBox" Content="全选" VerticalAlignment="Center" Margin="0,0,16,0"
-                                          Click="SelectAllCheckBox_Click"/>
-                                <Button x:Name="MultiDeleteButton" Content="🗑 删除" Padding="8,4" Margin="0,0,6,0"
-                                        Click="MultiDelete_Click" IsEnabled="False"/>
-                                <Button x:Name="MultiCopyButton" Content="📋 复制" Padding="8,4" Margin="0,0,6,0"
-                                        Click="MultiCopy_Click" IsEnabled="False"/>
-                                <Button x:Name="MultiMoveButton" Content="📁 移动" Padding="8,4" Margin="0,0,6,0"
-                                        Click="MultiMove_Click" IsEnabled="False"/>
-                                <Button x:Name="MultiZipButton" Content="📦 压缩" Padding="8,4"
-                                        Click="MultiZip_Click" IsEnabled="False"/>
-                            </StackPanel>
-                        </Border>
+                        <!-- SyncRecordList (placeholder for AdjustFillColumn) -->
+                        <ListView x:Name="SyncRecordList"
+                                  Background="{DynamicResource WindowBackBrush}"
+                                  BorderThickness="0"
+                                  ItemContainerStyle="{StaticResource FileListItemStyle}"
+                                  ItemsSource="{Binding SyncRecords}"
+                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToVisibleConverter}}"
+                                  SelectionMode="Extended"
+                                  helper:ListViewSelectionHelper.EnableDragSelection="True">
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{DynamicResource Win11GridViewColumnHeaderStyle}">
+                                    <GridViewColumn Header="{DynamicResource ColTime}" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
+                                    <GridViewColumn Header="{DynamicResource ColRepo}" Width="100" DisplayMemberBinding="{Binding RepoName}"/>
+                                    <GridViewColumn Header="{DynamicResource ColFile}" Width="280" DisplayMemberBinding="{Binding FilePath}"/>
+                                    <GridViewColumn Header="{DynamicResource ColOperation}" Width="100" DisplayMemberBinding="{Binding OperationDisplay}"/>
+                                    <GridViewColumn Header="{DynamicResource ColResult}" Width="80" DisplayMemberBinding="{Binding ResultDisplay}"/>
+                                    <GridViewColumn Header="{DynamicResource ColDetail}" Width="200" DisplayMemberBinding="{Binding Message}" xmlns:conv="clr-namespace:SVNFileBox.Converters" conv:GridViewColumnAttach.IsFillColumn="True"/>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
 
-                        <!-- File List with columns -->
+                        <!-- FileList -->
                         <ListView x:Name="FileList"
-                                  BorderThickness="0,0,0,0"
+                                  BorderThickness="0"
+                                  Background="{DynamicResource WindowBackBrush}"
                                   SelectedItem="{Binding SelectedFile}"
-                                  ItemContainerStyle="{DynamicResource Win11ListViewItemStyle}"
+                                  ItemContainerStyle="{StaticResource FileListItemStyle}"
                                   ContextMenu="{StaticResource FileContextMenu}"
                                   MouseDoubleClick="FileList_MouseDoubleClick"
                                   AllowDrop="True"
                                   Drop="FileList_Drop"
+                                  ItemsSource="{Binding Files}"
                                   DragOver="FileList_DragOver"
                                   GridViewColumnHeader.Click="GridViewColumnHeader_Click"
-                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" d:ItemsSource="{d:SampleData ItemCount=5}" >
+                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}"
+                                  SelectionMode="Extended"
+                                  helper:ListViewSelectionHelper.EnableDragSelection="True"
+                                  SelectionChanged="FileList_SelectionChanged">
                             <ListView.View>
                                 <GridView ColumnHeaderContainerStyle="{DynamicResource Win11GridViewColumnHeaderStyle}">
-                                    <GridViewColumn Width="{Binding DataContext.MultiSelectEnabled, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToGridLengthConverter}}">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                          Click="FileItemCheckBox_Click"
-                                                          VerticalAlignment="Center"
-                                                          Visibility="{Binding DataContext.MultiSelectEnabled, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolToVisibleConverter}}"/>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
                                     <GridViewColumn Header="{DynamicResource ColumnType}" Width="60">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}"
-                                                       Width="24" Height="24"
+                                                       Width="19" Height="19"
                                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
-                                    <GridViewColumn x:Name="NameColumn" Header="{DynamicResource ColumnName}" Width="450" DisplayMemberBinding="{Binding Name}"/>
-                                    <GridViewColumn Header="{DynamicResource ColumnStatus}" Width="Auto">
+                                    <GridViewColumn Header="{DynamicResource ColumnName}" Width="200" DisplayMemberBinding="{Binding Name}" xmlns:conv="clr-namespace:SVNFileBox.Converters" conv:GridViewColumnAttach.IsFillColumn="True"/>
+                                    <GridViewColumn Header="{DynamicResource ColumnStatus}" Width="50">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Border Background="{Binding SvnStatus, Converter={StaticResource SvnStatusToColorConverter}}"
@@ -277,27 +497,9 @@
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
-                                    <GridViewColumn Header="{DynamicResource ColumnSize}" Width="110" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
-                                    <GridViewColumn Header="{DynamicResource ColumnModified}" Width="180" DisplayMemberBinding="{Binding LastModifiedDisplay}"/>
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
-
-                        <!-- Sync Records List -->
-                        <ListView x:Name="SyncRecordList"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  ItemContainerStyle="{DynamicResource Win11ListViewItemStyle}"
-                                  ItemsSource="{Binding SyncRecords}"
-                                  Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToVisibleConverter}}">
-                            <ListView.View>
-                                <GridView ColumnHeaderContainerStyle="{DynamicResource Win11GridViewColumnHeaderStyle}">
-                                    <GridViewColumn Header="{DynamicResource ColTime}" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
-                                    <GridViewColumn Header="{DynamicResource ColRepo}" Width="100" DisplayMemberBinding="{Binding RepoName}"/>
-                                    <GridViewColumn Header="{DynamicResource ColFile}" Width="280" DisplayMemberBinding="{Binding FilePath}"/>
-                                    <GridViewColumn Header="{DynamicResource ColOperation}" Width="100" DisplayMemberBinding="{Binding OperationDisplay}"/>
-                                    <GridViewColumn Header="{DynamicResource ColResult}" Width="80" DisplayMemberBinding="{Binding ResultDisplay}"/>
-                                    <GridViewColumn Header="{DynamicResource ColDetail}" Width="200" DisplayMemberBinding="{Binding Message}"/>
+                                    <GridViewColumn Header="{DynamicResource ColumnSize}" Width="100" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
+                                    <GridViewColumn Header="{DynamicResource ColumnModified}" Width="150" DisplayMemberBinding="{Binding LastModifiedDisplay}" />
+                                    <GridViewColumn Header="{DynamicResource ColumnFileType}" Width="100" DisplayMemberBinding="{Binding TypeDisplay}"/>
                                 </GridView>
                             </ListView.View>
                         </ListView>
@@ -305,7 +507,7 @@
                 </Border>
 
                 <!-- Status Bar (bottom of right column) -->
-                <Border Grid.Row="1" Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="0,0,8,8" Padding="12,6">
+                <Border Grid.Row="1" Background="{DynamicResource WindowBackBrush}" Margin="0,0,8,8" Padding="12,6" BorderBrush="{DynamicResource TextBoxBorderBrush}" BorderThickness="1">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

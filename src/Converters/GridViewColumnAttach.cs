@@ -5,8 +5,9 @@ using System.Windows.Controls;
 namespace SVNFileBox.Converters;
 
 /// <summary>
-/// Attached property to store the sort binding path on GridViewColumn,
-/// since GridViewColumn itself has no Tag property.
+/// Attached properties for GridViewColumn behavior.
+/// IsFillColumn: marks a column to auto-stretch and fill remaining width
+/// </summary>
 public static class GridViewColumnAttach
 {
     public static readonly DependencyProperty SortPropertyPathProperty =
@@ -21,4 +22,17 @@ public static class GridViewColumnAttach
 
     public static string? GetSortPropertyPath(DependencyObject element)
         => element.GetValue(SortPropertyPathProperty) as string;
+
+    public static readonly DependencyProperty IsFillColumnProperty =
+        DependencyProperty.RegisterAttached(
+            "IsFillColumn",
+            typeof(bool),
+            typeof(GridViewColumnAttach),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static void SetIsFillColumn(DependencyObject element, bool value)
+        => element.SetValue(IsFillColumnProperty, value);
+
+    public static bool GetIsFillColumn(DependencyObject element)
+        => (bool)element.GetValue(IsFillColumnProperty);
 }

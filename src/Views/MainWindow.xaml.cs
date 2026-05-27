@@ -60,24 +60,13 @@ public partial class MainWindow : Window
             }
         }
 
-        // Inject system icons (or emoji fallback) into the "新建" submenu — once
-        // 动态查找 NewMenuItem，用 LogicalTreeHelper 避免 x:Name 字段生成问题
-        var newMenu = LogicalTreeHelper.FindLogicalNode(cm, "NewMenuItem") as MenuItem;
-        // 检查子项是否已有图标（已有注入则跳过）
-        var firstChild = newMenu?.Items.Count > 0 ? newMenu!.Items[0] as MenuItem : null;
-        if (firstChild?.Icon == null)
-            InjectIconsOnFirstOpen(newMenu!);
+
     }
 
     public MainWindow()
     {
         InitializeComponent();
         Loaded += OnLoaded;
-    }
-
-    private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        // Removed: no longer auto-fill columns on resize
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -139,95 +128,9 @@ public partial class MainWindow : Window
 
     // ---- Icon injection helpers ----
 
-    // 新建菜单：Resource key → 扩展名映射（用于图标匹配）
-    private static readonly Dictionary<string, string> _newMenuResourceKeyToExt = new()
-    {
-        { "NewTextFile",   ".txt"  },
-        { "NewWordDoc",    ".docx" },
-        { "NewExcelSheet", ".xlsx" },
-        { "NewPowerPoint", ".pptx" },
-        { "NewPngImage",   ".png"  },
-        { "NewBmpImage",   ".bmp"  },
-    };
+    
 
-    /// <summary>
-    /// 首次打开右键菜单时注入系统图标（提取失败则降级为 emoji）。
-    /// 调用一次后即停止再次注入。
-    /// </summary>
-    private void InjectIconsOnFirstOpen(ItemsControl menu)
-    {
-        // Guard: 由调用方 ContextMenu_Opened 通过 firstChild?.Icon == null 保证，
-        // 这里不再检查父 Icon，避免 XAML 已设 Icon 时阻止子项注入
 
-        foreach (var item in menu.Items)
-        {
-            if (item is MenuItem mi)
-            {
-                if (mi.Items.Count > 0)
-                {
-                    // 有子项 → 递归处理子项（父 Icon 已由 XAML 设置）
-                    foreach (var child in mi.Items)
-                    {
-                        if (child is MenuItem childMi)
-                        {
-                            InjectIconsOnFirstOpen(childMi);
-                        }
-                    }
-                }
-                else
-                {
-                    // 无子项的叶子 MenuItem → 直接按 Name 匹配设置图标
-                    ApplyIconByExt(mi);
-                }
-            }
-        }
-    }
-
-    private void ApplyIconByExt(MenuItem mi)
-    {
-        // 1. 优先用 x:Name 匹配（NewTextFileMenuItem → NewTextFile）
-        string? ext = null;
-        foreach (var kv in _newMenuResourceKeyToExt)
-        {
-            if (mi.Name?.StartsWith(kv.Key) == true)
-            {
-                ext = kv.Value;
-                break;
-            }
-        }
-
-        // 2. 用 Header 直接匹配（兼容本地化）
-        if (ext == null)
-        {
-            foreach (var kv in _newMenuResourceKeyToExt)
-            {
-                if (kv.Key.Equals(mi.Header as string, StringComparison.OrdinalIgnoreCase))
-                {
-                    ext = kv.Value;
-                    break;
-                }
-            }
-        }
-
-        if (ext == null)
-            return;
-
-        var icon = IconExtractor.GetIcon(ext);
-
-        if (icon is System.Windows.Media.ImageSource img)
-        {
-            // WPF MenuItem.Icon 需要包在 Image 控件里才能正确渲染 ImageSource
-            var image = new System.Windows.Controls.Image
-            {
-                Source = img,
-                Width = 16,
-                Height = 16
-            };
-            mi.Icon = image;
-        }
-        else if (icon is string emoji)
-            mi.Icon = emoji;
-    }
 
     private async void OnConflictDetected(object? sender, List<ConflictedFileInfo> conflicts)
     {
@@ -301,6 +204,24 @@ public partial class MainWindow : Window
     {
         if (RepoList.SelectedItem is Repository repo)
             _viewModel!.SelectedRepository = repo;
+    }
+
+    private void FileList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_viewModel == null) return;
+
+        // Get the list of currently selected items from the ListView
+        var selectedItems = FileList.SelectedItems.Cast<FileItem>().ToList();
+
+        // Update IsSelected flag on each FileItem to match ListView selection
+        foreach (var item in _viewModel.Files)
+        {
+            item.IsSelected = selectedItems.Contains(item);
+        }
+
+        _viewModel.SelectedItems.Clear();
+        foreach (var item in selectedItems)
+            _viewModel.SelectedItems.Add(item);
     }
 
     private void FileList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -398,9 +319,44 @@ public partial class MainWindow : Window
         ApplySort(FileList!, sortProperty);
     }
 
-    private void FileList_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void AdjustFillColumn()
     {
-        // Removed: no longer auto-fill columns
+        // Handle whichever list is currently visible (FileList or SyncRecordList)
+        ListView? activeList = FileList;
+        if (SyncRecordList.Visibility == System.Windows.Visibility.Visible)
+            activeList = SyncRecordList;
+
+        var gv = activeList?.View as GridView;
+        if (gv == null) return;
+
+        // Find the fill column
+        GridViewColumn? fillCol = null;
+        int fillIndex = -1;
+        for (int i = 0; i < gv.Columns.Count; i++)
+        {
+            if (SVNFileBox.Converters.GridViewColumnAttach.GetIsFillColumn(gv.Columns[i]))
+            {
+                fillCol = gv.Columns[i];
+                fillIndex = i;
+                break;
+            }
+        }
+        if (fillCol == null || fillIndex < 0) return;
+
+        // Sum widths of all other columns
+        double otherWidth = 0;
+        for (int i = 0; i < gv.Columns.Count; i++)
+        {
+            if (i == fillIndex) continue;
+            otherWidth += gv.Columns[i].Width;
+        }
+
+        // Account for scrollbar if content overflows
+        double scrollbar = activeList!.Items.Count > 0
+            ? SystemParameters.VerticalScrollBarWidth : 0;
+
+        double available = activeList!.ActualWidth - otherWidth - scrollbar;
+        fillCol.Width = Math.Max(100, available);
     }
 
     private void AdjustNameColumnWidth()
@@ -1230,89 +1186,6 @@ public partial class MainWindow : Window
             File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
         Directory.Delete(path, recursive: true);
     }
-    // ─── Multi-select toolbar handlers ─────────────────────────────────────────
-    private void SelectAllCheckBox_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel == null) return;
-        if (SelectAllCheckBox.IsChecked == true)
-            _viewModel.SelectAll();
-        else
-            _viewModel.ClearSelection();
-        UpdateToolbarButtons();
-    }
-
-    private void FileItemCheckBox_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel == null || sender is not CheckBox cb) return;
-        if (cb.DataContext is FileItem item)
-        {
-            // IsSelected has already been updated by the TwoWay binding above.
-            // Just sync SelectedItems collection to match current IsSelected,
-            // then refresh toolbar.
-            if (item.IsSelected)
-            {
-                if (!_viewModel.SelectedItems.Contains(item))
-                    _viewModel.SelectedItems.Add(item);
-            }
-            else
-            {
-                _viewModel.SelectedItems.Remove(item);
-            }
-            UpdateToolbarButtons();
-        }
-    }
-
-    private void UpdateToolbarButtons()
-    {
-        if (_viewModel == null) return;
-        var count = _viewModel.SelectedCount;
-        MultiDeleteButton.IsEnabled = count > 0;
-        MultiCopyButton.IsEnabled = count > 0;
-        MultiMoveButton.IsEnabled = count > 0;
-        MultiZipButton.IsEnabled = count > 0;
-        MultiDeleteButton.Content = count > 0 ? $"🗑 删除({count})" : "🗑 删除";
-        MultiCopyButton.Content = count > 0 ? $"📋 复制({count})" : "📋 复制";
-        MultiMoveButton.Content = count > 0 ? $"📁 移动({count})" : "📁 移动";
-        MultiZipButton.Content = count > 0 ? $"📦 压缩({count})" : "📦 压缩";
-        SelectAllCheckBox.IsChecked = count > 0 && _viewModel.Files.All(f => f.IsParentDirectory || f.IsSelected);
-    }
-
-    private async void MultiDelete_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel == null) return;
-        var items = _viewModel.GetSelectedItemsForOperation().ToList();
-        if (items.Count == 0) return;
-        await DeleteFilesAsync(items);
-    }
-
-    private void MultiCopy_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel == null) return;
-        var items = _viewModel.GetSelectedItemsForOperation().ToList();
-        if (items.Count == 0) return;
-        try
-        {
-            var files = new System.Collections.Specialized.StringCollection();
-            foreach (var item in items)
-                files.Add(item.FullPath);
-            Clipboard.SetFileDropList(files);
-            var name = items.Count > 1 ? $"{items.Count} {LocalizationService.Instance.GetString("Files")}" : items[0].Name;
-            ShowToast(LocalizationService.Instance.GetString("CopiedToClipboard", name));
-            _viewModel.SetTransientStatus(LocalizationService.Instance.GetString("CopiedToClipboard", name));
-        }
-        catch (Exception ex) { Log.Error(ex, "MultiCopy failed"); }
-    }
-
-    private void MultiMove_Click(object sender, RoutedEventArgs e)
-    {
-        // TODO: open folder browser for multi-file move
-    }
-
-    private void MultiZip_Click(object sender, RoutedEventArgs e)
-    {
-        // AddToZip_Click already reads GetSelectedItemsForOperation(), call it directly
-        AddToZip_Click(sender, e);
-    }
 
     private class RelayCommand : ICommand
     {
@@ -1322,4 +1195,5 @@ public partial class MainWindow : Window
         public bool CanExecute(object? parameter) => true;
         public void Execute(object? parameter) => _execute(parameter);
     }
+
 }

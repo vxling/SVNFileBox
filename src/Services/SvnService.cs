@@ -125,20 +125,22 @@ public class SvnService : IDisposable
                         (path == workingCopyPath || path.EndsWith(".")))
                         return;
 
-                    var svnStatus = item.LocalNodeStatus switch
-                    {
-                        SharpSvnStatus.Modified    => FileSvnStatus.Modified,
-                        SharpSvnStatus.Added       => FileSvnStatus.Added,
-                        SharpSvnStatus.Deleted     => FileSvnStatus.Deleted,
-                        SharpSvnStatus.Conflicted  => FileSvnStatus.Conflicted,
-                        SharpSvnStatus.NotVersioned=> FileSvnStatus.Unversioned,
-                        SharpSvnStatus.Missing      => FileSvnStatus.Missing,
-                        SharpSvnStatus.Replaced     => FileSvnStatus.Replaced,
-                        SharpSvnStatus.Obstructed  => FileSvnStatus.Obstructed,
-                        SharpSvnStatus.External     => FileSvnStatus.External,
-                        SharpSvnStatus.Incomplete   => FileSvnStatus.Incomplete,
-                        _                           => FileSvnStatus.Normal
-                    };
+                    var svnStatus = item.TreeConflict != null
+                        ? FileSvnStatus.TreeConflicted
+                        : item.LocalNodeStatus switch
+                        {
+                            SharpSvnStatus.Modified    => FileSvnStatus.Modified,
+                            SharpSvnStatus.Added       => FileSvnStatus.Added,
+                            SharpSvnStatus.Deleted     => FileSvnStatus.Deleted,
+                            SharpSvnStatus.Conflicted  => FileSvnStatus.Conflicted,
+                            SharpSvnStatus.NotVersioned=> FileSvnStatus.Unversioned,
+                            SharpSvnStatus.Missing      => FileSvnStatus.Missing,
+                            SharpSvnStatus.Replaced     => FileSvnStatus.Replaced,
+                            SharpSvnStatus.Obstructed  => FileSvnStatus.Obstructed,
+                            SharpSvnStatus.External     => FileSvnStatus.External,
+                            SharpSvnStatus.Incomplete   => FileSvnStatus.Incomplete,
+                            _                           => FileSvnStatus.Normal
+                        };
 
                     if (svnStatus != FileSvnStatus.Normal)
                         statuses[path] = svnStatus;
@@ -383,7 +385,7 @@ public class SvnService : IDisposable
 
                 foreach (var item in conflictedResults)
                 {
-                    if (item.LocalNodeStatus == SharpSvnStatus.Conflicted && !string.IsNullOrEmpty(item.Path))
+                    if ((item.LocalNodeStatus == SharpSvnStatus.Conflicted || item.TreeConflict != null) && !string.IsNullOrEmpty(item.Path))
                         files.Add(item.Path);
                 }
             }

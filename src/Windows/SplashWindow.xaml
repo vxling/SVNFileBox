@@ -1,6 +1,7 @@
 <Window x:Class="SVNFileBox.Windows.SplashWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource WindowBackBrush}"
         Title="SVNFileBox"
         Height="280" Width="420"
         WindowStartupLocation="CenterScreen"
@@ -38,7 +39,7 @@
                      Grid.Row="2"
                      Height="4" Margin="40,0,40,0"
                      Minimum="0" Maximum="100" Value="0"
-                     Background="#1565C0" Foreground="#BBDEFB"/>
+                     Background="#1565C0" Foreground="#BBDEFB" Style="{DynamicResource Win11ProgressBarStyle}"/>
 
         <!-- Bottom step indicator -->
         <StackPanel Grid.Row="3" Margin="0,12,0,20">

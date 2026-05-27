@@ -20,4 +20,8 @@ public class ConflictedFileInfo
 
     /// <summary>True if local modified time is strictly later than server.</summary>
     public bool LocalIsNewer => LocalModifiedTime > ServerModifiedTime;
+    public bool IsTreeConflict { get; set; }
+
+    /// <summary>For tree conflicts: "dir edit, incoming dir delete or move upon update"</summary>
+    public string? TreeConflictDescription { get; set; }
 }
