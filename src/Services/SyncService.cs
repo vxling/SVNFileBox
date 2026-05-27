@@ -611,6 +611,8 @@ public class SyncService : IDisposable
                 {
                     var info = await CreateConflictedFileInfoAsync(kvp.Key);
                     info.IsTreeConflict = svnStatus == FileSvnStatus.TreeConflicted;
+                    if (info.IsTreeConflict)
+                        info.TreeConflictDescription = LocalizationService.Instance.GetString("TreeConflictKeepLocalOnly");
                     conflictInfo.Add(info);
                 }
             }
@@ -663,8 +665,9 @@ public class SyncService : IDisposable
                 {
                     case ConflictResolution.KeepLocal:
                     {
-                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: SharpSvn.SvnAccept.MineFull)).Success;
-                        if (!resolved) Log.Warning("Resolve(MineFull) returned false for {File}", info.FilePath);
+                        var accept = info.IsTreeConflict ? SharpSvn.SvnAccept.Working : SharpSvn.SvnAccept.MineFull;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: accept)).Success;
+                        if (!resolved) Log.Warning("Resolve({Accept}) returned false for {File}", accept, info.FilePath);
                         var committed = (await _syncExecutor.ExecuteAsync(SvnCommand.Commit, parentDir,
                             message: $"Auto-sync: [Conflict Resolved — Kept Local] {fileName}")).Success;
                         Log.Information("Conflict KeepLocal: {File}, resolve={Resolved}, commit={Committed}",

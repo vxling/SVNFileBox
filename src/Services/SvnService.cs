@@ -125,9 +125,7 @@ public class SvnService : IDisposable
                         (path == workingCopyPath || path.EndsWith(".")))
                         return;
 
-                    var svnStatus = item.TreeConflict != null
-                        ? FileSvnStatus.TreeConflicted
-                        : item.LocalNodeStatus switch
+                    var svnStatus =  item.LocalNodeStatus switch
                         {
                             SharpSvnStatus.Modified    => FileSvnStatus.Modified,
                             SharpSvnStatus.Added       => FileSvnStatus.Added,
@@ -143,14 +141,14 @@ public class SvnService : IDisposable
                         };
 
                     if (svnStatus != FileSvnStatus.Normal)
-                        statuses[path] = svnStatus;
+                        statuses[path] = (svnStatus != FileSvnStatus.Conflicted && item.Conflicted == true) ? FileSvnStatus.TreeConflicted : svnStatus;
                 });
 
                 client.Status(workingCopyPath, new SvnStatusArgs
                 {
                     Depth = depth? SvnDepth.Infinity:SvnDepth.Children,
                     RetrieveAllEntries = true,
-                    RetrieveRemoteStatus = true,
+                    RetrieveRemoteStatus = depth,
                 }, handler);
             }
             catch (Exception ex)

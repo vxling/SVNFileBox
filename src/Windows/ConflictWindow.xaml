@@ -64,16 +64,23 @@
                                                     <DataTrigger Binding="{Binding LocalIsNewer}" Value="True">
                                                         <Setter Property="Background" Value="{DynamicResource WarningBackgroundBrush}"/>
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsTreeConflict}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource WarningBackgroundBrush}"/>
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock Text="{Binding LocalIsNewer, Converter={StaticResource LocalIsNewerToSuggestionConverter}}"
-                                                   FontSize="11">
+                                        <TextBlock FontSize="11">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="{DynamicResource InfoForegroundBrush}"/>
+                                                    <Setter Property="Text" Value="{Binding LocalIsNewer, Converter={StaticResource LocalIsNewerToSuggestionConverter}}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding LocalIsNewer}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource WarningForegroundBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsTreeConflict}" Value="True">
+                                                            <Setter Property="Text" Value="{Binding TreeConflictDescription}"/>
                                                             <Setter Property="Foreground" Value="{DynamicResource WarningForegroundBrush}"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
@@ -83,15 +90,41 @@
                                     </Border>
 
                                     <!-- Resolution selector -->
-                                    <ComboBox Grid.Column="2" VerticalAlignment="Center"
-                                              SelectedValue="{Binding SelectedResolution}"
-                                              SelectedValuePath="Tag"
-                                              Width="140"
-                                              Style="{DynamicResource Win11ComboBoxStyle}">
-                                        <ComboBoxItem Content="{DynamicResource KeepLocal}" Tag="{x:Static local:ConflictResolution.KeepLocal}" Style="{DynamicResource Win11ComboBoxStyle}"/>
-                                        <ComboBoxItem Content="{DynamicResource AcceptServer}" Tag="{x:Static local:ConflictResolution.AcceptServer}" Style="{DynamicResource Win11ComboBoxStyle}"/>
-                                        <ComboBoxItem Content="{DynamicResource KeepBoth}" Tag="{x:Static local:ConflictResolution.KeepBoth}" Style="{DynamicResource Win11ComboBoxStyle}"/>
-                                    </ComboBox>
+                                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                                        <!-- Normal conflict: full ComboBox -->
+                                        <ComboBox SelectedValue="{Binding SelectedResolution}"
+                                                  SelectedValuePath="Tag"
+                                                  Width="140">
+                                            <ComboBox.Style>
+                                                <Style TargetType="ComboBox" BasedOn="{StaticResource Win11ComboBoxStyle}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsTreeConflict}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ComboBox.Style>
+                                            <ComboBoxItem Content="{DynamicResource KeepLocal}" Tag="{x:Static local:ConflictResolution.KeepLocal}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
+                                            <ComboBoxItem Content="{DynamicResource AcceptServer}" Tag="{x:Static local:ConflictResolution.AcceptServer}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
+                                            <ComboBoxItem Content="{DynamicResource KeepBoth}" Tag="{x:Static local:ConflictResolution.KeepBoth}" Style="{DynamicResource Win11ComboBoxItemStyle}"/>
+                                        </ComboBox>
+                                        <!-- Tree conflict: read-only indicator -->
+                                        <TextBlock VerticalAlignment="Center" FontSize="12">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                    <Setter Property="Text" Value="{DynamicResource TreeConflictKeepLocalOnly}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsTreeConflict}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
                                 </Grid>
                             </Border>
                         </DataTemplate>
