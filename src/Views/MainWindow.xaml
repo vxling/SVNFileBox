@@ -425,7 +425,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="{DynamicResource Path}" FontSize="12" Margin="0,0,8,0"/>
-                                    <TextBlock x:Name="PathText" Text="" FontSize="13"/>
+                                    <TextBox x:Name="PathTextBox" Text="" IsReadOnly="True" Padding="4,3" FontSize="13" BorderThickness="0" Background="Transparent" Style="{DynamicResource Win11TextBoxStyle}"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" x:Name="RefreshListButton" Content="{DynamicResource Refresh}" Click="Refresh_Click" Padding="12,6"
                                         Visibility="{Binding ShowSyncRecords, Converter={StaticResource BoolToCollapsedConverter}}" Style="{DynamicResource Win11NormalButtonStyle}"/>

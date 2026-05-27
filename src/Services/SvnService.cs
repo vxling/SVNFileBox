@@ -150,6 +150,7 @@ public class SvnService : IDisposable
                 {
                     Depth = depth? SvnDepth.Infinity:SvnDepth.Children,
                     RetrieveAllEntries = true,
+                    RetrieveRemoteStatus = true,
                 }, handler);
             }
             catch (Exception ex)

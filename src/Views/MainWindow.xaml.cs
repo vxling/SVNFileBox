@@ -86,8 +86,14 @@ public partial class MainWindow : Window
         {
             Dispatcher.Invoke(() =>
             {
-                if (ev.PropertyName == nameof(MainViewModel.CurrentPath))
-                    PathText.Text = _viewModel.CurrentPath;
+                    if (ev.PropertyName == nameof(MainViewModel.CurrentPath))
+                    {
+                        var repoRoot = _viewModel.SelectedRepository?.Path ?? "";
+                        if (!string.IsNullOrEmpty(repoRoot) && _viewModel.CurrentPath.StartsWith(repoRoot, StringComparison.OrdinalIgnoreCase))
+                            PathTextBox.Text = _viewModel.CurrentPath.Substring(repoRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                        else
+                            PathTextBox.Text = _viewModel.CurrentPath;
+                    }
                 else if (ev.PropertyName == nameof(MainViewModel.StatusText))
                     StatusTextBlock.Text = _viewModel.StatusText;
                 else if (ev.PropertyName == nameof(MainViewModel.ItemCountText))
