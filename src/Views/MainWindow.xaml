@@ -447,7 +447,7 @@
                                 <GridView ColumnHeaderContainerStyle="{DynamicResource Win11GridViewColumnHeaderStyle}">
                                     <GridViewColumn Header="{DynamicResource ColTime}" Width="150" DisplayMemberBinding="{Binding TimestampDisplay}"/>
                                     <GridViewColumn Header="{DynamicResource ColRepo}" Width="100" DisplayMemberBinding="{Binding RepoName}"/>
-                                    <GridViewColumn Header="{DynamicResource ColFile}" Width="280" DisplayMemberBinding="{Binding FilePath}"/>
+                                    <GridViewColumn Header="{DynamicResource ColFile}" Width="220" DisplayMemberBinding="{Binding FilePath}"/>
                                     <GridViewColumn Header="{DynamicResource ColOperation}" Width="100" DisplayMemberBinding="{Binding OperationDisplay}"/>
                                     <GridViewColumn Header="{DynamicResource ColResult}" Width="80" DisplayMemberBinding="{Binding ResultDisplay}"/>
                                     <GridViewColumn Header="{DynamicResource ColDetail}" Width="200" DisplayMemberBinding="{Binding Message}" xmlns:conv="clr-namespace:SVNFileBox.Converters" conv:GridViewColumnAttach.IsFillColumn="True"/>
@@ -474,7 +474,7 @@
                                   SelectionChanged="FileList_SelectionChanged">
                             <ListView.View>
                                 <GridView ColumnHeaderContainerStyle="{DynamicResource Win11GridViewColumnHeaderStyle}">
-                                    <GridViewColumn Header="{DynamicResource ColumnType}" Width="60">
+                                    <GridViewColumn Header="{DynamicResource ColumnType}" Width="50">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Image Source="{Binding Converter={StaticResource FileTypeIconConverter}}"
@@ -483,7 +483,7 @@
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
-                                    <GridViewColumn Header="{DynamicResource ColumnName}" Width="200" DisplayMemberBinding="{Binding Name}" xmlns:conv="clr-namespace:SVNFileBox.Converters" conv:GridViewColumnAttach.IsFillColumn="True"/>
+                                    <GridViewColumn Header="{DynamicResource ColumnName}" Width="290" DisplayMemberBinding="{Binding Name}" xmlns:conv="clr-namespace:SVNFileBox.Converters" conv:GridViewColumnAttach.IsFillColumn="True"/>
                                     <GridViewColumn Header="{DynamicResource ColumnStatus}" Width="50">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
@@ -497,7 +497,7 @@
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
-                                    <GridViewColumn Header="{DynamicResource ColumnSize}" Width="100" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
+                                    <GridViewColumn Header="{DynamicResource ColumnSize}" Width="70" DisplayMemberBinding="{Binding FileSizeDisplay}"/>
                                     <GridViewColumn Header="{DynamicResource ColumnModified}" Width="150" DisplayMemberBinding="{Binding LastModifiedDisplay}" />
                                     <GridViewColumn Header="{DynamicResource ColumnFileType}" Width="100" DisplayMemberBinding="{Binding TypeDisplay}"/>
                                 </GridView>

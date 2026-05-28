@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Timers;
+using System.Windows.Shapes;
 using Serilog;
 
 namespace SVNFileBox.Services;
@@ -128,7 +129,7 @@ public class FileWatcherService : IDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        if (IsSvnDirectory(e.FullPath)) return;
+        if (IsSvnDirectory(e.FullPath) || IsTempFile(e.FullPath)) return;
 
         lock (_lock)
         {
@@ -140,7 +141,7 @@ public class FileWatcherService : IDisposable
 
     private void OnFileRenamed(object sender, RenamedEventArgs e)
     {
-        if (IsSvnDirectory(e.FullPath)) return;
+        if (IsSvnDirectory(e.FullPath) || IsTempFile(e.FullPath)) return;
 
         lock (_lock)
         {
@@ -204,5 +205,17 @@ public class FileWatcherService : IDisposable
         _debounceTimer.Dispose();
         _retryTimer.Stop();
         _retryTimer.Dispose();
+    }
+
+    private bool IsTempFile(string path)
+    {
+        var normalized = path.Replace('\\', '/');
+        var fileName = normalized.Split('/').Last();
+
+        return fileName.StartsWith("~$")        // Office 锁文件
+            || fileName.StartsWith("~")         // WPS 临时文件
+            || fileName.EndsWith(".tmp")        // 系统临时文件
+            || fileName.EndsWith(".temp")
+            || fileName.Equals(".DS_Store");         // Mac 遗留
     }
 }

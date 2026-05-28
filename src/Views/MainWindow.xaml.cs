@@ -90,7 +90,7 @@ public partial class MainWindow : Window
                     {
                         var repoRoot = _viewModel.SelectedRepository?.Path ?? "";
                         if (!string.IsNullOrEmpty(repoRoot) && _viewModel.CurrentPath.StartsWith(repoRoot, StringComparison.OrdinalIgnoreCase))
-                            PathTextBox.Text = _viewModel.CurrentPath.Substring(repoRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                            PathTextBox.Text = _viewModel.CurrentPath== repoRoot? _viewModel.SelectedRepository?.Name : _viewModel.CurrentPath.Substring(repoRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                         else
                             PathTextBox.Text = _viewModel.CurrentPath;
                     }
@@ -502,6 +502,7 @@ public partial class MainWindow : Window
             Owner = this
         };
         dialog.SetPrompt(LocalizationService.Instance.GetString("NewFolderPrompt"));
+        dialog.SetInput(LocalizationService.Instance.GetString("NewFolder"));
         if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.InputText))
         {
             try

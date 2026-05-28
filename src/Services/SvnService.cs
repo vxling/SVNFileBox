@@ -148,7 +148,7 @@ public class SvnService : IDisposable
                 {
                     Depth = depth? SvnDepth.Infinity:SvnDepth.Children,
                     RetrieveAllEntries = true,
-                    RetrieveRemoteStatus = depth,
+                    // RetrieveRemoteStatus = depth,
                 }, handler);
             }
             catch (Exception ex)
@@ -639,8 +639,15 @@ public class SvnService : IDisposable
                     TryCleanStaleLocks(workingCopyPath);
                     return ExecuteSvnWithNotify(client =>
                     {
-                        var args = new SvnCommitArgs { LogMessage = message };
-                        return client.Commit(workingCopyPath, args);
+                        try
+                        {
+                            var args = new SvnCommitArgs { LogMessage = message };
+                            return client.Commit(workingCopyPath, args);
+                        }catch (SvnWorkingCopyException e) when (e.Message.Contains("tree-conflict") || (e.InnerException != null && e.InnerException.Message.Contains("tree-conflict")))
+                        {
+                            Log.Error("[CommitAsync] Tree-conflict detected for {Path}，message {Message}", workingCopyPath, e.Message);
+                            return false;
+                        }
                     }, token, progressCts);
                 },
                 workingCopyPath,

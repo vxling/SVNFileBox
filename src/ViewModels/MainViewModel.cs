@@ -341,10 +341,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 });
             }
 
-            // Files
+            // Files — skip Office temp files (~$*.docx, ~$*.xlsx, etc.)
             foreach (var file in dirInfo.GetFiles())
             {
-                if (file.Name.StartsWith(".")) continue;
+                if (file.Name.StartsWith(".") || file.Name.StartsWith("~$")) continue;
                 items.Add(new FileItem
                 {
                     Name = file.Name,

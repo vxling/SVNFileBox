@@ -276,7 +276,8 @@ public class SyncService : IDisposable
 
             foreach (var (filePath, _) in unversionedFiles)
             {
-                _ = _syncExecutor.ExecuteAsync(SvnCommand.Add, filePath);
+                if (!IsTempFile(filePath))
+                    _ = _syncExecutor.ExecuteAsync(SvnCommand.Add, filePath);
                 Log.Debug("[ScanAndCommit] Enqueued Add for unversioned: {Path}", filePath);
             }
 
@@ -330,6 +331,17 @@ public class SyncService : IDisposable
         }
     }
 
+    private bool IsTempFile(string path)
+    {
+        var normalized = path.Replace('\\', '/');
+        var fileName = normalized.Split('/').Last();
+
+        return fileName.StartsWith("~$")        // Office 锁文件
+            || fileName.StartsWith("~")         // WPS 临时文件
+            || fileName.EndsWith(".tmp")        // 系统临时文件
+            || fileName.EndsWith(".temp")
+            || fileName.Equals(".DS_Store");         // Mac 遗留
+    }
     private void Notify(string message) => SyncNotification?.Invoke(this, message);
 
     #endregion
@@ -676,9 +688,13 @@ public class SyncService : IDisposable
                     }
                     case ConflictResolution.AcceptServer:
                     {
-                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: SharpSvn.SvnAccept.TheirsFull)).Success;
-                        if (!resolved) Log.Warning("Resolve(TheirsFull) returned false for {File}", info.FilePath);
-                        Log.Information("Conflict AcceptServer: {File}, resolved={Resolved}", info.FilePath, resolved);
+                        // Tree conflicts can ONLY be resolved with SvnAccept.Working (keep local).
+                        // SharpSVN rejects other accept options for tree conflicts.
+                        var accept = info.IsTreeConflict ? SharpSvn.SvnAccept.Working : SharpSvn.SvnAccept.TheirsFull;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: accept)).Success;
+                        if (!resolved) Log.Warning("Resolve({Accept}) returned false for {File}", accept, info.FilePath);
+                        Log.Information("Conflict AcceptServer: {File}, resolved={Resolved}, isTreeConflict={IsTree}",
+                            info.FilePath, resolved, info.IsTreeConflict);
                         break;
                     }
                     case ConflictResolution.KeepBoth:
@@ -686,9 +702,11 @@ public class SyncService : IDisposable
                         var backupPath = info.FilePath + $".local-backup-{DateTime.UtcNow:yyyyMMddHHmmss}";
                         File.Copy(info.FilePath, backupPath, overwrite: true);
                         Log.Information("Conflict KeepBoth: copied {Original} → {Backup}", info.FilePath, backupPath);
-                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: SharpSvn.SvnAccept.TheirsFull)).Success;
-                        Log.Information("Conflict KeepBoth: {File} accepted server, resolved={Resolved}",
-                            info.FilePath, resolved);
+                        // Tree conflicts require SvnAccept.Working; fall back to Working for tree conflicts
+                        var accept = info.IsTreeConflict ? SharpSvn.SvnAccept.Working : SharpSvn.SvnAccept.TheirsFull;
+                        var resolved = (await _syncExecutor.ExecuteAsync(SvnCommand.Resolve, info.FilePath, accept: accept)).Success;
+                        Log.Information("Conflict KeepBoth: {File} accepted {Accept}, resolved={Resolved}, isTreeConflict={IsTree}",
+                            info.FilePath, accept, resolved, info.IsTreeConflict);
                         break;
                     }
                 }

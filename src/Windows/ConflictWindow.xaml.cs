@@ -39,7 +39,13 @@ public partial class ConflictWindow : Window
     private void AcceptAllServer_Click(object sender, RoutedEventArgs e)
     {
         foreach (var c in ConflictFiles)
-            c.SelectedResolution = ConflictResolution.AcceptServer;
+        {
+            // Tree conflicts can only be resolved with Working (keep local) in SVN.
+            // Force KeepLocal for them regardless of the button label.
+            c.SelectedResolution = c.IsTreeConflict
+                ? ConflictResolution.KeepLocal
+                : ConflictResolution.AcceptServer;
+        }
         var list = ConflictFiles;
         ConflictFiles = new ObservableCollection<ConflictedFileInfo>(list);
         DataContext = null;
